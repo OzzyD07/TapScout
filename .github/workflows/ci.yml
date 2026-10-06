@@ -16,9 +16,9 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -27,17 +27,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - name: Guard ground truth isolation
-        run: |
-          if grep -rIl --include='*.ts' --include='*.tsx' --include='*.mjs' --include='*.js' \
-               -e 'quality/ground-truth' -e "from ['\"].*quality/" apps packages scripts; then
-            echo "Runtime code must not reference quality/ground-truth" && exit 1
-          fi
+        run: bash scripts/check-ground-truth.sh
 
   database:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.119.0
       - run: supabase db start
