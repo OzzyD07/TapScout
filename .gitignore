@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+
+# env and secrets — only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# mobile build outputs
+*.apk
+*.aab
+*.ipa
+*.app.zip
+apps/sample-app/android/
+apps/sample-app/ios/
+apps/sample-app/.expo/
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# runner local artifacts
+.artifacts/
+probe-results/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

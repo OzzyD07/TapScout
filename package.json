@@ -1,0 +1,22 @@
+{
+  "name": "autonomous-mobile-qa",
+  "private": true,
+  "description": "Autonomous mobile QA agent for Android and iOS, planned by NVIDIA Nemotron on Nebius Token Factory.",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "probe:models": "node --env-file-if-exists=.env scripts/probe-models.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "typescript": "^5.9.2"
+  }
+}
