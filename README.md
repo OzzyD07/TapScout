@@ -1,6 +1,6 @@
-# Autonomous Mobile QA
+# TapScout
 
-Upload an Android APK and/or an iOS Simulator build, pick test modes, and watch an AI agent explore
+**Autonomous mobile QA agent for Android and iOS.** Upload an Android APK and/or an iOS Simulator build, pick test modes, and watch an AI agent explore
 and test the app on real emulators/simulators — no test scripts required. Every finding comes with
 evidence, reproduction steps and an honest reproduction rate (`Reproduced n/m`).
 

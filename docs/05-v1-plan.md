@@ -1,4 +1,4 @@
-# Otonom Mobil QA — Versiyon 1 Uygulama Planı
+# TapScout (Otonom Mobil QA) — Versiyon 1 Uygulama Planı
 
 Tarih: 6 Ekim 2026  
 Durum: Plan. Bu belge yazılırken kod, servis kurulumu, abonelik ve WarpBuild pilotu yoktur. Tarihler ve kapsam kesintileri öneridir; gate sonuçlarına göre güncellenir.

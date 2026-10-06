@@ -1,7 +1,7 @@
 {
-  "name": "autonomous-mobile-qa",
+  "name": "tapscout",
   "private": true,
-  "description": "Autonomous mobile QA agent for Android and iOS, planned by NVIDIA Nemotron on Nebius Token Factory.",
+  "description": "TapScout: autonomous mobile QA agent for Android and iOS, planned by NVIDIA Nemotron on Nebius Token Factory.",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.6",
   "engines": {

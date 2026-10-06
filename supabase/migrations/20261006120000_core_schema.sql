@@ -1,4 +1,4 @@
--- Core schema for Autonomous Mobile QA (docs/02 §6).
+-- Core schema for TapScout (docs/02 §6).
 -- Writes happen only on the server (secret key) or through the RPCs in the next migration.
 -- Browsers read through RLS: own runs, plus explicitly shared sample runs/builds.
 

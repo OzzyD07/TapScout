@@ -8,7 +8,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "dev.amqa.fieldnotes"
+      "bundleIdentifier": "dev.tapscout.fieldnotes"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "dev.amqa.fieldnotes"
+      "package": "dev.tapscout.fieldnotes"
     },
     "web": {
       "favicon": "./assets/favicon.png"

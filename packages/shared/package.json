@@ -1,5 +1,5 @@
 {
-  "name": "@amqa/shared",
+  "name": "@tapscout/shared",
   "version": "0.1.0",
   "private": true,
   "description": "Versioned contracts shared by web, API, runner, agent and report: events, observations, actions, findings, reports and API DTOs.",
