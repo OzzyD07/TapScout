@@ -21,6 +21,7 @@ const { values } = parseArgs({
     platform: { type: "string" },
     app: { type: "string" },
     udid: { type: "string" },
+    wda: { type: "string" },
     out: { type: "string", default: ".artifacts/smoke" },
     appium: { type: "string", default: "http://127.0.0.1:4723" },
   },
@@ -29,7 +30,7 @@ const { values } = parseArgs({
 const platform = values.platform as DevicePlatform | undefined;
 if ((platform !== "android" && platform !== "ios") || !values.app) {
   console.error(
-    "usage: tapscout-device-smoke --platform android|ios --app <path> [--udid <id>] [--out <dir>]",
+    "usage: tapscout-device-smoke --platform android|ios --app <path> [--udid <id>] [--wda <WebDriverAgentRunner-Runner.app>] [--out <dir>]",
   );
   process.exit(2);
 }
@@ -67,6 +68,7 @@ try {
       appPath: values.app as string,
       udid: values.udid,
       appiumUrl: values.appium,
+      prebuiltWdaPath: values.wda,
     }),
   );
   const s = session;

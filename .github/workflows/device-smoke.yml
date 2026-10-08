@@ -25,6 +25,13 @@ on:
     workflows: [build-sample]
     types: [completed]
     branches: [main]
+  # Re-run against the latest successful sample build when the device layer changes.
+  push:
+    branches: [main]
+    paths:
+      - packages/adapters/**
+      - scripts/ci/**
+      - .github/workflows/device-smoke.yml
 
 permissions:
   contents: read
@@ -142,13 +149,22 @@ jobs:
         run: |
           npm install -g "appium@${APPIUM_VERSION}"
           appium driver install "xcuitest@${XCUITEST_VERSION}"
+      - name: Download prebuilt WebDriverAgent
+        # Avoids building WDA with xcodebuild at session start; falls back to a build if this fails.
+        continue-on-error: true
+        run: |
+          appium driver run xcuitest download-wda -- --outdir="$RUNNER_TEMP/wda" --kind=sim --platform=ios
+          wda=$(find "$RUNNER_TEMP/wda" -maxdepth 2 -name 'WebDriverAgentRunner-Runner.app' | head -1)
+          if [ -n "$wda" ]; then echo "WDA=$wda" >> "$GITHUB_ENV"; echo "prebuilt WDA: $wda"; fi
       - name: Boot simulator
         run: echo "UDID=$(bash scripts/ci/ios-boot-simulator.sh | tail -1)" >> "$GITHUB_ENV"
       - name: Run smoke
         run: |
           bash scripts/ci/start-appium.sh
           status=0
-          node packages/adapters/dist/smoke.js --platform ios --app "$APP" --udid "$UDID" --out "$OUT" || status=$?
+          wda_args=()
+          if [ -n "${WDA:-}" ]; then wda_args=(--wda "$WDA"); fi
+          node packages/adapters/dist/smoke.js --platform ios --app "$APP" --udid "$UDID" --out "$OUT" "${wda_args[@]}" || status=$?
           xcrun simctl spawn "$UDID" log show --last 10m --style compact --predicate 'process == "FieldNotes"' > "$OUT/ios/app-log.txt" 2>/dev/null || true
           kill "$(cat "$OUT/appium.pid")" 2>/dev/null || true
           exit "$status"

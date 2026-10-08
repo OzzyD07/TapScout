@@ -31,5 +31,16 @@ describe("buildCapabilities", () => {
     const ios = buildCapabilities({ platform: "ios", appPath: "A.app", udid: "X" });
     expect(ios["appium:autoAcceptAlerts"]).toBe(false);
     expect(ios["appium:udid"]).toBe("X");
+    expect(ios["appium:usePreinstalledWDA"]).toBeUndefined();
+  });
+
+  it("uses a prebuilt WebDriverAgent when one is given", () => {
+    const ios = buildCapabilities({
+      platform: "ios",
+      appPath: "A.app",
+      prebuiltWdaPath: "/w/WDA.app",
+    });
+    expect(ios["appium:usePreinstalledWDA"]).toBe(true);
+    expect(ios["appium:prebuiltWDAPath"]).toBe("/w/WDA.app");
   });
 });

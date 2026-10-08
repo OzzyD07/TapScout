@@ -6,6 +6,8 @@ export interface SessionOptions {
   appPath: string;
   /** iOS Simulator UDID or Android emulator serial; optional when exactly one device is attached. */
   udid?: string;
+  /** iOS only: prebuilt WebDriverAgentRunner-Runner.app, so no xcodebuild runs at session start. */
+  prebuiltWdaPath?: string;
 }
 
 /**
@@ -38,7 +40,10 @@ export function buildCapabilities(options: SessionOptions): Record<string, unkno
     "appium:automationName": "XCUITest",
     "appium:autoAcceptAlerts": false,
     "appium:autoDismissAlerts": false,
-    // WebDriverAgent is built on first use; small CI machines need generous limits.
+    // Without a prebuilt WDA it is built on first use; small CI machines need generous limits.
+    ...(options.prebuiltWdaPath
+      ? { "appium:usePreinstalledWDA": true, "appium:prebuiltWDAPath": options.prebuiltWdaPath }
+      : {}),
     "appium:wdaLaunchTimeout": 600_000,
     "appium:wdaConnectionTimeout": 600_000,
     "appium:simulatorStartupTimeout": 300_000,
