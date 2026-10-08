@@ -7,3 +7,5 @@ nodeLinker: hoisted
 ignoredBuiltDependencies:
   - edgedriver
   - geckodriver
+  - sharp
+  - unrs-resolver
