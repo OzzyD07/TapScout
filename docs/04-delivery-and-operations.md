@@ -27,7 +27,7 @@ Türkçe belgeler çalışma dokümanlarıdır. Teslime dahil edilen içerikleri
 |---|---|---|
 | Local | Next.js, agent modülleri ve DB migration geliştirme | Yerel Supabase ve sentetik veri; gerçek jüri hesapları kullanılmaz |
 | Preview | Arayüz ve kısa API değişikliklerini inceleme | Production secret'ları otomatik kopyalanmaz; ücretli test çalıştırma açıkça yapılandırılmadıkça kapalıdır |
-| Production | Jüri demosu ve gerçek WarpBuild testleri | Vercel Pro, tek Supabase Pro/Micro projesi (private Storage dahil) ve Token Factory |
+| Production | Jüri demosu ve gerçek GitHub Actions cihaz testleri | Vercel Pro, tek Supabase Pro/Micro projesi (private Storage dahil) ve Token Factory |
 
 İkinci ücretli Supabase projesi başlangıç bütçesine dahil değildir. Preview için gerekirse ayrı test kaynakları kullanılır ve maliyeti ayrıca hesaplanır. Development/Preview bağlantıları production verisine yazacak şekilde kurulmaz.
 
@@ -87,19 +87,19 @@ Build yüklemesi `builds/staging/` yoluna imzalı yükleme URL'siyle doğrudan y
 
 Supabase imzalı yükleme URL'si 2 saat geçerlidir ve süre dolana kadar tekrar kullanılabilir; tek kullanımlık sayılmaz. Resumable yükleme oturumu en çok 24 saat sürer. Kalıcı kayıtta URL yerine nesne yolu ve hash tutulur. Dashboard, kanıtı açarken kullanıcı yetkisini tekrar kontrol edip kısa süreli yeni indirme URL'si alır; haftalar sonra eski URL'nin çalışması beklenmez. Büyük dosyalar Vercel API body'sinden geçirilmez. [Signed upload URL](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl), [Resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
 
-### 4.3. GitHub ve WarpBuild: gerçek cihaz işleri
+### 4.3. GitHub Actions: gerçek cihaz işleri
 
-WarpBuild entegrasyonu yalnız proje reposuna kurulur. Dispatcher için repository-scoped GitHub App installation token kullanılır; gerekli Actions write yetkisi tanımlanır. İlk entegrasyonda fine-grained PAT kullanılacaksa aynı repo ve yetkilerle sınırlandırılır, süre sonu takip edilir. Job OIDC'si Vercel'in GitHub dispatch credential'ının yerine geçmez. [WarpBuild quick start](https://www.warpbuild.com/docs/ci/quick-start), [GitHub workflow dispatch](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+V1 cihaz işleri public repoda GitHub-hosted standart runner'larda çalışır (8 Ekim kararı; WarpBuild kişisel hesapları desteklemiyor). Dispatcher için repository-scoped GitHub App installation token kullanılır; gerekli Actions write yetkisi tanımlanır. İlk entegrasyonda fine-grained PAT kullanılacaksa aynı repo ve yetkilerle sınırlandırılır, süre sonu takip edilir. Job OIDC'si Vercel'in GitHub dispatch credential'ının yerine geçmez. [GitHub workflow dispatch](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
 
 Workflow, güvenilir branch/tag referansından çalıştırılır; `contents: read` ve bootstrap için `id-token: write` kullanır. Dispatch cevabı kalıcı outbox'a kaydedilir. Güncel GitHub API sürümündeki `workflow_run_id` sonucu alınır; belirsiz yanıt yeniden dispatch öncesi sağlayıcıyla uzlaştırılır.
 
 | Job | Kurulum doğrulaması |
 |---|---|
-| Android | Ubuntu x64, nested virtualization etiketi, KVM erişimi, uyumlu x64 emulator; APK yükleme/açma, bir eylem ve screenshot |
-| iOS | macOS ARM64, sabit Xcode/simulator runtime, XCUITest; ARM64 Simulator `.app` yükleme/açma, bir eylem ve screenshot |
+| Android | `ubuntu-24.04`, KVM udev izni, x64 emulator (API 35); APK yükleme/açma, bir eylem ve screenshot (`device-smoke.yml`) |
+| iOS | `macos-26`, Xcode 26.6 ve iOS 26.x Simulator, XCUITest; ARM64 Simulator `.app` yükleme/açma, bir eylem ve screenshot (`device-smoke.yml`) |
 | Rapor | Küçük Linux runner; iki platformun terminal/kısmi sonuçlarını okuma, rapor yetkisi, model relay ve sonuç callback'i |
 
-Android için `nested-virtualization.enabled=true` ve KVM izinleri gerçekten doğrulanır. Fiziksel iPhone build'i `.ipa`, Simulator girdisi olarak kabul edilmez. Runner diski job sonunda silindiği için screenshot/log/checkpoint yüklemeleri test boyunca yapılır. [WarpBuild nested virtualization](https://www.warpbuild.com/docs/ci/features/nested-virtualization), [runner profilleri](https://www.warpbuild.com/docs/ci/cloud-runners).
+Android için KVM erişimi ve emulator hızlandırması gerçekten doğrulanır. Fiziksel iPhone build'i `.ipa`, Simulator girdisi olarak kabul edilmez. Runner diski job sonunda silindiği için screenshot/log/checkpoint yüklemeleri test boyunca yapılır. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [Android KVM](https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
 
 ### 4.4. Vercel, Token Factory ve bakım çağrısı
 
@@ -214,11 +214,11 @@ Draft kaydı teslimin tamamlandığı anlamına gelmez. [Devpost submission işl
 
 ## 8. Maliyet ve çalışma takibi
 
-Ayrıntılı fiyatlar ve senaryolar [mimari belgesinin maliyet bölümündedir](02-architecture.md#9-maliyet-hesabı). Başlangıç abonelik tabanı **$45/ay**; varsayılan Android+iOS çift koşusu runner ve model için yaklaşık **$2.07**'dir. Bunlar 3 Ekim 2026 araştırması ve ölçülmemiş tüketim varsayımlarıdır; vergi ve Supabase Storage/egress dahil plan aşımı ayrıca izlenir. Token Factory kredisi diğer sağlayıcıların faturası yerine geçmez.
+Ayrıntılı fiyatlar ve senaryolar [mimari belgesinin maliyet bölümündedir](02-architecture.md#9-maliyet-hesabı). Başlangıç abonelik tabanı **$45/ay**; varsayılan Android+iOS çift koşusu yalnız model için yaklaşık **$0.14**'tür (GitHub-hosted runner'lar public repoda ücretsiz). Bunlar 3 Ekim 2026 araştırması ve ölçülmemiş tüketim varsayımlarıdır; vergi ve Supabase Storage/egress dahil plan aşımı ayrıca izlenir. Token Factory kredisi diğer sağlayıcıların faturası yerine geçmez.
 
 | İzlenen kayıt | Karar için kullanımı |
 |---|---|
-| GitHub run/job kimliği ve faturalanan dakikalar | Android, iOS ve rapor giderini ayrı hesaplama |
+| GitHub run/job kimliği ve job süreleri | Kuyruk/çalışma süresi ve eşzamanlılık; WarpBuild'e geçilirse gider |
 | Model, çağrı/usage, timeout ve retry | Gerçek token maliyeti; tekrar ve gecikme etkisi |
 | Supabase Storage depolama ve egress | Kanıt miktarı, retention ve plan hakkı aşımı |
 | Vercel/Supabase kullanım ve billing | Kredi/hak aşımı, ek ücret ve servis sürekliliği |

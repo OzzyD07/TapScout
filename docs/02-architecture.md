@@ -19,13 +19,13 @@ Bu belge [ürün kapsamını](01-product-scope-draft.md) teknik bileşenlere, ve
 | Kalıcı iş durumu | PostgreSQL outbox + atomik claim/lease | Dispatch ve yeniden denemelerin kalıcı takibi |
 | Durum uzlaştırma | Supabase Cron → kısa Vercel API işlemi | Bekleyen dispatch, heartbeat, sağlayıcı sonucu ve rapor retry |
 | Dosyalar | Supabase Storage (Pro), private bucket'lar | Build, screenshot, video, log ve rapor çıktıları |
-| Test ve agent | WarpBuild runner içindeki Node.js/TypeScript agent | Keşif/plan/eylem döngüsü ve mobil test |
+| Test ve agent | GitHub-hosted runner içindeki Node.js/TypeScript agent | Keşif/plan/eylem döngüsü ve mobil test |
 | Mobil otomasyon | Appium + WebdriverIO | Android UiAutomator2 / iOS XCUITest adaptörleri |
-| Son raporlama | Kısa WarpBuild Linux job'u | Platform sonuçlarından birleşik rapor üretimi |
+| Son raporlama | Kısa GitHub-hosted Linux job'u | Platform sonuçlarından birleşik rapor üretimi |
 | AI | Nebius Token Factory, Vercel üzerinden yetkili relay | NVIDIA Nemotron planlama ve ayrı görsel model |
 | Canlı ilerleme | Supabase Realtime + kalıcı RunEvent kayıtları | Olay ve screenshot referanslarının tarayıcıya aktarımı |
 
-Uzun test döngüsü WarpBuild üzerinde çalışır. Vercel kısa kontrol işlemlerini, Supabase kalıcı durum ve kullanıcı erişimini sağlar. Agent ve birleşik raporlama kaynakları yalnız ilgili WarpBuild job'u boyunca ayrılır.
+Uzun test döngüsü GitHub Actions runner'larında çalışır. Vercel kısa kontrol işlemlerini, Supabase kalıcı durum ve kullanıcı erişimini sağlar. Agent ve birleşik raporlama kaynakları yalnız ilgili job boyunca ayrılır. **8 Ekim 2026 kararı:** WarpBuild kişisel GitHub hesaplarını desteklemediği için V1, public repoda ücretsiz ve sınırsız olan GitHub-hosted standart runner'ları kullanır. Runner etiketi workflow ayarıdır; WarpBuild (GitHub organization gerektirir) veya larger runner'lara geçiş yalnız bu ayarı ve §9.3 maliyetini değiştirir.
 
 Pro abonelikleri kullanılacaktır; ücretsiz plan limitleri temel mimarinin varsayımı değildir. **8 Ekim 2026 kararı:** Dosya deposu Cloudflare R2 yerine Supabase Storage'dır. Sağlayıcı, anahtar ve CORS yönetimi azalır. Dosya erişimi aynı Supabase projesinde yetkilendirilir. Pro hakları (100 GB depolama, 250 GB uncached + 250 GB cached egress, dosya başına 500 GB'a kadar) V1 hacminin üstündedir. R2'nin ücretsiz egress avantajı bu hacimde belirleyici değildir. Dosya işlemleri küçük bir depolama adaptörünün arkasında tutulur; gerekirse R2'ye dönüş tek adaptör değişikliğidir. Aynı build/kanıt iki depoda tutulmaz.
 
@@ -43,7 +43,7 @@ flowchart TB
         F[("Storage: private build ve kanıt")]
     end
     G["GitHub Actions workflow dispatch"]
-    subgraph W["WarpBuild: geçici işler"]
+    subgraph W["GitHub-hosted runner: geçici işler"]
         A["Android: agent + Appium + Emulator"]
         I["iOS: agent + Appium + Simulator"]
         P["Linux: birleşik rapor job'u"]
@@ -105,7 +105,7 @@ sequenceDiagram
     participant API as Vercel API
     participant DB as Supabase PostgreSQL
     participant G as GitHub Actions
-    participant R as WarpBuild cihaz runner'ı
+    participant R as Cihaz runner'ı
     participant M as Token Factory
     participant F as Supabase Storage
     participant RT as Supabase Realtime
@@ -149,13 +149,13 @@ Runner, Appium portunu internete açmadan HTTPS ile API'ye bağlanır. Görsel/e
 
 | İş | Başlangıç runner adayı | Gereken ortam |
 |---|---|---|
-| Android | Ubuntu 24.04 x64, 8 vCPU / 32 GB | KVM, x64 Android Emulator, Appium UiAutomator2 |
-| iOS | macOS ARM64, 6 vCPU / 14 GB | Uygun Xcode/simulator runtime, Appium XCUITest |
-| Rapor | Ubuntu x64, 2 vCPU / 8 GB | TypeScript rapor birleştirme ve gerektiğinde model relay |
+| Android | `ubuntu-24.04` x64, 4 vCPU / 16 GB | KVM, x64 Android Emulator (API 35), Appium UiAutomator2 |
+| iOS | `macos-26` ARM64 (M1), 3 vCPU / 7 GB | Xcode 26.6, iOS 26.x Simulator, Appium XCUITest |
+| Rapor | `ubuntu-24.04` x64, 4 vCPU / 16 GB | TypeScript rapor birleştirme ve gerektiğinde model relay |
 
-WarpBuild oturum sonunda VM'i ve geçici diski siler. macOS RAM bilgisi 1 Ekim 2026 sonrası katalogdan alınmıştır. [WarpBuild cloud runners](https://www.warpbuild.com/docs/ci/cloud-runners).
+GitHub-hosted runner her job için yeni VM açar ve job sonunda siler. Job başına süre sınırı 6 saattir; Free planda aynı anda en çok 20 job ve 5 macOS job çalışır. macOS makinesi küçüktür (3 vCPU / 7 GB); iOS süresi G2 gate'inde ölçülür, yetersizse WarpBuild veya larger runner'a geçilir. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [Actions limits](https://docs.github.com/en/actions/reference/limits).
 
-Android workflow'u `nested-virtualization.enabled=true` etiketi ve KVM izin adımı kullanır; Linux ARM64 bu emulator planının alternatifi değildir. iOS otomasyonu macOS üzerinde doğrudan yürür. [Nested virtualization](https://www.warpbuild.com/docs/ci/features/nested-virtualization).
+Android workflow'u KVM udev izin adımını uygular; Linux ARM64 bu emulator planının alternatifi değildir. iOS otomasyonu macOS üzerinde doğrudan yürür. [Hardware-accelerated Android virtualization](https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
 
 Ürün backend'i bizim workflow'umuzu tetikler; kullanıcı GitHub bağlamak zorunda değildir. Workflow referansı ve otomasyon sürümleri pinlenir. Kullanıcı binary'si workflow kodu veya shell komutu olarak işlenmez. [GitHub workflow dispatch](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
 
@@ -286,18 +286,22 @@ Supabase tek Micro varsayımı korunur. Ek proje, daha büyük compute, disk/egr
 
 ### 9.3. Runner ve rapor maliyeti
 
+**V1 (8 Ekim kararı):** GitHub-hosted standart runner'lar public repoda ücretsiz ve sınırsızdır; çift koşu runner gideri **$0.000**'dır. Repo private yapılırsa veya larger runner seçilirse bu varsayım geçersizdir. [GitHub Actions billing](https://docs.github.com/en/actions/concepts/billing-and-usage).
+
+Karşılaştırma ve geri dönüş seçeneği olarak WarpBuild tarifesi (GitHub organization gerektirir):
+
 | İş | Birim ücret | Çift koşu varsayımı | Tutar |
 |---|---:|---|---:|
 | Android, Linux x64 8 vCPU | $0.016/dakika | 20 faturalanan dakika | $0.320 |
 | iOS, macOS ARM64 6 vCPU | $0.080/dakika | 20 faturalanan dakika | $1.600 |
 | Linux rapor job'u, 2 vCPU | $0.004/dakika | 3 faturalanan dakika | $0.012 |
-| **Runner toplamı** | | Bir Android+iOS koşusu ve raporu | **$1.932** |
+| **WarpBuild toplamı** | | Bir Android+iOS koşusu ve raporu | **$1.932** |
 
 Birim ücret kaynağı: [WarpBuild cloud runners](https://www.warpbuild.com/docs/ci/cloud-runners).
 
-Dakikalar ortam hazırlama, model relay yanıtını bekleme, test, tekrar ve kanıt yüklemeyi kapsar. 20 dakika ölçülmüş süre değildir. Paralel yürütme geçen süreyi azaltabilir; iki job'un ücretleri toplanır.
+Dakikalar ortam hazırlama, model relay yanıtını bekleme, test, tekrar ve kanıt yüklemeyi kapsar. 20 dakika ölçülmüş süre değildir. Ücretsiz runner'da dakika maliyet değil, jüri bekleme süresi ve eşzamanlılık kısıtıdır.
 
-Cihaz job'ları 10'ar dakika sürerse rapor dahil $0.972 olur. `03`'te önerilen default hard timeout 20 dakikadır; bu limitin yükseltildiği alternatif 40'ar dakikalık senaryoda rapor dahil $3.852 olur. Son birleşik analiz için macOS runner açık tutulmaz; Linux rapor job'u ve yeniden denemeleri ayrıca ölçülür.
+WarpBuild'e geçilirse: cihaz job'ları 10'ar dakika sürerse rapor dahil $0.972, 40'ar dakikalık senaryoda $3.852 olur. `03`'te önerilen default hard timeout 20 dakikadır. Son birleşik analiz için macOS runner açık tutulmaz; Linux rapor job'u ve yeniden denemeleri ayrıca ölçülür.
 
 ### 9.4. Model maliyeti
 
@@ -341,17 +345,15 @@ Koşular tek aya yığılırsa egress o ay için yeniden hesaplanır. Örneğin 
 
 | Bir Android+iOS koşusu | Tutar |
 |---|---:|
-| Cihaz runner'ları ve rapor job'u | $1.93200 |
+| Cihaz runner'ları ve rapor job'u (GitHub-hosted, public repo) | $0.00000 |
 | Modeller | $0.13788 |
-| **Koşu başına toplam** | **$2.06988 ≈ $2.07** |
+| **Koşu başına toplam** | **$0.13788 ≈ $0.14** |
 
 Bu test tutarı abonelik tabanını ve hacme bağlı Storage aşım giderini içermez. Tek platform veya farklı süre için kendi runner/model tüketimi hesaplanır. Mod sayısı doğrudan runner sayısıyla çarpılmaz.
 
 ```text
 Toplam = abonelik_dönemi × ($20 + $25)
-       + Android_dakika × $0.016
-       + iOS_dakika × $0.080
-       + rapor_Linux_dakika × $0.004
+       + runner_gideri            (GitHub-hosted public repo: $0; WarpBuild: §9.3)
        + Token_Factory_usage
        + Supabase_Storage_ve_egress_aşımı
        + Vercel/Supabase_ek_usage_ve_seçilen_ekler
@@ -359,10 +361,12 @@ Toplam = abonelik_dönemi × ($20 + $25)
 
 | 74 günde çift koşu | Abonelikler | Runner + model | Storage aşımı | Tahmini toplam | %20 yedek bütçeyle |
 |---|---:|---:|---:|---:|---:|
-| 20 | $135.00 | $41.40 | $0.00 | **$176.40** | **$211.68** |
-| 100 | $135.00 | $206.99 | $0.00 | **$341.99** | **$410.39** |
-| 300 | $135.00 | $620.96 | $3.20 | **$759.16** | **$910.99** |
-| 1.000 | $135.00 | $2,069.88 | $25.56 | **$2,230.44** | **$2,676.53** |
+| 20 | $135.00 | $2.76 | $0.00 | **$137.76** | **$165.31** |
+| 100 | $135.00 | $13.79 | $0.00 | **$148.79** | **$178.55** |
+| 300 | $135.00 | $41.36 | $3.20 | **$179.56** | **$215.47** |
+| 1.000 | $135.00 | $137.88 | $25.56 | **$298.44** | **$358.13** |
+
+Runner + model sütunu V1'de yalnız model giderini içerir. WarpBuild'e geçilirse bu sütuna koşu başına $1.932 eklenir (örneğin 100 koşu için +$193.20).
 
 Hesaplar yuvarlamadan önce yapılmıştır. Tabloda **Vercel kullanımının aylık $20 kredi içinde, Supabase kullanımının plan hakları içinde kaldığı varsayılmıştır**. Bu, ölçümle doğrulanacak bir kullanım tahminidir; ek tüketimin kesin sıfır olacağı garantisi değildir.
 

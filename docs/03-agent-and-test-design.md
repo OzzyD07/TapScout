@@ -1,7 +1,7 @@
 # Otonom Mobil QA — Agent ve Test Tasarımı
 
 Tarih: 3 Ekim 2026  
-Durum: İlk sürüm için uygulama tasarımı. Agent, adaptörler, kontrol paketleri ve aşağıdaki bütçeler henüz gerçek WarpBuild pilotuyla doğrulanmamıştır. Örnek sözleşmeler çalışan kod beyanı değildir.
+Durum: İlk sürüm için uygulama tasarımı. Agent, adaptörler, kontrol paketleri ve aşağıdaki bütçeler henüz gerçek cihaz runner pilotuyla doğrulanmamıştır. Örnek sözleşmeler çalışan kod beyanı değildir.
 
 Bu belge [ürün kapsamındaki](01-product-scope-draft.md) beş test modunu, [mimarideki](02-architecture.md) runner ve model katmanları üzerinde nasıl yürüteceğimizi tanımlar. Kurulum, deployment, jüri erişimi ve hata müdahalesi [teslim ve operasyon belgesinde](04-delivery-and-operations.md) tutulur.
 

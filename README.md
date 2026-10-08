@@ -16,7 +16,7 @@ The planner is **NVIDIA Nemotron**, called at runtime through **Nebius Token Fac
 Browser ──► Next.js on Vercel (UI, short API, model relay) ──► Nebius Token Factory (Nemotron + VLM)
    ▲                 │  workflow_dispatch
    │ Realtime        ▼
-Supabase ◄──── WarpBuild runners: Android emulator / iOS Simulator + Appium + agent loop
+Supabase ◄──── GitHub Actions runners: Android emulator / iOS Simulator + Appium + agent loop
 (Auth, Postgres, Realtime,
  Storage: builds, screenshots, logs, reports)
 ```

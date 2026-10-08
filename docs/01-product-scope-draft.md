@@ -6,7 +6,7 @@ Durum: Tartışma taslağı. Bu belge ürün gereksinimlerini ve önerilen tasar
 ## 1. Kullanıcının belirlediği kapsam
 
 - Android ve iOS ilk ürün kapsamında yer alacak.
-- Hosted test altyapısı için WarpBuild kullanılacak.
+- Hosted test altyapısı GitHub Actions üzerinde çalışır. 8 Ekim 2026 kararı: WarpBuild kişisel GitHub hesaplarını desteklemediği için V1, public repoda ücretsiz olan GitHub-hosted standart runner'ları kullanır. WarpBuild, GitHub organization ile sonradan devreye alınabilecek runner seçeneği olarak kalır.
 - Kullanıcı APK ve/veya iOS uygulama build'i yükleyebilecek.
 - Kullanıcı tek bir test modunu veya birden fazla modu birlikte seçebilecek.
 - Web arayüzünde testin ilerleyişi, yapılan eylemler ve ekran kesitleri görülebilecek.
@@ -22,7 +22,7 @@ Durum: Tartışma taslağı. Bu belge ürün gereksinimlerini ve önerilen tasar
 | Android | APK | Android sürümü, paket bilgisi, varsa native ABI uyumu ve kurulum/açılış testi |
 | iOS | ZIP içinde iOS Simulator için derlenmiş ARM64 `.app` | Simulator platform hedefi, executable/framework mimarileri, minimum OS ve kurulum/açılış testi |
 
-WarpBuild'in macOS runner'ları ARM64 olduğundan iOS build'i buna uygun olmalı. ARM64 fiziksel iPhone build'i ve ARM64 Simulator build'i farklı platform hedefleridir; `.ipa` içinden `.app` çıkarmak dönüştürme işlemi değildir. [WarpBuild runner dokümanı](https://www.warpbuild.com/docs/ci/cloud-runners), [Apple TN3117](https://developer.apple.com/documentation/technotes/tn3117-resolving-build-errors-for-apple-silicon).
+GitHub-hosted macOS runner'ları ARM64 (Apple Silicon) olduğundan iOS build'i buna uygun olmalı. ARM64 fiziksel iPhone build'i ve ARM64 Simulator build'i farklı platform hedefleridir; `.ipa` içinden `.app` çıkarmak dönüştürme işlemi değildir. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [Apple TN3117](https://developer.apple.com/documentation/technotes/tn3117-resolving-build-errors-for-apple-silicon).
 
 Android APK içinde native kütüphane varsa emulator ABI'si ile eşleşmesi kontrol edilir. Başlangıçta x86_64 içeren uygun APK desteği öngörülebilir bir sözleşmedir; ARM-only APK desteği ayrıca doğrulanacaktır. [Android ABI dokümanı](https://developer.android.com/ndk/guides/abis).
 
@@ -70,12 +70,12 @@ Stress testleri temiz başlangıçtan ayrı dallarda yürür. Uygulama/simulator
 
 Her test için platform/OS/araç yetenekleri kontrol edilir. Örneğin Appium'ın iOS `enableConditionInducer` işlemi gerçek cihazlarla sınırlıdır; simulator ağ senaryosu ayrı bir adaptörle doğrulanmalıdır. XCUITest erişilebilirlik audit'i ise sürüm koşullarına bağlı olarak kullanılabilir. [Appium XCUITest execute methods](https://appium.github.io/appium-xcuitest-driver/latest/reference/execute-methods/).
 
-## 5. WarpBuild ile önerilen altyapı
+## 5. GitHub Actions runner altyapısı
 
-WarpBuild, GitHub Actions uyumlu ephemeral runner sağlar. Önerilen başlatma yolu: ürün backend'i bizim runner workflow'umuzu `workflow_dispatch` ile tetikler. Kullanıcının APK yüklemek için kendi GitHub deposunu bağlaması gerekmez. [WarpBuild çalışma modeli](https://www.warpbuild.com/docs/ci/what-is-warpbuild), [GitHub workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+Testler GitHub Actions'ın ephemeral runner'larında çalışır. Ürün backend'i bizim runner workflow'umuzu `workflow_dispatch` ile tetikler. Kullanıcının APK yüklemek için kendi GitHub deposunu bağlaması gerekmez. Runner seçimi workflow'da tek bir etiket ayarıdır. V1'de public repo için ücretsiz standart runner'lar kullanılır; WarpBuild veya GitHub larger runner'larına geçiş mimariyi değiştirmez. [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [GitHub workflow dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
 
-- Android job: Linux x64, Android Emulator, KVM ve Android otomasyon adaptörü. KVM için WarpBuild dynamic label ve gerekli izin adımı kullanılmalıdır. [WarpBuild nested virtualization](https://www.warpbuild.com/docs/ci/features/nested-virtualization).
-- iOS job: macOS ARM64, Xcode/iOS Simulator ve iOS otomasyon adaptörü.
+- Android job: Linux x64 (`ubuntu-24.04`, 4 vCPU / 16 GB), Android Emulator, KVM ve Android otomasyon adaptörü. KVM için udev izin adımı kullanılır. [Hardware-accelerated Android virtualization](https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/).
+- iOS job: macOS ARM64 (`macos-26`, M1 3 vCPU / 7 GB), Xcode/iOS Simulator ve iOS otomasyon adaptörü.
 - Otomasyon adayı: Android'de Appium UiAutomator2, iOS'ta Appium XCUITest. Sürümler pinlenerek küçük örnek build'lerle entegrasyon doğrulanacaktır.
 - Agent döngüsü platform runner'ının içinde çalışır; model çağrıları yetkili API relay'i üzerinden Nebius Token Factory'ye gider. Kanıtlar cihaz runner'ı kapanmadan kalıcı depoya yüklenir. Son birleşik raporlama ayrı kısa Linux job'unda devam eder. Vercel Pro ve Supabase Pro (veritabanı, Auth, Realtime ve Storage) tercihleri [mimari belgesinde](02-architecture.md) tanımlanmıştır.
 
@@ -84,8 +84,8 @@ flowchart TD
     U[Web arayüzü] --> O[Test API / Workflow dispatch]
     O --> S[Build ve kanıt deposu]
     O --> G[GitHub Actions workflow dispatch]
-    G --> A[WarpBuild Linux x64 / Android worker]
-    G --> I[WarpBuild macOS ARM64 / iOS worker]
+    G --> A[GitHub-hosted Linux x64 / Android worker]
+    G --> I[GitHub-hosted macOS ARM64 / iOS worker]
     A <--> B[Yetkili model relay / Nemotron on Nebius]
     I <--> B
     A --> S
@@ -98,7 +98,7 @@ flowchart TD
     N --> U
 ```
 
-Başlangıçta modlar aynı runner'ı paylaşır; platform oturumları kapasite uygunsa paralel çalışır. macOS eşzamanlılık kapasitesi kurulumda doğrulanacaktır. İptal, timeout ve altyapı hatalarında oturum durumu ve yüklenmiş kısmi kanıt korunur. Oturum başına kısa ömürlü yetki kullanılması ve job heartbeat'i önerilir.
+Başlangıçta modlar aynı runner'ı paylaşır; platform oturumları kapasite uygunsa paralel çalışır. GitHub Free planında aynı anda en çok 20 job ve 5 macOS job çalışır. [Actions limits](https://docs.github.com/en/actions/reference/limits). İptal, timeout ve altyapı hatalarında oturum durumu ve yüklenmiş kısmi kanıt korunur. Oturum başına kısa ömürlü yetki kullanılması ve job heartbeat'i önerilir.
 
 ## 6. Web arayüzünde canlı izleme
 
@@ -138,7 +138,7 @@ Bir akış keşfedilemediyse sonuç “keşfedilemedi” olmalıdır. Store onay
 
 ## 8. İlk teknik doğrulama ve açık kararlar
 
-İlk entegrasyon denemesi, örnek APK ve ARM64 Simulator `.app` üzerinde iki WarpBuild job'unu başlatıp uygulamayı açma, bir eylem yapma, screenshot/log'u test devam ederken web arayüzüne ulaştırma ve job'u kapatma zincirini doğrulamalıdır. Sonraki adımlar ortak keşif, mod stratejileri ve tekrar doğrulamadır.
+İlk entegrasyon denemesi, örnek APK ve ARM64 Simulator `.app` üzerinde iki GitHub Actions job'unu başlatıp uygulamayı açma, bir eylem yapma, screenshot/log'u test devam ederken web arayüzüne ulaştırma ve job'u kapatma zincirini doğrulamalıdır. Sonraki adımlar ortak keşif, mod stratejileri ve tekrar doğrulamadır.
 
 Henüz seçilmemiş kararlar:
 
@@ -149,4 +149,4 @@ Henüz seçilmemiş kararlar:
 - Başlangıç test süresi, ekran kesiti sıklığı, kanıt saklama süresi ve runner concurrency.
 - Self-hosted runner bağlantısı, geniş cihaz matrisi ve repo-to-build yol haritası.
 
-Belgedeki altyapı ve araç ayrıntıları 2 Ekim 2026'da resmî kaynaklarla araştırılmıştır. WarpBuild üzerinde gerçek pilot çalıştırma henüz yapılmamıştır.
+Belgedeki altyapı ve araç ayrıntıları 2 Ekim 2026'da resmî kaynaklarla araştırılmıştır. Runner kararı 8 Ekim 2026'da GitHub-hosted runner'lar lehine güncellenmiştir; pilot sonuçları `05` belgesine işlenir.

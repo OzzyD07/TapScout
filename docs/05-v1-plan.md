@@ -1,7 +1,7 @@
 # TapScout (Otonom Mobil QA) — Versiyon 1 Uygulama Planı
 
 Tarih: 6 Ekim 2026  
-Durum: Plan. Bu belge yazılırken kod, servis kurulumu, abonelik ve WarpBuild pilotu yoktur. Tarihler ve kapsam kesintileri öneridir; gate sonuçlarına göre güncellenir.
+Durum: Plan. Bu belge yazılırken kod, servis kurulumu, abonelik ve cihaz runner pilotu yoktur. Tarihler ve kapsam kesintileri öneridir; gate sonuçlarına göre güncellenir.
 
 Bu belge [ürün kapsamı](01-product-scope-draft.md), [mimari](02-architecture.md), [agent ve test tasarımı](03-agent-and-test-design.md) ve [teslim/operasyon](04-delivery-and-operations.md) belgelerini, yarışma teslimine kadar uygulanacak **V1** iş planına çevirir. Tasarım kararları o belgelerde kalır; burada sıra, öncelik, kesinti ve kabul kriteri tanımlanır.
 
@@ -27,7 +27,7 @@ Track: `04` başlangıç tercihi **Best Apps and Agents**. Ancak **Coding and Ag
 
 6–30 Ekim arası **24 takvim günü** var; belgelerdeki kapsam bu süre için geniştir. Bu yüzden:
 
-1. **Önce uçtan uca iskelet.** En büyük risk agent zekâsı değil, altyapı zinciridir (WarpBuild → emulator/simulator → Appium → Supabase (DB + Storage) → web). İlk hafta bu zincir iki platformda tek eylemle çalışmalı.
+1. **Önce uçtan uca iskelet.** En büyük risk agent zekâsı değil, altyapı zinciridir (GitHub Actions runner → emulator/simulator → Appium → Supabase (DB + Storage) → web). İlk hafta bu zincir iki platformda tek eylemle çalışmalı.
 2. **Sözleşmeler önce, paralel üretim sonra.** Olay, eylem, gözlem, bulgu ve API sözleşmeleri `packages/shared` içinde Zod ile 2. günde sabitlenir; web, backend, runner ve agent işleri buna karşı paralel geliştirilir.
 3. **Gate'ler ve hazır fallback'ler.** Her yüksek riskli entegrasyonun bir tarihi ve önceden seçilmiş B planı vardır (§7).
 4. **Derinlik kesintisi, mod kesintisi değil.** Beş mod V1'de görünür; her biri küçük ama gerçek bir kontrol paketiyle çalışır. Desteklenmeyen şeyler `Unsupported` / `Not tested` olarak raporlanır.
@@ -89,7 +89,7 @@ quality/
   ground-truth/        Seed bug manifest'i — runtime paketlerinden import edilemez
 ```
 
-Kural: `quality/` hiçbir runtime paketinden import edilemez (lint kuralıyla korunur). Kullanıcı Windows üzerinde çalıştığı için iOS örnek build'i yerelde değil `build-sample.yml` ile WarpBuild macOS'ta üretilir.
+Kural: `quality/` hiçbir runtime paketinden import edilemez (lint kuralıyla korunur). Kullanıcı Windows üzerinde çalıştığı için iOS örnek build'i yerelde değil `build-sample.yml` ile GitHub-hosted macOS runner'ında üretilir.
 
 ## 5. Mod başına V1 kontrol paketi
 
@@ -111,7 +111,7 @@ Kural: `quality/` hiçbir runtime paketinden import edilemez (lint kuralıyla ko
 
 | İş | Çıktı | Öncelik |
 |---|---|---|
-| Hesaplar | Nebius Token Factory API key ve kredi; WarpBuild; Vercel Pro; Supabase Pro (EU, Storage dahil); GitHub repo (public) — satın alma/kurulum proje sahibince | P0 |
+| Hesaplar | Nebius Token Factory API key ve kredi; Vercel Pro; Supabase Pro (EU, Storage dahil); GitHub repo (public) — satın alma/kurulum proje sahibince | P0 |
 | Model keşfi | Token Factory'de Nemotron adayları ve görsel model adaylarına gerçek `curl` çağrısı; structured output (`json_schema`) denemesi; latency/usage kaydı. NVIDIA'nın görsel modeli katalogda varsa öncelikli aday olarak denenir | P0 |
 | Monorepo iskeleti | §4 yapısı, lint/format/tsconfig, CI'da typecheck | P0 |
 | Sözleşmeler | `packages/shared`: `RunEvent`, `Observation`, `PlannerOutput`, `DeviceAction`, `Finding`, `Report`, API DTO'ları; `schemaVersion` | P0 |
@@ -188,7 +188,7 @@ Hedef: `03` §10 "İki platform temel zinciri" — henüz akıllı agent yok, sa
 
 | Gate / risk | Tarih | Başarı ölçütü | B planı |
 |---|---|---|---|
-| G1 Android zinciri | 11 Ekim | KVM'li emulator boot + tap + canlı screenshot | WarpBuild KVM sorunu çözülemezse aynı workflow'u KVM destekli başka bir Linux runner'da denemek; altyapı adaptörü runner sağlayıcısından bağımsız tutulur |
+| G1 Android zinciri | 11 Ekim | KVM'li emulator boot + tap + canlı screenshot | GitHub-hosted runner'da KVM/emulator sorunu çözülemezse runner etiketini WarpBuild (GitHub organization) veya larger runner'a çevirmek; altyapı adaptörü runner sağlayıcısından bağımsız tutulur |
 | G2 iOS zinciri | 13 Ekim | Simulator `.app` kurulum + tap + canlı screenshot | 16 Ekim'e kadar uzatma; olmazsa iOS "Experimental" etiketiyle sadece temel keşif ve rapor, demo Android ağırlıklı (kapsam değişikliği olduğu için proje sahibi onayı gerekir, §11) |
 | G3 Planner kalitesi | 16 Ekim | ≥3 ekran keşfi, geçersiz eylem uygulanmıyor | Daha büyük Nemotron varyantı (maliyet `02`'de güncellenir); deterministik keşif sezgileri (görünmeyen buton önceliği) ile model çağrısını azaltmak |
 | Görsel model | 20 Ekim | UI elemanı seviyesinde anlamlı aday | VLM'siz geometri tabanlı UI/A11y kontrolleri; VLM bulguları "AI yorumu" olarak sınırlı |
@@ -291,9 +291,9 @@ Hesap zamanlaması (6 Ekim kararı): Pro planlar F1'in ön koşulu değildir.
 
 | Servis | Şimdi | En geç | Not |
 |---|---|---|---|
-| GitHub public repo | **Hemen** | F1 başı | Workflow'lar ve WarpBuild entegrasyonu buna bağlı |
-| WarpBuild | **Hemen** | 8 Ekim | F1'in asıl engeli; Android/iOS runner pilotu |
-| Supabase Pro (DB + Auth + Realtime + Storage) | **Şimdi** (8 Ekim kararı) | 10 Ekim | Ayrı `TapScout` org'u önerilir; mevcut `OzzyD07` org'undaki Muse ve Smile Pro faturasına girmez. Bölge: AB (Frankfurt). Pro, Storage'da 50 MB dosya sınırını kaldırır |
+| GitHub public repo | **Hemen** | F1 başı | Workflow'lar buna bağlı. Açıldı: `OzzyD07/TapScout` |
+| Cihaz runner'ları | Gerekmiyor | — | 8 Ekim kararı: WarpBuild kişisel GitHub hesaplarını desteklemiyor. V1 public repoda ücretsiz GitHub-hosted runner'ları kullanır (`ubuntu-24.04`, `macos-26`). iOS süresi G2'de yetersizse GitHub organization + WarpBuild'e geçilir |
+| Supabase Pro (DB + Auth + Realtime + Storage) | **Şimdi** (8 Ekim kararı) | 10 Ekim | Proje `OzzyD07` org'unda açıldı (proje sahibinin tercihi). Org Pro olunca diğer aktif projeler de compute ücretine girer. Bölge: AB (Frankfurt). Pro, Storage'da 50 MB dosya sınırını kaldırır |
 | Vercel | Hobby | Pro: 24 Ekim | Hobby ticari olmayan kullanım içindir; jüri demosu öncesi Pro |
 | Token Factory | Promosyon kodu bekleniyor | 13 Ekim | G3 (16 Ekim) planner gate'i için gerekli. F1 pilotu ilk eylemi deterministik yapabilir |
 
@@ -301,7 +301,7 @@ Hesap zamanlaması (6 Ekim kararı): Pro planlar F1'in ön koşulu değildir.
 
 Proje sahibinde bekleyen (F0'ı kapatmak için):
 
-- [ ] Hesaplar: GitHub repo ve WarpBuild öncelikli; diğerleri tablodaki tarihlerle.
+- [ ] Hesaplar: GitHub token ve Supabase Pro öncelikli; diğerleri tablodaki tarihlerle.
 - [ ] `pnpm probe:models` sonucunun incelenmesi ve planner modelinin seçimi.
 - [ ] §11 kararlarının onayı (track, iOS fallback).
 
