@@ -305,4 +305,25 @@ Proje sahibinde bekleyen (F0'ı kapatmak için):
 - [ ] `pnpm probe:models` sonucunun incelenmesi ve planner modelinin seçimi.
 - [ ] §11 kararlarının onayı (track, iOS fallback).
 
-Sonraki: F1. `build-sample.yml` ile APK ve Simulator `.app` üretimi, ardından Android pilotu (G1).
+## 13. F1 durumu (8 Ekim 2026)
+
+Cihaz zinciri (G1/G2'nin altyapı kısmı) GitHub-hosted runner'larda çalıştı; backend ve canlı izleme parçası henüz bağlanmadı.
+
+| Ölçüm | Android | iOS |
+|---|---|---|
+| Örnek build (`build-sample.yml`) | 11,8 dk, APK 23,2 MB (x86_64) | 12,6–14,9 dk (Xcode derlemesi ~11,5 dk), `.app.zip` 11,0 MB |
+| Cihaz smoke (`device-smoke.yml`): kurulum → "Get started" tap → kayıt ekranı doğrulaması | **Geçti**, job 2,8 dk (emulator boot + smoke 127 sn) | **Geçti**, job 15,8 dk (simulator boot 177 sn, smoke adımı 667 sn) |
+| Ortam | `ubuntu-24.04`, API 35 x86_64 emulator, KVM | `macos-26`, Xcode 26.6, iOS 26.x Simulator |
+
+- iOS smoke süresinin büyük kısmı ilk oturumda WebDriverAgent derlemesiydi. Önceden derlenmiş simulator WDA'sı indirildikten sonra (`6df5bf0`) smoke adımı 667 sn'den **394 sn**'ye, iOS job'u 15,8 dk'dan **11,7 dk**'ya indi (simulator boot 113 sn). Log'lar giriş gerektirdiği için WDA indirme adımının ayrıntısı yerelden doğrulanmadı; adım `continue-on-error` ile build'e geri düşebilir. Kalan süre (uygulama kurulumu, WDA başlatma) F2'de ölçülecek.
+- macOS runner'ları için GitHub "kapasite nedeniyle kuyruk uzayabilir" uyarısı veriyor; jüri dönemindeki kuyruk süresi F4'te ölçülür.
+- Build boyutları Supabase ücretsiz planın 50 MB dosya sınırının altında.
+
+Tamamlanan F1 kodu:
+
+- [x] `build-sample.yml`, `device-smoke.yml`, `packages/adapters` (WebdriverIO oturumu, öncelikli locator adayları, smoke CLI).
+- [x] `apps/web`: Next.js 16, Supabase Auth girişi, `proxy.ts` ile `getClaims()` tabanlı oturum yenileme, panel iskeleti.
+- [x] Runner kimliği: GitHub OIDC doğrulaması ve oturum/rapor kapsamlı runner token'ları.
+- [x] Runner API: `/api/runner/bootstrap`, `heartbeat`, `events`, `finish` (birim testli; gerçek Supabase ile henüz denenmedi).
+
+Kalan F1 işleri: `qa-run.yml` (dispatch edilen gerçek koşu workflow'u), run oluşturma + outbox dispatch, Storage bucket'ları ve artifact yükleme, run sayfasında Realtime timeline, model relay ve ilk Nemotron çağrısı, rapor job iskeleti. Bunların bir kısmı proje sahibinden `SUPABASE_SECRET_KEY`, `GITHUB_DISPATCH_TOKEN`, Supabase Pro ve Token Factory anahtarını bekler.
