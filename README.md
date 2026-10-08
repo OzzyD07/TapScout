@@ -17,8 +17,8 @@ Browser ──► Next.js on Vercel (UI, short API, model relay) ──► Nebiu
    ▲                 │  workflow_dispatch
    │ Realtime        ▼
 Supabase ◄──── WarpBuild runners: Android emulator / iOS Simulator + Appium + agent loop
-(Auth, Postgres)     │
-                     └──► Cloudflare R2 (builds, screenshots, logs, reports)
+(Auth, Postgres, Realtime,
+ Storage: builds, screenshots, logs, reports)
 ```
 
 - One `TestRun` has one `PlatformSession` per platform. Selected modes share the session's

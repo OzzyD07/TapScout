@@ -9,7 +9,18 @@ export const UPLOAD_LIMITS = {
   maxApkBytes: 300 * 1024 * 1024,
   maxZipBytes: 300 * 1024 * 1024,
   maxUnzippedBytes: 1024 * 1024 * 1024,
-  presignedUrlSeconds: 15 * 60,
+  /** Supabase signed upload URLs are valid for 2 hours; the provider does not allow changing it. */
+  signedUploadUrlSeconds: 2 * 60 * 60,
+  /** Signed download URLs for builds and evidence are short-lived and re-issued on demand. */
+  signedDownloadUrlSeconds: 15 * 60,
+  /** Files above this size use resumable (TUS) upload with the same signed token. */
+  resumableThresholdBytes: 6 * 1024 * 1024,
+} as const;
+
+/** Private Supabase Storage buckets (docs/02 §6). */
+export const STORAGE_BUCKETS = {
+  builds: { name: "builds", maxBytes: 300 * 1024 * 1024 },
+  evidence: { name: "evidence", maxBytes: 50 * 1024 * 1024 },
 } as const;
 
 // ---------- Browser → API ----------

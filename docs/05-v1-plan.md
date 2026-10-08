@@ -27,7 +27,7 @@ Track: `04` başlangıç tercihi **Best Apps and Agents**. Ancak **Coding and Ag
 
 6–30 Ekim arası **24 takvim günü** var; belgelerdeki kapsam bu süre için geniştir. Bu yüzden:
 
-1. **Önce uçtan uca iskelet.** En büyük risk agent zekâsı değil, altyapı zinciridir (WarpBuild → emulator/simulator → Appium → R2/Supabase → web). İlk hafta bu zincir iki platformda tek eylemle çalışmalı.
+1. **Önce uçtan uca iskelet.** En büyük risk agent zekâsı değil, altyapı zinciridir (WarpBuild → emulator/simulator → Appium → Supabase (DB + Storage) → web). İlk hafta bu zincir iki platformda tek eylemle çalışmalı.
 2. **Sözleşmeler önce, paralel üretim sonra.** Olay, eylem, gözlem, bulgu ve API sözleşmeleri `packages/shared` içinde Zod ile 2. günde sabitlenir; web, backend, runner ve agent işleri buna karşı paralel geliştirilir.
 3. **Gate'ler ve hazır fallback'ler.** Her yüksek riskli entegrasyonun bir tarihi ve önceden seçilmiş B planı vardır (§7).
 4. **Derinlik kesintisi, mod kesintisi değil.** Beş mod V1'de görünür; her biri küçük ama gerçek bir kontrol paketiyle çalışır. Desteklenmeyen şeyler `Unsupported` / `Not tested` olarak raporlanır.
@@ -42,7 +42,7 @@ Track: `04` başlangıç tercihi **Best Apps and Agents**. Ancak **Coding and Ag
 | Alan | V1 içeriği | Öncelik |
 |---|---|---|
 | Giriş | Supabase Auth e-posta/şifre, public signup kapalı, admin ile oluşturulan jüri hesapları | P0 |
-| Build | Hazır örnek build seçimi; R2'ye presigned doğrudan yükleme (APK, Simulator `.app` ZIP); runner'da kabul doğrulaması | P0 hazır örnek / P1 kullanıcı yüklemesi |
+| Build | Hazır örnek build seçimi; Supabase Storage'a imzalı doğrudan yükleme (APK, Simulator `.app` ZIP); runner'da kabul doğrulaması | P0 hazır örnek / P1 kullanıcı yüklemesi |
 | Koşu | Platform + mod seçimi, atomik run/session/outbox, `workflow_dispatch`, iptal | P0 |
 | Runner | Android (Ubuntu x64 + KVM + emulator + UiAutomator2), iOS (macOS ARM64 + Simulator + XCUITest), Linux rapor job'u | P0 Android, P0 iOS (gate'li, §7) |
 | Agent | Observe → Plan → Act → Evaluate; state graph; Nemotron planner; validator; bütçe; durma sebepleri | P0 |
@@ -111,7 +111,7 @@ Kural: `quality/` hiçbir runtime paketinden import edilemez (lint kuralıyla ko
 
 | İş | Çıktı | Öncelik |
 |---|---|---|
-| Hesaplar | Nebius Token Factory API key ve kredi; WarpBuild; Vercel Pro; Supabase Pro (EU); Cloudflare R2; GitHub repo (public) — satın alma/kurulum proje sahibince | P0 |
+| Hesaplar | Nebius Token Factory API key ve kredi; WarpBuild; Vercel Pro; Supabase Pro (EU, Storage dahil); GitHub repo (public) — satın alma/kurulum proje sahibince | P0 |
 | Model keşfi | Token Factory'de Nemotron adayları ve görsel model adaylarına gerçek `curl` çağrısı; structured output (`json_schema`) denemesi; latency/usage kaydı. NVIDIA'nın görsel modeli katalogda varsa öncelikli aday olarak denenir | P0 |
 | Monorepo iskeleti | §4 yapısı, lint/format/tsconfig, CI'da typecheck | P0 |
 | Sözleşmeler | `packages/shared`: `RunEvent`, `Observation`, `PlannerOutput`, `DeviceAction`, `Finding`, `Report`, API DTO'ları; `schemaVersion` | P0 |
@@ -122,7 +122,7 @@ Kural: `quality/` hiçbir runtime paketinden import edilemez (lint kuralıyla ko
 
 Hedef: `03` §10 "İki platform temel zinciri" — henüz akıllı agent yok, sabit tek eylem.
 
-1. `build-sample.yml`: x86_64 içeren APK ve ARM64 Simulator `.app.zip` üretimi; SHA-256 kaydı; R2'ye yükleme.
+1. `build-sample.yml`: x86_64 içeren APK ve ARM64 Simulator `.app.zip` üretimi; SHA-256 kaydı; Supabase Storage `builds` bucket'ına yükleme.
 2. `qa-run.yml` Android job: nested virtualization etiketi, KVM izni, emulator boot, Appium + UiAutomator2, APK kurulum/açılış, tek tap, screenshot.
 3. Runner bootstrap: GitHub OIDC → `/api/runner/bootstrap` → session token + lease; presigned artifact upload; olay gönderimi; heartbeat.
 4. Web: giriş, örnek build seçimi, Start Test, run sayfasında Realtime olay + screenshot.
@@ -287,12 +287,13 @@ Araştırmada netleşen:
 
 Hesap zamanlaması (6 Ekim kararı): Pro planlar F1'in ön koşulu değildir.
 
+**Dosya deposu kararı (8 Ekim):** Cloudflare R2 yerine Supabase Storage kullanılır. Gerekçe ve maliyet etkisi `02` §1 ve §9.5'tedir. Ayrı Cloudflare hesabı açılmaz. Proje sahibi Supabase Pro'yu şimdi alır.
+
 | Servis | Şimdi | En geç | Not |
 |---|---|---|---|
 | GitHub public repo | **Hemen** | F1 başı | Workflow'lar ve WarpBuild entegrasyonu buna bağlı |
 | WarpBuild | **Hemen** | 8 Ekim | F1'in asıl engeli; Android/iOS runner pilotu |
-| Cloudflare R2 | F1 içinde | 9 Ekim | Free tier (10 GB) pilot için yeterli |
-| Supabase | Free proje | Pro: 24 Ekim | Free proje 7 gün hareketsizlikte duraklar, jüri dönemi için Pro şart. Org planı yükseltilince proje taşınmadan Pro olur. Mevcut `OzzyD07` org'unda 2 aktif free proje var; yeni proje için ayrı org ya da limit kontrolü gerekir |
+| Supabase Pro (DB + Auth + Realtime + Storage) | **Şimdi** (8 Ekim kararı) | 10 Ekim | Ayrı `TapScout` org'u önerilir; mevcut `OzzyD07` org'undaki Muse ve Smile Pro faturasına girmez. Bölge: AB (Frankfurt). Pro, Storage'da 50 MB dosya sınırını kaldırır |
 | Vercel | Hobby | Pro: 24 Ekim | Hobby ticari olmayan kullanım içindir; jüri demosu öncesi Pro |
 | Token Factory | Promosyon kodu bekleniyor | 13 Ekim | G3 (16 Ekim) planner gate'i için gerekli. F1 pilotu ilk eylemi deterministik yapabilir |
 

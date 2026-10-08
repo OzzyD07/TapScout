@@ -18,7 +18,7 @@ Bu belge [ürün kapsamını](01-product-scope-draft.md) teknik bileşenlere, ve
 | Veritabanı | Supabase Pro, tek Micro PostgreSQL projesi | Koşular, olaylar, grafikler, bulgular, raporlar ve tüketim |
 | Kalıcı iş durumu | PostgreSQL outbox + atomik claim/lease | Dispatch ve yeniden denemelerin kalıcı takibi |
 | Durum uzlaştırma | Supabase Cron → kısa Vercel API işlemi | Bekleyen dispatch, heartbeat, sağlayıcı sonucu ve rapor retry |
-| Dosyalar | Cloudflare R2 Standard, private bucket | Build, screenshot, video, log ve rapor çıktıları |
+| Dosyalar | Supabase Storage (Pro), private bucket'lar | Build, screenshot, video, log ve rapor çıktıları |
 | Test ve agent | WarpBuild runner içindeki Node.js/TypeScript agent | Keşif/plan/eylem döngüsü ve mobil test |
 | Mobil otomasyon | Appium + WebdriverIO | Android UiAutomator2 / iOS XCUITest adaptörleri |
 | Son raporlama | Kısa WarpBuild Linux job'u | Platform sonuçlarından birleşik rapor üretimi |
@@ -27,7 +27,7 @@ Bu belge [ürün kapsamını](01-product-scope-draft.md) teknik bileşenlere, ve
 
 Uzun test döngüsü WarpBuild üzerinde çalışır. Vercel kısa kontrol işlemlerini, Supabase kalıcı durum ve kullanıcı erişimini sağlar. Agent ve birleşik raporlama kaynakları yalnız ilgili WarpBuild job'u boyunca ayrılır.
 
-Pro abonelikleri kullanılacaktır; ücretsiz plan limitleri temel mimarinin varsayımı değildir. R2, önceki önerideki gibi ana dosya deposu olarak korunur. Supabase Pro Storage düşük hacimde alternatif olabilir; aynı build/kanıt iki depoda varsayılan olarak tutulmaz.
+Pro abonelikleri kullanılacaktır; ücretsiz plan limitleri temel mimarinin varsayımı değildir. **8 Ekim 2026 kararı:** Dosya deposu Cloudflare R2 yerine Supabase Storage'dır. Sağlayıcı, anahtar ve CORS yönetimi azalır. Dosya erişimi aynı Supabase projesinde yetkilendirilir. Pro hakları (100 GB depolama, 250 GB uncached + 250 GB cached egress, dosya başına 500 GB'a kadar) V1 hacminin üstündedir. R2'nin ücretsiz egress avantajı bu hacimde belirleyici değildir. Dosya işlemleri küçük bir depolama adaptörünün arkasında tutulur; gerekirse R2'ye dönüş tek adaptör değişikliğidir. Aynı build/kanıt iki depoda tutulmaz.
 
 ## 2. Üst düzey mimari
 
@@ -40,8 +40,8 @@ flowchart TB
         DB[("PostgreSQL: koşular / olaylar / outbox")]
         RT["Realtime"]
         CR["Cron"]
+        F[("Storage: private build ve kanıt")]
     end
-    F[("Cloudflare R2: private build ve kanıt")]
     G["GitHub Actions workflow dispatch"]
     subgraph W["WarpBuild: geçici işler"]
         A["Android: agent + Appium + Emulator"]
@@ -81,13 +81,13 @@ Next.js server/client entegrasyonu Supabase SSR istemcileriyle yapılır. API, i
 
 Yükleme akışı:
 
-1. API, platform/dosya metadatasıyla `AppBuild` kaydı oluşturur ve belirli R2 nesne yolu için süreli yükleme yetkisi üretir.
-2. Tarayıcı dosyayı doğrudan private R2 bucket'a yükler; APK veya ZIP, Vercel request body'sinden geçirilmez.
+1. API, platform/dosya metadatasıyla `AppBuild` kaydı oluşturur ve belirli Storage nesne yolu için imzalı yükleme yetkisi (`createSignedUploadUrl`) üretir.
+2. Tarayıcı dosyayı doğrudan private `builds` bucket'ına yükler; 6 MB üzeri dosyalarda aynı imzalı token ile resumable (TUS) yükleme kullanılır. APK veya ZIP, Vercel request body'sinden geçirilmez.
 3. API nesnenin varlığını/boyutunu kontrol eder ve build'i teste hazır doğrulama bekleyen duruma getirir.
 4. Runner binary'yi indirir, hash ve gerçek platform bilgisini kaydeder; ZIP yolu kaçışı, aşırı açılmış boyut, ABI/OS uyumsuzluğu ve kurulum hatasını kontrol eder.
 5. Uyumsuz build açıklamalı giriş hatasıdır; uygulama bug'ı olarak sayılmaz.
 
-R2 imzalı URL'leri nesne/işlem/süreyle sınırlandırılır. Büyük binary Vercel'den geçirilmediği için function payload sınırına takılmaz. [R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/), [Vercel function sınırları](https://vercel.com/docs/functions/limitations).
+İmzalı URL'ler tek nesne yoluna bağlıdır. Supabase imzalı yükleme URL'si 2 saat geçerlidir ve bu süre değiştirilemez. Resumable yükleme oturumu en çok 24 saat sürer. İndirme URL'leri (`createSignedUrl`) kısa süreyle üretilir. Bucket'ların boyut ve MIME sınırları bucket ayarında tanımlanır. Bütün imzalar yalnız server'daki secret key ile üretilir; Storage tablolarında tarayıcıya açık politika yoktur. Büyük binary Vercel'den geçirilmediği için function payload sınırına takılmaz. [Signed upload URL](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl), [Resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads), [Dosya sınırları](https://supabase.com/docs/guides/storage/uploads/file-limits), [Vercel function sınırları](https://vercel.com/docs/functions/limitations).
 
 Android girdisi APK; ilk emulator profili Linux x64 ile uyumlu native ABI gerektirir. iOS girdisi ZIP içinde ARM64 **iOS Simulator** `.app` paketidir. Fiziksel iPhone ARM64 build'i simulator build'iyle eşdeğer değildir. Tam kabul sözleşmesi ürün kapsamı belgesindedir.
 
@@ -107,7 +107,7 @@ sequenceDiagram
     participant G as GitHub Actions
     participant R as WarpBuild cihaz runner'ı
     participant M as Token Factory
-    participant F as R2
+    participant F as Supabase Storage
     participant RT as Supabase Realtime
     participant P as Linux rapor job'u
     U->>API: Build'ler + modlar ile test başlat
@@ -197,20 +197,23 @@ Ağ senaryosu uygulamanın ağını etkilerken runner'ın backend bağlantısın
 | `ReportAttempt` | Run/report sürümü, attempt kimliği, report lease, faz, heartbeat, sonuç |
 | `ScreenState` / `Transition` | Platforma özgü ekran/durum grafiği, gözlem ve eylem ilişkileri |
 | `RunEvent` / `Decision` | Sıralı olaylar, doğrulanmış eylemler, idempotency kimlikleri |
-| `Artifact` | Tür, R2 yolu, checksum, boyut, platform/adım/koşul, yükleme durumu |
+| `Artifact` | Tür, Storage nesne yolu, checksum, boyut, platform/adım/koşul, yükleme durumu |
 | `Finding` / `Report` | Beklenen/gözlenen, severity dayanağı, tekrar oranı, kanıt, platform sonucu |
 | `UsageRecord` | Model/token, runner dakika, artifact boyutu, tahmini maliyet |
 
 Run, platform oturumları ve dispatch outbox aynı transaction/RPC içinde oluşturulur. Uzun test sırasında açık DB transaction veya bağlantı tutulmaz. Şemalar migration ile sürümlenir; callback yazımları sunucu üzerinden yapılır.
 
-Örnek R2 nesne düzeni:
+Örnek Storage nesne düzeni (iki private bucket):
 
 ```text
-builds/{buildId}/app.apk veya app.zip
-runs/{runId}/{sessionId}/{attemptId}/screenshots/{stepId}.png
-runs/{runId}/{sessionId}/{attemptId}/videos/{segmentId}.mp4
-runs/{runId}/{sessionId}/{attemptId}/logs/{artifactId}.txt
-runs/{runId}/reports/{reportVersion}.json
+builds   (APK/ZIP; bucket sınırı 300 MB, yalnız APK ve ZIP MIME türleri)
+  staging/{buildId}/app.apk veya app.zip      ← tarayıcının imzalı yüklemesi
+  final/{buildId}/app.apk veya app.zip        ← finalize sonrası değişmeyen yol
+evidence (screenshot/log/video/rapor; bucket sınırı 50 MB)
+  runs/{runId}/{sessionId}/{attemptId}/screenshots/{stepId}.webp
+  runs/{runId}/{sessionId}/{attemptId}/videos/{segmentId}.mp4
+  runs/{runId}/{sessionId}/{attemptId}/logs/{artifactId}.txt
+  runs/{runId}/reports/{reportVersion}.json
 ```
 
 Artifact önce yüklenir/doğrulanır; sonra hazır olayına bağlanır. Kalıcı rapora imzalı URL değil nesne yolu yazılır; erişimde süreli indirme URL'si üretilir. Kanıtlar periyodik yüklenir, yalnız kapanışa bırakılmaz.
@@ -241,19 +244,19 @@ Her bulgunun tekrar oranı gerçek denemelerden hesaplanır. Backend etkisi doğ
 
 ## 8. Hosting, erişim ve anahtar yönetimi
 
-Next.js Vercel Pro'ya, kalıcı veriler tek Supabase Pro/Micro projesine, dosyalar private R2'ye yerleştirilir. Development için yerel Supabase kullanılabilir; ikinci ücretli cloud projesi temel bütçeye dahil değildir.
+Next.js Vercel Pro'ya, kalıcı veriler ve dosyalar tek Supabase Pro/Micro projesine (PostgreSQL + private Storage bucket'ları) yerleştirilir. Development için yerel Supabase kullanılabilir; ikinci ücretli cloud projesi temel bütçeye dahil değildir.
 
 Pro aboneliği Vercel işlemlerinin sınırsız sürmesini sağlamaz. Node/Fluid normal maksimum süre güncel dokümanda 800 saniye, daha uzun seçenek Beta'dır; tasarım bunlara dayanmaz. API/relay istekleri kendi kısa timeout'larıyla çalışır. [Function süre sınırları](https://vercel.com/docs/functions/limitations).
 
-Supabase Auth kullanıcı şifrelerini yönetir. Secret/service-role anahtarı ve R2 signing anahtarı yalnız Vercel server ortamındadır; kullanıcı veya runner'a verilmez. Tarayıcı yalnız publishable key ve kendi kullanıcı JWT'sini kullanır; RLS erişimi sınırlar.
+Supabase Auth kullanıcı şifrelerini yönetir. Storage imzalarını da üreten secret/service-role anahtarı yalnız Vercel server ortamındadır; kullanıcı veya runner'a verilmez. Tarayıcı yalnız publishable key ve kendi kullanıcı JWT'sini kullanır; RLS erişimi sınırlar.
 
 GitHub dispatch credential'ı Vercel'de tutulur. Workflow bootstrap kimliği OIDC/imzalı kimlik doğrulamayla repo/ref/workflow/run iddiaları kontrol edilerek doğrulanır. Cihaz runner'ı run/session/attempt/lease'e, rapor job'u run/reportAttempt/reportLease'e bağlı ayrı süreli token ve gerekli dosya yetkilerini alır. Rapor token'ı cihaz eylemi veya platform sonucu değiştiremez; `runId` tek başına kimlik kanıtı değildir.
 
-Token Factory anahtarı Vercel model relay'inde kalır. Relay izinli model, istek şeması, token bütçesi ve amaca göre etkin cihaz/rapor lease'ini kontrol eder; genel kullanıma açık bir model proxy'si olmaz. Görsel isteğinde yalnız yetkili artifact kimliği/R2 yolu kabul edilir; keyfi uzak URL okunmaz. Model erişim yetkisi uygulama token'ımızdır; sağlayıcının kısa ömürlü API anahtarı özelliği olduğu varsayılmaz.
+Token Factory anahtarı Vercel model relay'inde kalır. Relay izinli model, istek şeması, token bütçesi ve amaca göre etkin cihaz/rapor lease'ini kontrol eder; genel kullanıma açık bir model proxy'si olmaz. Görsel isteğinde yalnız yetkili artifact kimliği/Storage nesne yolu kabul edilir; keyfi uzak URL okunmaz. Model erişim yetkisi uygulama token'ımızdır; sağlayıcının kısa ömürlü API anahtarı özelliği olduğu varsayılmaz.
 
 Test edilen uygulamanın giriş bilgileri gerekiyorsa geri çözülebilen şifreleme/secret yönetimiyle korunur ve yalnız ilgili runner'a süreli erişim verilir. Anahtar, JWT, şifre ve imzalı URL log'larda maskelenir. Public repoda placeholder `.env.example` bulunur; jüriye yalnız demo adresi ve uygulama hesabı verilir.
 
-Supabase Pro günlük DB backup ve yedi günlük retention içerir; R2 binary dosyaları DB backup'ının parçası değildir. Kanıt retention/nesne kurtarma ayrı yönetilir. [Supabase backups](https://supabase.com/docs/guides/platform/backups).
+Supabase Pro günlük DB backup ve yedi günlük retention içerir; Storage'daki binary ve kanıt dosyaları DB backup'ının parçası değildir. Kanıt retention/nesne kurtarma ayrı yönetilir. [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 
 Yarışma için NVIDIA açık kaynak modelinin gerçek Token Factory runtime çağrılarında kullanılması yeterlidir; hosting/veritabanının Nebius olması gerekmez. Ücretsiz jüri erişimi değerlendirme sonuna kadar korunur. Başlangıç planı 15 Aralık 2026, Türkiye saati 23.00 sonuna kadar demo ve kanıtları tutar. [Yarışma kuralları](https://nebiusglobalaihackathon.devpost.com/rules).
 
@@ -277,7 +280,7 @@ Kaynaklar: [Vercel Pro](https://vercel.com/docs/plans/pro-plan), [Supabase prici
 
 Vercel'in $20 usage kredisi abonelik ücretini sıfırlamaz; kaynak kullanımını mahsup eder. Pro function tüketimi ilk birimden fiyatlandırılır, krediyle karşılanır; Hobby kotaları ayrıca ücretsiz Pro hakkı gibi sayılmaz. Kredi aşımı ek faturadır. [Fluid compute fiyatları](https://vercel.com/docs/functions/usage-and-pricing).
 
-Supabase tek Micro varsayımı korunur. Ek proje, daha büyük compute, disk/egress/Realtime aşımı veya add-on tabanı artırır. Pro'da 8 GB DB disk, 100 GB Storage, ayrı 250 GB uncached ve 250 GB cached egress hakları bulunur; bunlar sınırsız kullanım değildir. Bu tasarımda binary dosyalar R2'de olduğu için aynı dosyanın Supabase Storage gideri tekrar eklenmez.
+Supabase tek Micro varsayımı korunur. Ek proje, daha büyük compute, disk/egress/Realtime aşımı veya add-on tabanı artırır. Pro'da 8 GB DB disk, 100 GB Storage, ayrı 250 GB uncached ve 250 GB cached egress hakları bulunur; bunlar sınırsız kullanım değildir. Bu tasarımda build ve kanıt dosyaları bu Storage ve egress haklarını kullanır; hesap §9.5'tedir.
 
 Üç dönem $135, temkinli nakit bütçesidir; plan değiştirme/prorata ve kalan dönem kredileri gerçek fatura kurallarına bağlıdır. [Supabase invoice](https://supabase.com/docs/guides/platform/your-monthly-invoice), [Vercel billing](https://vercel.com/docs/plans/pro-plan/billing).
 
@@ -312,30 +315,27 @@ Görsel varsayım toplam 60 değerlendirme × ortalama 2.500 input / 300 output 
 
 Vercel relay'in kendi function tüketimi Vercel usage kredisine gider; Token Factory inference bu krediden ödenmez. Daha güçlü model veya daha uzun context seçilirse hesap güncellenir.
 
-### 9.5. R2 dosya gideri
+### 9.5. Supabase Storage gideri
 
-R2 Standard: **10 GB-month**, **1 milyon class A**, **10 milyon class B** aylık ücretsiz hak. Aşım tarifeleri storage $0.015/GB-month, class A $4.50/milyon, class B $0.36/milyon; doğrudan R2 internet çıkışı ücretsizdir. Yuvarlama sonraki faturalama birimine yapılır. [R2 pricing](https://developers.cloudflare.com/r2/pricing/).
+Supabase Pro planı **100 GB** depolama, **250 GB uncached** ve **250 GB cached** egress içerir. Aşım tarifeleri: depolama **$0.0213/GB**, uncached egress **$0.09/GB**, cached egress **$0.03/GB**. Bu haklar abonelik tabanına dahildir; ayrı sağlayıcı faturası yoktur. Fiyat kontrolü: 8 Ekim 2026. [Supabase pricing](https://supabase.com/pricing).
 
-Her çift koşu için örnek **0.5 GB ek veri**, **200 class A** ve **200 class B** işlem varsayılır. Storage burada Cloudflare'ın GB-month birimiyle bütçelenmiştir. R2 aylık günlük tepe alan ortalamasını kullanır.
-
-Temkinli dönem hesabında bütün koşuların verileri üç ayın tamamında saklanmış gibi alınır; sonradan üretilen verilerin gerçek gideri daha düşük olabilir. Hesap yalnız Standard sınıfı içindir:
+Her çift koşu için örnek **0.5 GB ek veri** ve **0.5 GB uncached egress** varsayılır. Egress, runner'ın build indirmesini ve kanıtların tarayıcıda görüntülenmesini kapsar. V1 video kaydetmediği için iki varsayım da temkinlidir. Temkinli dönem hesabında bütün koşuların verileri üç ayın tamamında saklanmış gibi alınır. Egress üç aya eşit dağıtılır:
 
 ```text
 toplam_veri_GB = koşu_sayısı × 0.5
-aylık_R2_storage = max(0, ceil(toplam_veri_GB) - 10) × $0.015
-dönem_R2_storage = 3 × aylık_R2_storage
+aylık_storage = max(0, ceil(toplam_veri_GB) - 100) × $0.0213
+dönem_storage = 3 × aylık_storage
+aylık_egress_GB = koşu_sayısı × 0.5 / 3      (250 GB'a kadar ücretsiz)
 ```
 
-| Çift koşu | Veri varsayımı | Aylık storage | Üç dönem |
-|---|---:|---:|---:|
-| 20 | 10 GB | $0.00 | $0.00 |
-| 100 | 50 GB | $0.60 | $1.80 |
-| 300 | 150 GB | $2.10 | $6.30 |
-| 1.000 | 500 GB | $7.35 | $22.05 |
+| Çift koşu | Veri varsayımı | Aylık storage | Üç dönem | Aylık egress | Egress aşımı |
+|---|---:|---:|---:|---:|---:|
+| 20 | 10 GB | $0.00 | $0.00 | 3.3 GB | $0.00 |
+| 100 | 50 GB | $0.00 | $0.00 | 16.7 GB | $0.00 |
+| 300 | 150 GB | $1.07 | $3.20 | 50 GB | $0.00 |
+| 1.000 | 500 GB | $8.52 | $25.56 | 166.7 GB | $0.00 |
 
-Bu hacimlerde varsayılan işlem sayıları aylık ücretsiz hakların altında kalır; aynı hesabın başka bucket tüketimi olmadığı kabul edilir. Multipart/tekrar işlemleri dahil gerçek sayılar ölçülür. R2'nin ücretsiz egress'i, araya konulan ücretli Vercel/başka servis trafiğini ücretsiz yapmaz; dosyalar doğrudan R2'den aktarılır.
-
-Supabase Pro Storage alternatifine geçilirse R2 hesabı çıkarılıp Supabase storage/egress tarifesiyle yeniden hesaplanır; iki depo gideri birlikte varsayılmaz.
+Koşular tek aya yığılırsa egress o ay için yeniden hesaplanır. Örneğin 1.000 koşu tek ayda olursa 500 GB egress gerçekleşir; 250 GB aşım × $0.09 = $22.50 ek gider doğar. Dosya boyutu sınırları bucket bazında uygulanır: `builds` 300 MB, `evidence` 50 MB. Kanıt retention'ı ve eski geliştirme koşularının temizliği depolamayı sınırlar. Ölçülen gerçek depolama ve egress değerleri Supabase usage ekranıyla karşılaştırılır.
 
 ### 9.6. Test başına ve toplam bütçe
 
@@ -345,7 +345,7 @@ Supabase Pro Storage alternatifine geçilirse R2 hesabı çıkarılıp Supabase 
 | Modeller | $0.13788 |
 | **Koşu başına toplam** | **$2.06988 ≈ $2.07** |
 
-Bu test tutarı abonelik tabanını ve hacme bağlı R2 giderini içermez. Tek platform veya farklı süre için kendi runner/model tüketimi hesaplanır. Mod sayısı doğrudan runner sayısıyla çarpılmaz.
+Bu test tutarı abonelik tabanını ve hacme bağlı Storage aşım giderini içermez. Tek platform veya farklı süre için kendi runner/model tüketimi hesaplanır. Mod sayısı doğrudan runner sayısıyla çarpılmaz.
 
 ```text
 Toplam = abonelik_dönemi × ($20 + $25)
@@ -353,16 +353,16 @@ Toplam = abonelik_dönemi × ($20 + $25)
        + iOS_dakika × $0.080
        + rapor_Linux_dakika × $0.004
        + Token_Factory_usage
-       + R2_storage_ve_istek_aşımı
+       + Supabase_Storage_ve_egress_aşımı
        + Vercel/Supabase_ek_usage_ve_seçilen_ekler
 ```
 
-| 74 günde çift koşu | Abonelikler | Runner + model | R2 | Tahmini toplam | %20 yedek bütçeyle |
+| 74 günde çift koşu | Abonelikler | Runner + model | Storage aşımı | Tahmini toplam | %20 yedek bütçeyle |
 |---|---:|---:|---:|---:|---:|
 | 20 | $135.00 | $41.40 | $0.00 | **$176.40** | **$211.68** |
-| 100 | $135.00 | $206.99 | $1.80 | **$343.79** | **$412.55** |
-| 300 | $135.00 | $620.96 | $6.30 | **$762.26** | **$914.72** |
-| 1.000 | $135.00 | $2,069.88 | $22.05 | **$2,226.93** | **$2,672.32** |
+| 100 | $135.00 | $206.99 | $0.00 | **$341.99** | **$410.39** |
+| 300 | $135.00 | $620.96 | $3.20 | **$759.16** | **$910.99** |
+| 1.000 | $135.00 | $2,069.88 | $25.56 | **$2,230.44** | **$2,676.53** |
 
 Hesaplar yuvarlamadan önce yapılmıştır. Tabloda **Vercel kullanımının aylık $20 kredi içinde, Supabase kullanımının plan hakları içinde kaldığı varsayılmıştır**. Bu, ölçümle doğrulanacak bir kullanım tahminidir; ek tüketimin kesin sıfır olacağı garantisi değildir.
 
@@ -370,11 +370,11 @@ Yedek bütçe ücret değildir; süre/token artışı ve tekrarlar için planlam
 
 **Tablo dışında:** vergi, varsa alan adı, ek Vercel seat/add-on, ikinci Supabase cloud projesi/büyük compute/ek disk, kredi ve hak aşımı, ücretli SMTP seçilirse SMTP, ek nesne backup'ı, mobil build üretim workflow'ları, dedicated model endpoint'i, geniş cihaz matrisi ve fiziksel cihaz hizmetleri. Abonelikler zaten mevcutsa bu projeye ait ek maliyet mevcut kullanım ve paylaşılan haklarla ayrıca değerlendirilir.
 
-Hackathon'un $25 Token Factory kredisi ve Builders programındaki ek $25 kredi brüt hesaptan düşülmemiştir. Hesapta uygulanması ve son kullanım koşulları doğrulanır. Token Factory kredisi WarpBuild/Vercel/Supabase/R2 faturasını karşılamaz. [Hackathon kredi duyurusu](https://nebiusglobalaihackathon.devpost.com/updates/46203-kickoff-tips), [Nebius Builders](https://dev.nebius.com/builders).
+Hackathon'un $25 Token Factory kredisi ve Builders programındaki ek $25 kredi brüt hesaptan düşülmemiştir. Hesapta uygulanması ve son kullanım koşulları doğrulanır. Token Factory kredisi WarpBuild/Vercel/Supabase faturasını karşılamaz. [Hackathon kredi duyurusu](https://nebiusglobalaihackathon.devpost.com/updates/46203-kickoff-tips), [Nebius Builders](https://dev.nebius.com/builders).
 
 ## 10. Ölçüm ve ilk doğrulama
 
-Her koşu gerçek model usage, sağlayıcı job süresi, artifact boyutu ve olay sayılarını kaydeder. Vercel/Supabase/R2 dashboard tüketimi bu kayıtlarla karşılaştırılır. Model relay bekleme süresinin Vercel memory-time kullanımına etkisi de ölçülür; yalnız token faturası izlenmez.
+Her koşu gerçek model usage, sağlayıcı job süresi, artifact boyutu ve olay sayılarını kaydeder. Vercel/Supabase dashboard tüketimi bu kayıtlarla karşılaştırılır. Model relay bekleme süresinin Vercel memory-time kullanımına etkisi de ölçülür; yalnız token faturası izlenmez.
 
 Maliyet kontrolü öncelikleri: platformdaki modların keşfi paylaşması, tekrar eden görüntü/history gönderimini azaltmak, boşta kalan runner'ı kapatmak ve raporu kısa Linux job'unda birleştirmek. Maliyet bildirimleri ile demo erişimini kapatacak otomatik aksiyonlar ayrı değerlendirilir; jüri dönemindeki ücretsiz erişim korunur.
 

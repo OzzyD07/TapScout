@@ -199,7 +199,7 @@ create table public.run_events (
 create index run_events_run_idx on public.run_events (run_id, session_id, sequence);
 
 -- ---------------------------------------------------------------------------
--- Artifacts (R2 object keys; never signed URLs)
+-- Artifacts (Supabase Storage object keys in the evidence bucket; never signed URLs)
 -- ---------------------------------------------------------------------------
 create table public.artifacts (
   id uuid primary key default gen_random_uuid(),

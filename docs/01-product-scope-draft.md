@@ -77,7 +77,7 @@ WarpBuild, GitHub Actions uyumlu ephemeral runner sağlar. Önerilen başlatma y
 - Android job: Linux x64, Android Emulator, KVM ve Android otomasyon adaptörü. KVM için WarpBuild dynamic label ve gerekli izin adımı kullanılmalıdır. [WarpBuild nested virtualization](https://www.warpbuild.com/docs/ci/features/nested-virtualization).
 - iOS job: macOS ARM64, Xcode/iOS Simulator ve iOS otomasyon adaptörü.
 - Otomasyon adayı: Android'de Appium UiAutomator2, iOS'ta Appium XCUITest. Sürümler pinlenerek küçük örnek build'lerle entegrasyon doğrulanacaktır.
-- Agent döngüsü platform runner'ının içinde çalışır; model çağrıları yetkili API relay'i üzerinden Nebius Token Factory'ye gider. Kanıtlar cihaz runner'ı kapanmadan kalıcı depoya yüklenir. Son birleşik raporlama ayrı kısa Linux job'unda devam eder. Vercel Pro, Supabase Pro ve R2 tercihleri [mimari belgesinde](02-architecture.md) tanımlanmıştır.
+- Agent döngüsü platform runner'ının içinde çalışır; model çağrıları yetkili API relay'i üzerinden Nebius Token Factory'ye gider. Kanıtlar cihaz runner'ı kapanmadan kalıcı depoya yüklenir. Son birleşik raporlama ayrı kısa Linux job'unda devam eder. Vercel Pro ve Supabase Pro (veritabanı, Auth, Realtime ve Storage) tercihleri [mimari belgesinde](02-architecture.md) tanımlanmıştır.
 
 ```mermaid
 flowchart TD
@@ -102,7 +102,7 @@ Başlangıçta modlar aynı runner'ı paylaşır; platform oturumları kapasite 
 
 ## 6. Web arayüzünde canlı izleme
 
-İlk sürüm canlı olay akışı ve adımlara bağlı ekran kesitleri sunar. Runner olayları HTTPS ile backend'e, kanıtları imzalı yetkiyle R2'ye gönderir. Backend'in Supabase'e kaydettiği olaylar Supabase Realtime üzerinden web arayüzüne bildirilir; bağlantı sonrası kaçırılan olaylar kalıcı kayıtlardan okunur. Tam video yayını bağımsız bir sonraki iyileştirme olabilir.
+İlk sürüm canlı olay akışı ve adımlara bağlı ekran kesitleri sunar. Runner olayları HTTPS ile backend'e, kanıtları imzalı yetkiyle Supabase Storage'a gönderir. Backend'in Supabase'e kaydettiği olaylar Supabase Realtime üzerinden web arayüzüne bildirilir; bağlantı sonrası kaçırılan olaylar kalıcı kayıtlardan okunur. Tam video yayını bağımsız bir sonraki iyileştirme olabilir.
 
 Görünür içerikler:
 

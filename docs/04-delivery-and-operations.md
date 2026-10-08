@@ -27,7 +27,7 @@ Türkçe belgeler çalışma dokümanlarıdır. Teslime dahil edilen içerikleri
 |---|---|---|
 | Local | Next.js, agent modülleri ve DB migration geliştirme | Yerel Supabase ve sentetik veri; gerçek jüri hesapları kullanılmaz |
 | Preview | Arayüz ve kısa API değişikliklerini inceleme | Production secret'ları otomatik kopyalanmaz; ücretli test çalıştırma açıkça yapılandırılmadıkça kapalıdır |
-| Production | Jüri demosu ve gerçek WarpBuild testleri | Vercel Pro, tek Supabase Pro/Micro projesi, private R2 ve Token Factory |
+| Production | Jüri demosu ve gerçek WarpBuild testleri | Vercel Pro, tek Supabase Pro/Micro projesi (private Storage dahil) ve Token Factory |
 
 İkinci ücretli Supabase projesi başlangıç bütçesine dahil değildir. Preview için gerekirse ayrı test kaynakları kullanılır ve maliyeti ayrıca hesaplanır. Development/Preview bağlantıları production verisine yazacak şekilde kurulmaz.
 
@@ -48,7 +48,7 @@ Aşağıdaki adlar **uygulama geliştirilirken kullanılacak yapılandırma söz
 | `SUPABASE_SECRET_KEY` | Yalnız Vercel server | Yetkili admin/RPC işlemleri; browser istemcisinden ayrı |
 | `TOKEN_FACTORY_API_KEY`, `TOKEN_FACTORY_BASE_URL` | Yalnız Vercel server | Hesapta doğrulanmış Nebius endpoint'i ve model erişimi |
 | `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID` | Vercel server config | Pilotla doğrulanan model allowlist'i |
-| `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Yalnız Vercel server | Private nesne yönetimi ve süreli URL üretimi |
+| `STORAGE_BUILDS_BUCKET`, `STORAGE_EVIDENCE_BUCKET` | Vercel server config | Private bucket adları; imzalar `SUPABASE_SECRET_KEY` ile server'da üretilir |
 | `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY` | Yalnız Vercel server | Seçili repoya bağlı dispatch/provider erişimi |
 | `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW_ID`, `GITHUB_WORKFLOW_REF` | Vercel server config | İzinli repo, workflow ve branch/tag referansı |
 | `RUNNER_TOKEN_SIGNING_KEY`, `RUNNER_OIDC_AUDIENCE` | Vercel server; audience workflow'a açık | Doğrulanmış job'a sınırlı uygulama token'ı verme |
@@ -57,7 +57,7 @@ Aşağıdaki adlar **uygulama geliştirilirken kullanılacak yapılandırma söz
 
 Production ve Preview değerleri ayrı tanımlanır. `NEXT_PUBLIC_` yalnız tarayıcıya açık olması gereken değerlerde kullanılır; environment değişiklikleri ilgili yeni deployment'ta doğrulanır. [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables), [Vercel environment variables](https://vercel.com/docs/environment-variables).
 
-Runner'a Token Factory, Supabase admin veya R2 kalıcı anahtarı verilmez. Runner, GitHub OIDC kimliğini API'de doğrulatarak yalnız kendi `run/session/attempt/lease` kapsamına bağlı süreli token ve dosya URL'leri alır. Linux rapor job'u ayrı `reportAttempt/reportLease` yetkisi alır; cihazı yönetemez. JWT, şifre, imzalı URL ve yetki header'ları log'lardan maskelenir.
+Runner'a Token Factory veya Supabase admin/secret anahtarı verilmez. Runner, GitHub OIDC kimliğini API'de doğrulatarak yalnız kendi `run/session/attempt/lease` kapsamına bağlı süreli token ve dosya URL'leri alır. Linux rapor job'u ayrı `reportAttempt/reportLease` yetkisi alır; cihazı yönetemez. JWT, şifre, imzalı URL ve yetki header'ları log'lardan maskelenir.
 
 OIDC doğrulamasında imza/JWKS, issuer, audience, süre, repository kimliği, güvenilir workflow/ref ve commit, GitHub run/attempt ile beklenen DB kaydı birlikte kontrol edilir. Sadece `runId` veya repository adına güvenilmez. `job_workflow_ref` alanı reusable workflow kullanıldığında değerlendirilir. [GitHub OIDC](https://docs.github.com/en/actions/reference/security/oidc).
 
@@ -79,13 +79,13 @@ Migration geçmişi production ile uyuşmazsa sebebi çözmeden otomatik `migrat
 
 Next.js, `@supabase/ssr` ile request başına server client oluşturur. Kimlik doğrulaması için doğrulanmış claims kullanılır; `getSession()` tek başına yetkilendirme kanıtı sayılmaz. Kullanıcı cookie'sini taşıyan client istekler arasında paylaşılmaz; oturumlu sayfalar ortak cache/ISR ile servis edilmez. [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client?framework=nextjs), [SSR cache ve client paylaşımı](https://supabase.com/docs/guides/auth/server-side/advanced-guide).
 
-### 4.2. Cloudflare R2: build ve kanıt
+### 4.2. Supabase Storage: build ve kanıt
 
-Private **Standard** bucket açılır; `r2.dev` ve public custom domain erişimi kapalı tutulur. CORS, production origin ve gerçekten kullanılan GET/HEAD/PUT ile gerekli header'lara izin verir. Preview/local gerekiyorsa izinleri ayrı tanımlanır. Presigned URL, CORS ayarının yerine geçmez; imzalanan Content-Type istemci tarafından aynı gönderilir. [R2 CORS](https://developers.cloudflare.com/r2/buckets/cors/), [public bucket ayarları](https://developers.cloudflare.com/r2/buckets/public-buckets/).
+Aynı Supabase Pro projesinde iki **private** bucket açılır: `builds` (APK/ZIP; 300 MB sınırı; yalnız `application/vnd.android.package-archive` ve `application/zip`) ve `evidence` (screenshot/log/video/rapor; 50 MB sınırı). Proje genelindeki dosya sınırı en büyük bucket sınırına göre ayarlanır. Bucket'lar ve sınırları migration ile tanımlanır. `storage.objects` üzerinde tarayıcıya açık politika yoktur; bütün imzalı yükleme/indirme URL'leri server'daki secret key ile üretilir. Public bucket ve public URL kullanılmaz. [Storage access control](https://supabase.com/docs/guides/storage/security/access-control), [dosya sınırları](https://supabase.com/docs/guides/storage/uploads/file-limits).
 
-Build yüklemesi staging nesne yoluna doğrudan yapılır. Finalize işleminde boyut ve mevcut metadata kontrol edilir; teste alınacak nesne ayrı, yeniden yükleme URL'si verilmeyen bir yola sabitlenir. Runner gerçek binary hash'ini hesaplayıp platform/ABI doğrulamasını yapar. Yeni upload yeni nesne kimliği alır; tamamlanmış build kaydı sonradan farklı binary'ye yönlendirilmez.
+Build yüklemesi `builds/staging/` yoluna imzalı yükleme URL'siyle doğrudan yapılır. 6 MB üzerindeki dosyalarda aynı imzalı token ile resumable (TUS) yükleme kullanılır. Finalize işleminde boyut ve mevcut metadata kontrol edilir; teste alınacak nesne `builds/final/` altında, yeniden yükleme yetkisi verilmeyen bir yola sabitlenir. Runner gerçek binary hash'ini hesaplayıp platform/ABI doğrulamasını yapar. Yeni upload yeni nesne kimliği alır; tamamlanmış build kaydı sonradan farklı binary'ye yönlendirilmez.
 
-Presigned URL süre dolana kadar tekrar kullanılabilir; tek kullanımlık sayılmaz. Kalıcı kayıtta URL yerine nesne yolu ve hash tutulur. Dashboard, kanıtı açarken kullanıcı yetkisini tekrar kontrol edip yeni süreli URL alır; haftalar sonra eski URL'nin çalışması beklenmez. Büyük dosyalar Vercel API body'sinden geçirilmez. [R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/).
+Supabase imzalı yükleme URL'si 2 saat geçerlidir ve süre dolana kadar tekrar kullanılabilir; tek kullanımlık sayılmaz. Resumable yükleme oturumu en çok 24 saat sürer. Kalıcı kayıtta URL yerine nesne yolu ve hash tutulur. Dashboard, kanıtı açarken kullanıcı yetkisini tekrar kontrol edip kısa süreli yeni indirme URL'si alır; haftalar sonra eski URL'nin çalışması beklenmez. Büyük dosyalar Vercel API body'sinden geçirilmez. [Signed upload URL](https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl), [Resumable uploads](https://supabase.com/docs/guides/storage/uploads/resumable-uploads).
 
 ### 4.3. GitHub ve WarpBuild: gerçek cihaz işleri
 
@@ -214,13 +214,13 @@ Draft kaydı teslimin tamamlandığı anlamına gelmez. [Devpost submission işl
 
 ## 8. Maliyet ve çalışma takibi
 
-Ayrıntılı fiyatlar ve senaryolar [mimari belgesinin maliyet bölümündedir](02-architecture.md#9-maliyet-hesabı). Başlangıç abonelik tabanı **$45/ay**; varsayılan Android+iOS çift koşusu runner ve model için yaklaşık **$2.07**'dir. Bunlar 3 Ekim 2026 araştırması ve ölçülmemiş tüketim varsayımlarıdır; vergi, R2 ve plan aşımı ayrıca izlenir. Token Factory kredisi diğer sağlayıcıların faturası yerine geçmez.
+Ayrıntılı fiyatlar ve senaryolar [mimari belgesinin maliyet bölümündedir](02-architecture.md#9-maliyet-hesabı). Başlangıç abonelik tabanı **$45/ay**; varsayılan Android+iOS çift koşusu runner ve model için yaklaşık **$2.07**'dir. Bunlar 3 Ekim 2026 araştırması ve ölçülmemiş tüketim varsayımlarıdır; vergi ve Supabase Storage/egress dahil plan aşımı ayrıca izlenir. Token Factory kredisi diğer sağlayıcıların faturası yerine geçmez.
 
 | İzlenen kayıt | Karar için kullanımı |
 |---|---|
 | GitHub run/job kimliği ve faturalanan dakikalar | Android, iOS ve rapor giderini ayrı hesaplama |
 | Model, çağrı/usage, timeout ve retry | Gerçek token maliyeti; tekrar ve gecikme etkisi |
-| R2 depolama ve request sayısı | Kanıt miktarı, retention ve dosya gideri |
+| Supabase Storage depolama ve egress | Kanıt miktarı, retention ve plan hakkı aşımı |
 | Vercel/Supabase kullanım ve billing | Kredi/hak aşımı, ek ücret ve servis sürekliliği |
 | Outbox yaşı, queued süresi, heartbeat ve provider durumu | Testin takıldığı katmanı belirleme |
 | Son başarılı reconcile ve başarısız callback/report | Kapanmayan run ve eksik raporları yakalama |
@@ -247,7 +247,7 @@ Değerlendirme boyunca giriş/örnek rapor/kanıt erişimi günlük kontrol edil
 | Rapor job'u failed/skipped/kayboldu | Provider sonucunu uzlaştır; koşu iptal edilmemişse ayrı report attempt ile yalnız raporu retry et |
 | Kullanıcı iptal etti | DB cancel, runner kontrolü ve gerektiğinde GitHub cancellation; yeni ücretli job açma, mevcut veriden deterministik kısmi rapor |
 | Anahtar sızıntısı | Etkilenen credential'ı revoke/rotate et; erişim kapsamı ve log'ları incele; yeni deployment/bağlantıyla doğrula |
-| Abonelik veya kredi sorunu | Sağlayıcı billing/son kullanım tarihini kontrol et, gerekli bakiye/planı düzelt; DB/R2 verisini silerek çözmeye çalışma |
+| Abonelik veya kredi sorunu | Sağlayıcı billing/son kullanım tarihini kontrol et, gerekli bakiye/planı düzelt; DB/Storage verisini silerek çözmeye çalışma |
 
 Rapor job'u `always() && !cancelled()` koşulunu kullanır; tek başına `always()` iptalde de çalışabildiğinden yeterli değildir. Kullanıcı iptali GitHub workflow'una da iletilir; rapor dispatch/bootstrap işlemleri DB iptal durumunu ayrıca kontrol eder ve iptal edilmiş run'a rapor lease'i vermez. İptal raporu kısa kontrol API'sinde mevcut veriden deterministik üretilir. [GitHub status koşulları](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#always).
 
@@ -257,9 +257,9 @@ Bir müdahale kaydı `runId`, etkilenen session/attempt, provider kimliği, sebe
 
 ## 10. Yedekleme, saklama ve geri alma
 
-Supabase Pro'nun günlük DB backup'ları yedi gün tutulur; R2 build/video/screenshot dosyaları bu backup'a dahil değildir. DB ve binary kurtarma ayrı planlanır. Public source repo da runtime veri/kanıt yedeği değildir. [Supabase backups](https://supabase.com/docs/guides/platform/backups).
+Supabase Pro'nun günlük DB backup'ları yedi gün tutulur; Storage'daki build/video/screenshot dosyaları bu backup'a dahil değildir. DB ve binary kurtarma ayrı planlanır. Public source repo da runtime veri/kanıt yedeği değildir. [Supabase backups](https://supabase.com/docs/guides/platform/backups).
 
-Teslim öncesinde şema/veri kurtarma yolu ve R2 sample nesnelerinin varlığı doğrulanır. Demo build'leri gerektiğinde sabit source/toolchain'den yeniden üretilebilir; aynı hash'in yeniden çıkacağı ölçülmeden garanti edilmez. Değiştirilemeyen gerçek kanıtların ek kopyası alınacaksa erişim/lifecycle ve ilave storage maliyeti ayrıca tanımlanır.
+Teslim öncesinde şema/veri kurtarma yolu ve Storage'daki sample nesnelerinin varlığı doğrulanır. Demo build'leri gerektiğinde sabit source/toolchain'den yeniden üretilebilir; aynı hash'in yeniden çıkacağı ölçülmeden garanti edilmez. Değiştirilemeyen gerçek kanıtların ek kopyası alınacaksa erişim/lifecycle ve ilave storage maliyeti ayrıca tanımlanır.
 
 Jüri hesapları, örnek build'ler, raporlar ve ilgili kanıtlar en az **15 Aralık 2026, 23.00 Türkiye saati** sonuna kadar tutulur. Cleanup kuralı bu tarihten önce gerekli nesneleri veya aktif koşu kanıtlarını silemez. Sonraki arşiv/temizlik tarihi, hak sahipliği ve toplam saklama gideriyle birlikte proje sahibi tarafından belirlenir; bu çalışma dosya veya servis silmez.
 
@@ -273,7 +273,7 @@ Değerlendirme deployment'ına otomatik yeni özellik yayını durdurulur; sonra
 
 | Karar / kayıt | Hazır kabul edilmesi için gereken değer |
 |---|---|
-| Production URL ve proje kimlikleri | Vercel, Supabase bölgesi, R2 bucket, GitHub repo/workflow ve pinlenmiş ref |
+| Production URL ve proje kimlikleri | Vercel, Supabase bölgesi ve Storage bucket'ları, GitHub repo/workflow ve pinlenmiş ref |
 | Runner profilleri | Android OS/ABI/emulator, macOS/Xcode/iOS runtime, Appium/driver sürümleri ve concurrency |
 | Capability/ortam doğrulaması | Probe sonuçları, software keyboard ve alert/animation ayarları; değiştirilen ortamı geri alma sonucu |
 | Model doğrulaması | Gerçek erişim veren model/endpoint; planning ve vision pilot sonucu |

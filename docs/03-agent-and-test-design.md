@@ -265,7 +265,7 @@ Severity etkiyle gerekçelendirilir: kritik veri kaybı veya uygulamanın ana i�
 
 Kanıt toplama modeli: her anlamlı eylem sonrası screenshot/hierarchy özeti; şüpheli adımda öncesi/sonrası kanıt, ilgili log penceresi ve varsa kısa video. Değişmeyen görüntüler yeniden VLM çağrısı gerektirmez. Görsel kontroller yeni state, önemli koşul değişimi veya bulgu adayı üzerinde önceliklendirilir.
 
-Artifact; platform/build/attempt/step, zaman, koşul, checksum ve R2 nesne yoluyla ilişkilendirilir. Yüklenip doğrulanmadan `ready` olayına bağlanmaz. Screenshot ile log/video zamanları eşleştirilir; olmayan video/log rapora varmış gibi eklenmez. Modelin işaretlediği region, gerçek screenshot koordinat sistemine dönüştürülür.
+Artifact; platform/build/attempt/step, zaman, koşul, checksum ve Storage nesne yoluyla ilişkilendirilir. Yüklenip doğrulanmadan `ready` olayına bağlanmaz. Screenshot ile log/video zamanları eşleştirilir; olmayan video/log rapora varmış gibi eklenmez. Modelin işaretlediği region, gerçek screenshot koordinat sistemine dönüştürülür.
 
 `RunEvent`; kimlik/monoton sequence, faz, hedef, eylem özeti, gözlenen sonuç, artifact referansı ve engel/bütçe sebebi taşır. Ağ bağlantısı geri geldiğinde event ID/sequence ile tekrar gönderim tekilleştirilir. DB kaydı ile artifact hazır durumu authoritative'dir; tarayıcı bağlantısının kopması testi durdurmaz.
 
