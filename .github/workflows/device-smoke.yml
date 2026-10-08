@@ -1,0 +1,163 @@
+name: device-smoke
+
+# F1 infrastructure pilot (docs/05 §6, gates G1/G2): boot a real Android emulator / iOS Simulator
+# on GitHub-hosted runners, install the sample build, perform one real action through Appium and
+# keep screenshots, hierarchies, logs and timings. No TapScout backend or model is involved yet.
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: build-sample run id to test (empty = latest successful run)
+        type: string
+        required: false
+      variant:
+        description: Sample variant to download
+        type: choice
+        options: [fixed, seeded, changed_flow]
+        default: fixed
+      platforms:
+        description: Platforms to run
+        type: choice
+        options: [both, android, ios]
+        default: both
+  # Runs automatically after every successful sample build on main (fixed variant, both platforms).
+  workflow_run:
+    workflows: [build-sample]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  OUT: .artifacts/smoke
+  APPIUM_VERSION: 3.8.0
+  UIAUTOMATOR2_VERSION: 8.7.0
+  XCUITEST_VERSION: 12.16.0
+
+jobs:
+  resolve:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    outputs:
+      run_id: ${{ steps.pick.outputs.run_id }}
+    steps:
+      - id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_RUN_ID: ${{ inputs.build_run_id || github.event.workflow_run.id }}
+        run: |
+          if [ -n "$INPUT_RUN_ID" ]; then
+            run_id="$INPUT_RUN_ID"
+          else
+            run_id=$(gh run list -R "$GITHUB_REPOSITORY" -w build-sample.yml -s success -L 1 --json databaseId -q '.[0].databaseId')
+          fi
+          if [ -z "$run_id" ]; then echo "No successful build-sample run found" >&2; exit 1; fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Using build-sample run [$run_id](https://github.com/$GITHUB_REPOSITORY/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"
+
+  android:
+    needs: resolve
+    if: inputs.platforms != 'ios'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download sample APK
+        uses: actions/download-artifact@v8
+        with:
+          name: fieldnotes-${{ inputs.variant || 'fixed' }}-android
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: build-in
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Appium and UiAutomator2
+        run: |
+          npm install -g "appium@${APPIUM_VERSION}"
+          appium driver install "uiautomator2@${UIAUTOMATOR2_VERSION}"
+      - name: Resolve APK path
+        run: echo "APP=$(ls "$PWD"/build-in/*.apk | head -1)" >> "$GITHUB_ENV"
+      - name: Boot emulator and run smoke
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/ci/android-smoke.sh
+      - name: Summary
+        if: always()
+        run: node scripts/ci/smoke-summary.mjs android
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-android
+          path: ${{ env.OUT }}
+          retention-days: 14
+
+  ios:
+    needs: resolve
+    if: inputs.platforms != 'android'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app && xcodebuild -version
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download sample .app zip
+        uses: actions/download-artifact@v8
+        with:
+          name: fieldnotes-${{ inputs.variant || 'fixed' }}-ios
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: build-in
+      - name: Unpack Simulator app
+        run: |
+          mkdir -p build-in/unpacked
+          ditto -x -k "$(ls build-in/*.app.zip | head -1)" build-in/unpacked
+          app=$(ls -d "$PWD"/build-in/unpacked/*.app | head -1)
+          plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|MinimumOSVersion|DTPlatformName' || true
+          echo "APP=$app" >> "$GITHUB_ENV"
+      - name: Install Appium and XCUITest
+        run: |
+          npm install -g "appium@${APPIUM_VERSION}"
+          appium driver install "xcuitest@${XCUITEST_VERSION}"
+      - name: Boot simulator
+        run: echo "UDID=$(bash scripts/ci/ios-boot-simulator.sh | tail -1)" >> "$GITHUB_ENV"
+      - name: Run smoke
+        run: |
+          bash scripts/ci/start-appium.sh
+          status=0
+          node packages/adapters/dist/smoke.js --platform ios --app "$APP" --udid "$UDID" --out "$OUT" || status=$?
+          xcrun simctl spawn "$UDID" log show --last 10m --style compact --predicate 'process == "FieldNotes"' > "$OUT/ios/app-log.txt" 2>/dev/null || true
+          kill "$(cat "$OUT/appium.pid")" 2>/dev/null || true
+          exit "$status"
+      - name: Summary
+        if: always()
+        run: node scripts/ci/smoke-summary.mjs ios
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-ios
+          path: ${{ env.OUT }}
+          retention-days: 14

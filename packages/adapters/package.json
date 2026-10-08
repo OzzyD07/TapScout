@@ -1,0 +1,36 @@
+{
+  "name": "@tapscout/adapters",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Device adapters over Appium (UiAutomator2 / XCUITest) via WebdriverIO, plus the F1 device smoke runner.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "tapscout-device-smoke": "./dist/smoke.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "webdriverio": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

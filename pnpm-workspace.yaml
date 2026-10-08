@@ -4,3 +4,6 @@ packages:
 onlyBuiltDependencies:
   - esbuild
 nodeLinker: hoisted
+ignoredBuiltDependencies:
+  - edgedriver
+  - geckodriver
