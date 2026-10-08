@@ -297,6 +297,8 @@ Hesap zamanlaması (6 Ekim kararı): Pro planlar F1'in ön koşulu değildir.
 | Vercel | Hobby | Pro: 24 Ekim | Hobby ticari olmayan kullanım içindir; jüri demosu öncesi Pro |
 | Token Factory | Promosyon kodu bekleniyor | 13 Ekim | G3 (16 Ekim) planner gate'i için gerekli. F1 pilotu ilk eylemi deterministik yapabilir |
 
+**Supabase projesi (8 Ekim):** `TapScout`, ref `gumxrcxweozrjblkthyb`, `eu-central-1` (Frankfurt), `OzzyD07` org'u. Proje sahibinin izniyle açıldı. Üç migration uygulandı ve yerel dosya sürümleri uzak geçmişle eşitlendi. Security advisor'da yalnız bilinçli INFO kaldı (server-only tablolarda politika yok). Storage bucket'ları, org Pro'ya geçince (proje geneli 50 MB dosya sınırı kalkınca) migration ile açılacak. **Public signup panelden kapatılmalı:** `supabase/config.toml` yalnız yerel ortamı etkiler.
+
 Proje sahibinde bekleyen (F0'ı kapatmak için):
 
 - [ ] Hesaplar: GitHub repo ve WarpBuild öncelikli; diğerleri tablodaki tarihlerle.
