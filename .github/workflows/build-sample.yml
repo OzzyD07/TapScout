@@ -44,11 +44,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
       - run: pnpm install --frozen-lockfile
       - name: Generate native Android project
         working-directory: apps/sample-app
         run: npx expo prebuild --platform android --clean --no-install
+      # Gradle caching starts after prebuild; the android/ project does not exist before it.
+      - uses: gradle/actions/setup-gradle@v6
       - name: Assemble release APK (x86_64)
         working-directory: apps/sample-app/android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon --stacktrace
