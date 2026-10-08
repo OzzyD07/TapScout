@@ -6,12 +6,14 @@
     "dev": "dotenv -e ../../.env -- next dev",
     "build": "dotenv -e ../../.env -- next build",
     "start": "dotenv -e ../../.env -- next start",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.3",
     "@tapscout/shared": "workspace:*",
+    "jose": "^6.2.12",
     "next": "16.4.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -24,7 +26,8 @@
     "@types/react-dom": "^19",
     "dotenv-cli": "^11.0.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   },
   "license": "Apache-2.0"
 }
