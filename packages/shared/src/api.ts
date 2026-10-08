@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { PlatformBudget } from "./budget.js";
-import { Id, Sha256, Timestamp } from "./common.js";
-import { ArtifactKind, Platform, TestMode } from "./enums.js";
+import { DeviceProfile, Id, Sha256, Timestamp } from "./common.js";
+import { ArtifactKind, Platform, StopReason, TestMode } from "./enums.js";
 import { RUN_EVENT_BATCH_MAX, RunEventInput } from "./events.js";
+import { PlatformResult } from "./report.js";
 
 /** Upload limits — V1 proposals, finalised after the pilot (docs/05 §11). */
 export const UPLOAD_LIMITS = {
@@ -89,13 +90,24 @@ export const RunnerBootstrapResponse = z.object({
 });
 export type RunnerBootstrapResponse = z.infer<typeof RunnerBootstrapResponse>;
 
-export const HeartbeatRequest = z.object({ leaseVersion: z.number().int().positive() });
+/** The lease identity comes from the runner token, never from the body. */
+export const HeartbeatRequest = z.object({}).strict();
 export const HeartbeatResponse = z.object({
   leaseValid: z.boolean(),
   cancelRequested: z.boolean(),
-  tokenExpiresAt: Timestamp,
+  /** A fresh token is issued on every valid heartbeat; null once the lease is lost. */
+  sessionToken: z.string().nullable(),
+  tokenExpiresAt: Timestamp.nullable(),
 });
 export type HeartbeatResponse = z.infer<typeof HeartbeatResponse>;
+
+export const FinishSessionRequest = z.object({
+  phase: z.enum(["completed", "blocked", "infrastructure_failed", "cancelled"]),
+  stopReason: StopReason,
+  result: PlatformResult,
+  device: DeviceProfile.optional(),
+});
+export type FinishSessionRequest = z.infer<typeof FinishSessionRequest>;
 
 export const EventBatchRequest = z.object({
   events: z.array(RunEventInput).min(1).max(RUN_EVENT_BATCH_MAX),
