@@ -254,8 +254,8 @@ Kurallar: her PR typecheck + birim testten geçer; sözleşme değişikliği yal
 
 | Karar | Öneri | Neden |
 |---|---|---|
-| Track | **Coding and Agentic Engineering**'i yeniden değerlendirmek | Tanımı test eden agent'larla birebir örtüşüyor; `04`'teki tercih Best Apps and Agents |
-| G2 başarısız olursa iOS | 16 Ekim'e kadar uzatma, sonra "Experimental" | Kullanıcı kapsamında iOS zorunlu; kesinti onay gerektirir |
+| Track | **Karar (9 Ekim): Coding and Agentic Engineering** | Tanımı (kod yazan, çalıştıran ve test eden agent'lar) TapScout ile birebir örtüşüyor; `04`'teki ilk tercih Best Apps and Agents'tı |
+| G2 başarısız olursa iOS | **Karar (9 Ekim):** iOS uçtan uca koşu 16 Ekim'e kadar yetişmezse iOS "Experimental" etiketiyle kalır; demo ve video Android ağırlıklı olur | Proje sahibi onayladı. WarpBuild'e geçiş ve iOS'a tam öncelik seçenekleri reddedildi |
 | Örnek uygulama teknolojisi | Expo/React Native | `testID`/`accessibilityLabel` native hierarchy'ye doğrudan düşer; tek kaynaktan APK ve Simulator build |
 | Lisans | Apache-2.0 | Kurallarda kabul edilenler arasında; patent maddesi |
 | GitHub dispatch yetkisi | Pilotta fine-grained PAT, teslimden önce GitHub App | `04` §4.3 ile uyumlu; F1'i hızlandırır |
@@ -301,9 +301,10 @@ Hesap zamanlaması (6 Ekim kararı): Pro planlar F1'in ön koşulu değildir.
 
 Proje sahibinde bekleyen (F0'ı kapatmak için):
 
-- [ ] Hesaplar: GitHub token ve Supabase Pro öncelikli; diğerleri tablodaki tarihlerle.
-- [ ] `pnpm probe:models` sonucunun incelenmesi ve planner modelinin seçimi.
-- [ ] §11 kararlarının onayı (track, iOS fallback).
+- [x] GitHub fine-grained token (`.env`, bitiş 7 Ocak 2027), Supabase secret key, public signup kapalı (9 Ekim'de doğrulandı).
+- [ ] Supabase Pro (proje sahibi 10 Ekim'de geçecek) ve Vercel projesi.
+- [ ] `pnpm probe:models` sonucunun incelenmesi ve planner modelinin seçimi. Token Factory anahtarı geçerli (9 Ekim: 25 model, dört Nemotron ve MiniCPM görünüyor); çıkarım çağrıları için kredi bekleniyor.
+- [x] §11 kararlarının onayı: track ve iOS fallback (9 Ekim).
 
 ## 13. F1 durumu (8 Ekim 2026)
 

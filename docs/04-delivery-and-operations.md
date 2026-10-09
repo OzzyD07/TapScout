@@ -17,7 +17,7 @@ Hedef: Jüri, verilen hesapla web arayüzüne girerek hazır Android ve iOS buil
 
 Kurallar, çalışan projeye ücretsiz ve kısıtlamasız jüri erişimi ister; jürinin projeyi çalıştırması zorunlu değildir. Kapalı sitede giriş bilgileri testing instructions alanına eklenir. Public kaynak repo, açık kaynak lisansı, kurulum açıklaması, İngilizce teslim materyalleri ve YouTube'da kamuya açık, **üç dakikadan kısa** demo video hazırlanır. Kullanılan NVIDIA modeli ve Nebius runtime entegrasyonu açıklanır; track seçimi ve kullanılan araçlara geri bildirim teslimde yer alır. [Yarışma kuralları](https://nebiusglobalaihackathon.devpost.com/rules).
 
-Bu proje için `Best Apps and Agents` track'i başlangıç tercihidir; son seçim Devpost formunda doğrulanır. NVIDIA Nemotron'un gerçek Token Factory çağrıları çalışma kayıtlarıyla gösterilir. Mimariye ek Nebius servisi eklemek teslim hedefi değildir.
+Bu proje **Coding and Agentic Engineering** track'inde yarışır (9 Ekim 2026 kararı; ilk tercih `Best Apps and Agents`'tı). Seçim Devpost formunda doğrulanır. NVIDIA Nemotron'un gerçek Token Factory çağrıları çalışma kayıtlarıyla gösterilir. Mimariye ek Nebius servisi eklemek teslim hedefi değildir.
 
 Türkçe belgeler çalışma dokümanlarıdır. Teslime dahil edilen içeriklerin İngilizce karşılıkları hazırlanır; gerekirse aynı dosyaların teslim sürümü İngilizce yapılır. Yalnız README'yi çevirmek, teslim edilen diğer Türkçe materyallerin çeviri gereksinimini karşılamaz.
 
