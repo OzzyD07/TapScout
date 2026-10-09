@@ -2,8 +2,10 @@ import "server-only";
 import { PlatformBudget, TestMode, UPLOAD_LIMITS } from "@tapscout/shared";
 import { z } from "zod";
 import { HttpError } from "@/lib/api/errors";
+import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ArtifactDeps } from "./artifacts";
 import { verifyGithubOidc } from "./oidc";
 import type { BootstrapContext, RunnerDeps } from "./service";
 
@@ -14,6 +16,85 @@ const BuildRow = z.object({
   file_name: z.string(),
   size_bytes: z.coerce.number(),
 });
+
+export function createArtifactDeps(): ArtifactDeps {
+  const admin = createAdminClient();
+  const bucket = () => admin.storage.from(serverEnv.storageEvidenceBucket());
+  return {
+    signingKey: serverEnv.runnerTokenSigningKey(),
+    publishableKey: publicEnv.supabasePublishableKey,
+    newId: () => crypto.randomUUID(),
+    async leaseIsCurrent(scope) {
+      const { data } = await admin
+        .from("platform_sessions")
+        .select("id")
+        .eq("id", scope.sessionId)
+        .eq("attempt_id", scope.attemptId)
+        .eq("lease_version", scope.leaseVersion)
+        .not("phase", "in", "(completed,cancelled,blocked,infrastructure_failed)")
+        .maybeSingle();
+      return Boolean(data);
+    },
+    async insertPending(row) {
+      const { error } = await admin.from("artifacts").insert({
+        id: row.id,
+        run_id: row.runId,
+        session_id: row.sessionId,
+        attempt_id: row.attemptId,
+        kind: row.kind,
+        object_key: row.objectKey,
+        content_type: row.contentType,
+        step_index: row.stepIndex,
+        status: "pending",
+      });
+      if (error) throw new HttpError(500, "internal", "could not record the artifact");
+    },
+    async signUpload(objectKey) {
+      const { data, error } = await bucket().createSignedUploadUrl(objectKey);
+      if (error || !data) throw new HttpError(500, "internal", "could not sign the upload");
+      return { signedUrl: data.signedUrl };
+    },
+    async findPending(artifactId, scope) {
+      const { data } = await admin
+        .from("artifacts")
+        .select("id, run_id, session_id, attempt_id, kind, object_key, content_type, step_index")
+        .eq("id", artifactId)
+        .eq("session_id", scope.sessionId)
+        .eq("attempt_id", scope.attemptId)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (!data) return null;
+      return {
+        id: data.id,
+        runId: data.run_id,
+        sessionId: data.session_id,
+        attemptId: data.attempt_id,
+        kind: data.kind,
+        objectKey: data.object_key,
+        contentType: data.content_type,
+        stepIndex: data.step_index,
+      };
+    },
+    async objectSize(objectKey) {
+      const { data, error } = await bucket().info(objectKey);
+      if (error || !data) return null;
+      return typeof data.size === "number" ? data.size : null;
+    },
+    async markReady(artifactId, sha256, sizeBytes) {
+      const { error } = await admin
+        .from("artifacts")
+        .update({
+          status: "ready",
+          sha256,
+          size_bytes: sizeBytes,
+          ready_at: new Date().toISOString(),
+        })
+        .eq("id", artifactId)
+        .eq("status", "pending");
+      if (error) throw new HttpError(500, "internal", "could not mark the artifact ready");
+    },
+  };
+}
 
 export function createRunnerDeps(): RunnerDeps {
   const admin = createAdminClient();

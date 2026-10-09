@@ -1,0 +1,31 @@
+{
+  "name": "@tapscout/runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runs inside a GitHub Actions device job: bootstraps with GitHub OIDC, drives the device, uploads evidence and streams run events to the TapScout API.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "tapscout-runner": "./dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "prepare": "pnpm build"
+  },
+  "dependencies": {
+    "@tapscout/adapters": "workspace:*",
+    "@tapscout/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

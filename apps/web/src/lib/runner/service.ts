@@ -42,7 +42,7 @@ async function rpcRows<T>(
   return (Array.isArray(data) ? data : data == null ? [] : [data]) as T[];
 }
 
-export async function authenticateDevice(deps: RunnerDeps, token: string) {
+export async function authenticateDevice(deps: Pick<RunnerDeps, "signingKey">, token: string) {
   let scope: RunnerScope;
   try {
     scope = await verifyRunnerToken(token, deps.signingKey);

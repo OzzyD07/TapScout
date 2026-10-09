@@ -128,6 +128,7 @@ export const ArtifactPresignRequest = z.object({
     "image/jpeg",
     "image/webp",
     "application/json",
+    "application/xml",
     "text/plain",
     "video/mp4",
   ]),

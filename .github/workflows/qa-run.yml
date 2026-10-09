@@ -1,0 +1,135 @@
+name: qa-run
+
+# A real TapScout test run, dispatched by the API after a run is created (docs/02 §4).
+# Each device job proves its identity to the API with a GitHub OIDC token, receives a lease and
+# a short-lived runner token, downloads the build through a signed URL, drives the device and
+# streams events and evidence back. No provider key or Supabase secret is ever given to a job.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: TapScout run id (UUID)
+        type: string
+        required: true
+      platforms:
+        description: Platforms in this run
+        type: choice
+        options: [both, android, ios]
+        default: both
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: qa-run-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+env:
+  RUN_ID: ${{ inputs.run_id }}
+  TAPSCOUT_API_URL: ${{ vars.TAPSCOUT_API_URL || 'https://tap-scout-zeta.vercel.app' }}
+  TAPSCOUT_OIDC_AUDIENCE: tapscout
+  OUT: .artifacts/run
+  APPIUM_VERSION: 3.8.0
+  UIAUTOMATOR2_VERSION: 8.7.0
+  XCUITEST_VERSION: 12.16.0
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate inputs
+        run: |
+          if ! [[ "$RUN_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "run_id must be a UUID" >&2
+            exit 1
+          fi
+          echo "Run \`$RUN_ID\` → $TAPSCOUT_API_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  android:
+    needs: validate
+    if: inputs.platforms != 'ios'
+    runs-on: ubuntu-24.04
+    # Hard limit from docs/03 §9 plus setup margin; the runner stops QA work earlier.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Appium and UiAutomator2
+        run: |
+          npm install -g "appium@${APPIUM_VERSION}"
+          appium driver install "uiautomator2@${UIAUTOMATOR2_VERSION}"
+      - name: Boot emulator and run TapScout
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/ci/android-run.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: run-android
+          path: |
+            ${{ env.OUT }}
+            !${{ env.OUT }}/android/build
+          retention-days: 14
+
+  ios:
+    needs: validate
+    if: inputs.platforms != 'android'
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app && xcodebuild -version
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Appium and XCUITest
+        run: |
+          npm install -g "appium@${APPIUM_VERSION}"
+          appium driver install "xcuitest@${XCUITEST_VERSION}"
+      - name: Download prebuilt WebDriverAgent
+        continue-on-error: true
+        run: |
+          appium driver run xcuitest download-wda -- --outdir="$RUNNER_TEMP/wda" --kind=sim --platform=ios
+          wda=$(find "$RUNNER_TEMP/wda" -maxdepth 2 -name 'WebDriverAgentRunner-Runner.app' | head -1)
+          if [ -n "$wda" ]; then echo "WDA=$wda" >> "$GITHUB_ENV"; fi
+      - name: Boot simulator
+        run: echo "UDID=$(bash scripts/ci/ios-boot-simulator.sh | tail -1)" >> "$GITHUB_ENV"
+      - name: Run TapScout
+        run: |
+          bash scripts/ci/start-appium.sh
+          status=0
+          wda_args=()
+          if [ -n "${WDA:-}" ]; then wda_args=(--wda "$WDA"); fi
+          node packages/runner/dist/main.js --platform ios --run-id "$RUN_ID" --udid "$UDID" --out "$OUT" "${wda_args[@]}" || status=$?
+          kill "$(cat "$OUT/appium.pid")" 2>/dev/null || true
+          exit "$status"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: run-ios
+          path: |
+            ${{ env.OUT }}
+            !${{ env.OUT }}/ios/build
+          retention-days: 14
