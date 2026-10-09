@@ -303,7 +303,17 @@ Proje sahibinde bekleyen (F0'ı kapatmak için):
 
 - [x] GitHub fine-grained token (`.env`, bitiş 7 Ocak 2027), Supabase secret key, public signup kapalı (9 Ekim'de doğrulandı).
 - [ ] Supabase Pro (proje sahibi 10 Ekim'de geçecek) ve Vercel projesi.
-- [ ] `pnpm probe:models` sonucunun incelenmesi ve planner modelinin seçimi. Token Factory anahtarı geçerli (9 Ekim: 25 model, dört Nemotron ve MiniCPM görünüyor); çıkarım çağrıları için kredi bekleniyor.
+- [x] Model ölçümü (9 Ekim, $1 deneme kredisiyle; toplam harcama < $0,01):
+
+  | Aday | `json_schema` geçerli + ekrandaki öğeye bağlı | Medyan gecikme | Çıktı token |
+  |---|---|---|---|
+  | `nvidia/Nemotron-3_5-Lightning` | **3/3** | 2,9 sn | 729–800 (reasoning açık) |
+  | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | 1/3 | 9,7 sn | 625–800, 800'de kesilip JSON üretemedi |
+  | Lightning + `chat_template_kwargs.enable_thinking=false` | **2/2** | **0,7–1,8 sn** | **133** |
+  | Lightning + `/no_think` veya `reasoning_effort=low` | 4/4 | 1,9–2,4 sn | 450–595 (reasoning kapanmadı) |
+  | `openbmb/MiniCPM-V-4_5` (görsel) | HTTP 200 | 2,2 sn | 200 (<think> ile başlıyor; ayrıca kapatılmalı) |
+
+  **Karar:** Planner `nvidia/Nemotron-3_5-Lightning`, `response_format: json_schema` ve `enable_thinking=false`. Reasoning açıkken çağrı başına çıktı `03` §9'daki planner bütçesini (30 çağrıda 13.000 token) aşıyordu; kapalıyken yaklaşık 4.000 token'a iner. Karmaşık/takılmış durumlarda yeniden planlama için reasoning seçici açılabilir; bu G3'te (16 Ekim) gerçek ekranlarla ölçülür. MiniCPM'in düşünme çıktısı relay'de kapatılacak veya ayıklanacak.
 - [x] §11 kararlarının onayı: track ve iOS fallback (9 Ekim).
 
 ## 13. F1 durumu (8 Ekim 2026)
