@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an:** F1 bitti. F2'nin ilk üç işi (model relay, observer, agent döngüsü) 10 Ekim'de tamamlandı ve iki platformda gerçek Nemotron koşusuyla doğrulandı. Sırada Functional modu ve örnek uygulama v1.
+- **Şu an (10 Ekim akşam):** F2'nin relay, observer, agent döngüsü, Functional modu ve örnek uygulama v1'i yapıldı. Açık iş: `seeded` iOS'ta klavyenin kapattığı Continue yüzünden kayıt geçilemiyor (§7 "Hemen sıradaki").
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -105,12 +105,19 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 1. ~~Model relay~~ **bitti** (`apps/web/src/lib/relay`): runner token + lease → `reserve_model_budget` → tek Token Factory çağrısı → `settle_model_budget` → `usage_records`. Planner `json_schema` + `enable_thinking=false`; görsel yalnız aynı oturum denemesinin hazır screenshot'ı, düşünme kapalı. Usage gelmeyen timeout/5xx'te rezerv tam sayılır.
 2. ~~Observer~~ **bitti** (`packages/runner/src/observer.ts`): Android/iOS page source → ortak öğe sözlüğü (bounds screenshot pikselinde), secret maskeleme, Android ANR/crash diyaloğu tespiti.
 3. ~~State graph ve agent döngüsü~~ **bitti** (`state.ts`, `planner.ts`, `agent.ts`): yapısal parmak izi, döngü tespiti, karar başına 1 repair, deterministik fallback; 10 eylemdir yeni durum yoksa ve ekrandaki her kontrol denendiyse `goals_exhausted`. Prompt sürümü `planner-2026-10-10.v1`.
-4. **Functional modu:** Akış hedefleri ve kalıcılık kontrolü (kaydet → yeniden aç).
-5. **Örnek uygulama v1:**
+4. ~~Functional modu~~ **bitti** (`functional.ts`, `agent.ts`): 4 kontrol (`flow_transitions`, `form_feedback`, `return_paths`, `persistence`). Kalıcılık kontrolü kaydın hemen ardından: yeniden başlat → gözlenen yolla ekrana dön → değeri ara; kaybolursa yeni değerle 2 replay (`n/m`). Kontroller/bulgular `finish_session` (migration `20261010132533`) ile aynı transaction'da yazılır; rapor ve run sayfası gösterir.
+   - Doğrulama: `fixed` iki platformda kalıcılık geçti, bulgu yok (`3a257421`). `seeded` Android "Saved About you is lost after the app restarts" **Reproduced 2/2** (`ff159524`, `33277262`). Android launcher ANR'ı CI'da launcher kapatılarak çözüldü.
+5. ~~Örnek uygulama v1~~ **bitti** (`8976a48`; build'ler yayımlandı: fixed ve seeded). Hata listesi `quality/ground-truth/fieldnotes-seeded-v1.json`. Eski plan maddeleri:
    - Not listesi; ayarlar (privacy policy linki, hesap silme).
    - `seeded` / `fixed` / `changed_flow` varyantları; kasıtlı hatalar `05` §8'de.
    - Ground-truth manifest'i yalnız `quality/` altında.
 6. **G3 (16 Ekim):** Planner'ın en az 3 ekranı keşfetmesi ve geçersiz eylem uygulamaması. v0 örnek uygulamada `202c4d49` ile karşılandı; v1 (daha çok ekran ve kasıtlı hatalar) üzerinde yeniden ölçülecek.
+
+### Hemen sıradaki
+
+- **`seeded` iOS kayıt engeli:** Continue klavyenin altında (kasıtlı UI/UX hatası). Klavye bandındaki öğeler `[under keyboard]` işaretleniyor; `hideKeyboard` başarısızsa dönüş tuşu, sonra metne dokunma deneniyor; son commit'te "klavye denenmemiş kontrolleri kapatıyorsa ekrandan çıkma, önce kapat" kuralı eklendi. **Bu son kural henüz gerçek koşuda denenmedi:** `node --env-file=.env scripts/dev-run.mjs --owner tester@tapscout.com --platforms ios --modes functional --variant seeded` ile dene (son denemeler `41091cdc`, `dbca0e68`, `c9143033`: form geri bildirimi doğru, kayıt geçilemedi).
+- Belgeler: `05`'e F2 Functional ölçümleri (§15) eklenecek.
+- actionlint yerelde çalıştırılamadı (Docker kapalı); qa-run'daki tek değişiklik iki `rm -rf quality` adımı.
 
 ### Açık borçlar
 
