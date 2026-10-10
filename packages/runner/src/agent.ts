@@ -165,7 +165,7 @@ const PROBE_MIN_ACTIONS = 8;
 /** Long-text stress probes per session (one per form). */
 const MAX_STRESS_PROBES = 2;
 /** Screens checked for clipped text by the vision model per session. */
-const MAX_VISION_SCREENS = 4;
+const MAX_VISION_SCREENS = 6;
 /** Texts at least this long make a screen worth a visual clipping check. */
 const LONG_TEXT = 40;
 const CLIPPING_PROMPT =
@@ -562,6 +562,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const probes: PersistenceProbe[] = [];
   const probedFields = new Set<string>();
   const stressProbed = new Set<string>();
+  /** Screens (by name) already checked by the vision model. */
+  const visionLabels = new Set<string>();
   let probeSkipped: string | null = null;
 
   async function explore(): Promise<Ending> {
@@ -744,7 +746,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
       // UI/UX: ask the vision model about clipped text on new screens with long text.
       if (
-        isNew &&
+        !visionLabels.has(state.label) &&
+        !snap.screen.keyboardVisible &&
         snap.appForeground &&
         config.modes.includes("ui_ux") &&
         !snap.screen.secretsVisible &&
@@ -752,6 +755,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         counters.visionCalls < budget.maxVisionRequests &&
         snap.screen.elements.some((e) => (e.text ?? e.label ?? "").length >= LONG_TEXT)
       ) {
+        visionLabels.add(state.label);
         await checkClipping(state.label, snap.screen, shot);
       }
 

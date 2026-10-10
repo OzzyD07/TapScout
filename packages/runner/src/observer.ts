@@ -99,6 +99,8 @@ const INTERACTIVE: ReadonlySet<ElementRole> = new Set([
 
 interface Candidate extends Omit<UiElement, "ref"> {
   order: number;
+  /** iOS reported the node as not visible (e.g. occluded by the keyboard). */
+  osHidden?: boolean;
 }
 
 function androidRole(cls: string, clickable: boolean, checkable: boolean): ElementRole {
@@ -271,7 +273,9 @@ function iosCandidates(root: XmlNode, scale: number) {
     if (insideKeyboard.has(node)) continue;
     if (role === "dialog") dialogVisible = true;
     if (type === "XCUIElementTypeNavigationBar" && a.name) title ??= clip(a.name);
-    if (a.visible === "false") continue;
+    // XCUITest reports controls under the keyboard as not visible; keep them for the keyboard
+    // check below and drop every other hidden node.
+    const osHidden = a.visible === "false";
     const bounds: Bounds = {
       x: Math.round(Number(a.x) * scale),
       y: Math.round(Number(a.y) * scale),
@@ -300,15 +304,17 @@ function iosCandidates(root: XmlNode, scale: number) {
       clickable: INTERACTIVE.has(role),
       checked: role === "switch" ? value === "1" : undefined,
       masked: secure,
+      osHidden,
     });
   }
   // Everything whose centre lies in the keyboard band (app controls it covers, and the keyboard's
   // own accessory buttons such as Emoji or Dictate) is marked as not visible.
-  if (keyboardTop !== null) {
-    for (const c of candidates) {
-      if (c.bounds.y + c.bounds.height / 2 >= keyboardTop) c.visible = false;
-    }
-  }
+  const inKeyboardBand = (c: Candidate) =>
+    keyboardTop !== null && c.bounds.y + c.bounds.height / 2 >= keyboardTop;
+  for (const c of candidates) if (inKeyboardBand(c)) c.visible = false;
+  const shown = candidates.filter((c) => !c.osHidden || inKeyboardBand(c));
+  candidates.length = 0;
+  candidates.push(...shown);
   return {
     candidates,
     widthPx,
@@ -394,7 +400,7 @@ export function normalizeHierarchy(
 
   let secretsVisible = false;
   const elements: UiElement[] = chosen.map((c, i) => {
-    const { order: _order, ...rest } = c;
+    const { order: _order, osHidden: _osHidden, ...rest } = c;
     const masked =
       c.masked ||
       (c.role === "text_field" && SECRET_HINT.test(`${c.stableId ?? ""} ${c.label ?? ""}`));

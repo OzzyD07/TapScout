@@ -94,6 +94,17 @@ describe("iOS keyboard", () => {
   });
 });
 
+describe("iOS controls under the keyboard (real hierarchy, run 4a2c863d)", () => {
+  it("keeps a button XCUITest reports as not visible when it sits under the keyboard", () => {
+    const s = normalizeHierarchy("ios", fixture("ios-register-keyboard"), { scale: 3 });
+    expect(s.keyboardVisible).toBe(true);
+    const cont = s.elements.find((e) => e.stableId === "register-continue");
+    expect(cont).toMatchObject({ role: "button", label: "Continue", visible: false });
+    expect(s.elements.find((e) => e.stableId === "register-name")?.visible).toBe(true);
+    expect(Object.keys(cont ?? {})).not.toContain("osHidden");
+  });
+});
+
 describe("pngSize", () => {
   it("reads IHDR dimensions", () => {
     const b = new Uint8Array(24);
