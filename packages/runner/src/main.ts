@@ -52,6 +52,8 @@ class Stop extends Error {
 
 /** Planner answers measured at ~130–150 tokens; the cap leaves room without wasting reservation. */
 const PLANNER_MAX_OUTPUT_TOKENS = 500;
+/** A device failure within this many actions gets one retry with a new Appium session. */
+const EARLY_FAILURE_ACTIONS = 5;
 
 const startedAt = Date.now();
 const outDir = join(values.out ?? ".artifacts/run", platform);
@@ -137,12 +139,9 @@ try {
   });
   checkpoint();
 
-  device = await DeviceSession.open({
-    platform,
-    appPath,
-    udid: values.udid,
-    prebuiltWdaPath: values.wda,
-  });
+  const openDevice = () =>
+    DeviceSession.open({ platform, appPath, udid: values.udid, prebuiltWdaPath: values.wda });
+  device = await openDevice();
   const caps = device.driver.capabilities as Record<string, unknown>;
   deviceProfile = {
     platform,
@@ -165,41 +164,63 @@ try {
   // preparation budget, so the soft stop is measured from runner start minus that allowance.
   const softDeadline =
     startedAt + (boot.budget.qaSoftStopMinute - boot.budget.preparationMaxMinutes) * 60_000;
-  const agent = await runAgent(
-    {
-      device,
-      emit: (event) => sink.emit(event),
-      flush: () => sink.flush(),
-      async saveEvidence(name, kind, data, stepIndex) {
-        const file = join(outDir, `${name}.${kind === "screenshot" ? "png" : "xml"}`);
-        await writeFile(file, data);
-        return uploads.start(file, kind, stepIndex);
+  const runOnce = (session: DeviceSession) =>
+    runAgent(
+      {
+        device: session,
+        emit: (event) => sink.emit(event),
+        flush: () => sink.flush(),
+        async saveEvidence(name, kind, data, stepIndex) {
+          const file = join(outDir, `${name}.${kind === "screenshot" ? "png" : "xml"}`);
+          await writeFile(file, data);
+          return uploads.start(file, kind, stepIndex);
+        },
+        evidenceReady: (artifactId) => uploads.ready(artifactId),
+        plan: (messages, purpose) =>
+          api.relayPlan({
+            purpose,
+            messages,
+            responseSchema: "planner_output_v1",
+            maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
+          }),
+        vision: (artifactId, prompt) =>
+          api.relayVision({ artifactId, prompt, maxOutputTokens: 200 }),
+        checkpoint,
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        log: (message) => console.log(`runner: ${message}`),
       },
-      evidenceReady: (artifactId) => uploads.ready(artifactId),
-      plan: (messages, purpose) =>
-        api.relayPlan({
-          purpose,
-          messages,
-          responseSchema: "planner_output_v1",
-          maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
-        }),
-      vision: (artifactId, prompt) => api.relayVision({ artifactId, prompt, maxOutputTokens: 200 }),
-      checkpoint,
-      now: () => Date.now(),
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      log: (message) => console.log(`runner: ${message}`),
-    },
-    {
-      platform,
-      modes: boot.modes,
-      budget: boot.budget,
-      softDeadline,
-      counters,
-      run: { runId, sessionId: boot.sessionId },
-      versions: runVersionStamp(boot.budget.budgetVersion),
-      newId: randomUUID,
-    },
-  );
+      {
+        platform,
+        modes: boot.modes,
+        budget: boot.budget,
+        softDeadline,
+        counters,
+        run: { runId, sessionId: boot.sessionId },
+        versions: runVersionStamp(boot.budget.budgetVersion),
+        newId: randomUUID,
+      },
+    );
+  let agent = await runOnce(device);
+  // An early device failure (e.g. the UiAutomator2 instrumentation crashing on a cold emulator,
+  // run 2fc4f938) is retried once with a fresh Appium session while there is time left.
+  if (
+    agent.phase === "infrastructure_failed" &&
+    counters.actionsExecuted < EARLY_FAILURE_ACTIONS &&
+    Date.now() < softDeadline - 5 * 60_000
+  ) {
+    sink.emit({
+      type: "note",
+      payload: {
+        level: "warn",
+        message: `Device session failed early (${agent.detail.slice(0, 200)}); starting a new session once.`,
+      },
+    });
+    await sink.flush();
+    await device.close().catch(() => undefined);
+    device = await openDevice();
+    agent = await runOnce(device);
+  }
   console.log(
     `runner: agent stopped (${agent.stopReason}): ${agent.detail} — ${agent.screens} screens, ` +
       `${counters.actionsExecuted} actions, ${counters.plannerCalls} planner calls`,
