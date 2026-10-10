@@ -21,7 +21,7 @@ import {
 } from "@tapscout/shared";
 import { RunnerApiError } from "./api.js";
 import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
-import { ControlLedger, type FrontierControl, safeToTry } from "./coverage.js";
+import { ControlLedger, type FrontierControl, familyOf, safeToTry } from "./coverage.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
@@ -1427,12 +1427,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const noLinks = relaunches >= MAX_RELAUNCHES - 1;
     // One list row stands for the others (docs/03 §3.2).
     const tried = graph.get(fp)?.tried;
-    const rowOpened = controlsOf(screen).some(
-      (e) => e.role === "cell" && tried?.has(actionKey("tap", e)),
+    const opened = new Set(
+      controlsOf(screen)
+        .filter((e) => tried?.has(actionKey("tap", e)))
+        .map((e) => familyOf(e)),
     );
-    const next = untriedControls(screen, fp).find(
-      (e) => !(noLinks && e.role === "link") && !(rowOpened && e.role === "cell"),
-    );
+    const next = untriedControls(screen, fp).find((e) => {
+      const family = familyOf(e);
+      return !(noLinks && e.role === "link") && !(family && opened.has(family));
+    });
     return next ? { action: { type: "tap", targetRef: next.ref }, target: next } : null;
   }
 

@@ -1,6 +1,6 @@
 import type { UiElement } from "@tapscout/shared";
 import { describe, expect, it } from "vitest";
-import { ControlLedger, iconOnly, safeToTry } from "../src/coverage.js";
+import { ControlLedger, familyOf, iconOnly, safeToTry } from "../src/coverage.js";
 import { actionKey, StateGraph } from "../src/state.js";
 
 let refs = 0;
@@ -74,8 +74,32 @@ describe("ControlLedger.frontier", () => {
     const ledger = new ControlLedger();
     ledger.note("Notes", [...rows, add]);
     const g = graph();
-    expect(ledger.frontier(g, "Home", ["functional"])).toHaveLength(4);
+    expect(ledger.frontier(g, "Home", ["functional"])).toHaveLength(2);
     g.record("notes", actionKey("tap", rows[0]), "Open row", "notes", 6, { type: "tap" });
     expect(ledger.frontier(g, "Home", ["functional"]).map((c) => c.role)).toEqual(["button"]);
+  });
+});
+
+describe("familyOf", () => {
+  it("groups ids that differ only by a trailing index or id", () => {
+    expect(familyOf({ role: "button", stableId: "note-row-0" })).toBe("id:note-row");
+    expect(familyOf({ role: "button", stableId: "note-row-12" })).toBe("id:note-row");
+    expect(familyOf({ role: "button", stableId: "item_3f2a91c4" })).toBe("id:item");
+    expect(familyOf({ role: "cell" })).toBe("cell");
+    expect(familyOf({ role: "button", stableId: "profile-settings" })).toBeNull();
+    expect(familyOf({ role: "button" })).toBeNull();
+  });
+
+  it("offers one row of a family until a row was opened", () => {
+    const rows = [0, 1, 2].map((n) => control({ stableId: `note-row-${n}`, text: `Note ${n}` }));
+    const ledger = new ControlLedger();
+    ledger.note("Notes", [...rows, add]);
+    const g = graph();
+    expect(ledger.frontier(g, "Home", ["functional"]).map((c) => c.identity.stableId)).toEqual([
+      "note-row-0",
+      undefined,
+    ]);
+    g.record("notes", actionKey("tap", rows[1]), "Open row", "notes", 6, { type: "tap" });
+    expect(ledger.frontier(g, "Home", ["functional"])).toHaveLength(1);
   });
 });

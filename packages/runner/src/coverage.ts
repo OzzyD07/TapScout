@@ -19,6 +19,17 @@ export function safeToTry(e: UiElement): boolean {
   return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e);
 }
 
+/**
+ * List rows: table cells, and controls whose ids differ only by a trailing index or id
+ * (`note-row-0`, `note-row-1`, `item_3f2a91c4`). Null for a control that stands alone.
+ */
+export function familyOf(e: Pick<UiElement, "role" | "stableId">): string | null {
+  if (e.role === "cell") return "cell";
+  if (!e.stableId) return null;
+  const base = e.stableId.replace(/(?:[-_:.]?(?:\d+|[0-9a-f]{8,}))+$/i, "");
+  return base && base !== e.stableId ? `id:${base}` : null;
+}
+
 /** Only an id or nothing: what a screen reader would also miss, and often a settings gear. */
 export function iconOnly(e: Pick<UiElement, "label" | "text">): boolean {
   return !e.label?.trim() && !e.text?.trim();
@@ -64,10 +75,15 @@ export class ControlLedger {
           .filter((s) => s.label === screenLabel)
           .flatMap((s) => [...s.tried.keys()]),
       );
-      // One list row stands for the others (docs/03 §3.2): skip rows once any row was opened.
-      const rowOpened = [...controls].some(([k, c]) => c.element.role === "cell" && tried.has(k));
+      // One list row stands for the others (docs/03 §3.2): a row family is offered once, and not
+      // at all after any of its rows was opened.
+      const families = new Set(
+        [...controls].flatMap(([k, c]) => (tried.has(k) ? [familyOf(c.element) ?? ""] : [])),
+      );
       for (const [key, { element: e }] of controls) {
-        if (tried.has(key) || (rowOpened && e.role === "cell")) continue;
+        const family = familyOf(e);
+        if (tried.has(key) || (family && families.has(family))) continue;
+        if (family) families.add(family);
         const icon = iconOnly(e);
         const hint = ACCOUNT_HINT.test(nameOf(e));
         const what = icon
