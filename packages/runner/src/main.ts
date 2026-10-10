@@ -18,6 +18,7 @@ import {
 } from "@tapscout/shared";
 import { runAgent } from "./agent.js";
 import { fetchGithubOidcToken, RunnerApi, RunnerApiError } from "./api.js";
+import { installRejection, simulatorPlatformProblem } from "./build-check.js";
 import { EventSink } from "./events.js";
 import { EvidenceUploader } from "./uploads.js";
 
@@ -54,6 +55,21 @@ class Stop extends Error {
 const PLANNER_MAX_OUTPUT_TOKENS = 500;
 /** A device failure within this many actions gets one retry with a new Appium session. */
 const EARLY_FAILURE_ACTIONS = 5;
+
+/** XCUITest reports no device name for an existing simulator chosen by UDID; simctl knows it. */
+function simulatorName(udid: string | undefined): string | undefined {
+  if (!udid) return undefined;
+  try {
+    const list = JSON.parse(
+      execFileSync("xcrun", ["simctl", "list", "devices", "-j"]).toString("utf8"),
+    ) as { devices: Record<string, { udid: string; name: string }[]> };
+    return Object.values(list.devices)
+      .flat()
+      .find((d) => d.udid === udid)?.name;
+  } catch {
+    return undefined;
+  }
+}
 
 const startedAt = Date.now();
 const outDir = join(values.out ?? ".artifacts/run", platform);
@@ -125,10 +141,33 @@ try {
   let appPath = buildFile;
   if (platform === "ios") {
     execFileSync("ditto", ["-x", "-k", buildFile, join(buildDir, "unpacked")]);
-    const app = (await readdir(join(buildDir, "unpacked"))).find((f) => f.endsWith(".app"));
-    if (!app)
-      throw new Stop("unsupported", "blocked", "ZIP does not contain an iOS Simulator .app");
+    const entries = await readdir(join(buildDir, "unpacked"));
+    const app = entries.find((f) => f.endsWith(".app"));
+    if (!app) {
+      throw new Stop(
+        "unsupported",
+        "blocked",
+        entries.includes("Payload")
+          ? "This is an .ipa device build; TapScout needs a ZIP of an iOS Simulator .app."
+          : "ZIP does not contain an iOS Simulator .app at its top level",
+      );
+    }
     appPath = join(buildDir, "unpacked", app);
+    let plist: unknown = null;
+    try {
+      const json = execFileSync("plutil", [
+        "-convert",
+        "json",
+        "-o",
+        "-",
+        join(appPath, "Info.plist"),
+      ]);
+      plist = JSON.parse(json.toString("utf8"));
+    } catch {
+      // No readable Info.plist: let the install attempt decide.
+    }
+    const problem = simulatorPlatformProblem(plist);
+    if (problem) throw new Stop("unsupported", "blocked", problem);
   }
   sink.emit({
     type: "note",
@@ -141,13 +180,24 @@ try {
 
   const openDevice = () =>
     DeviceSession.open({ platform, appPath, udid: values.udid, prebuiltWdaPath: values.wda });
-  device = await openDevice();
+  try {
+    device = await openDevice();
+  } catch (error) {
+    const rejection = installRejection(platform, (error as Error).message ?? "");
+    if (rejection) throw new Stop("unsupported", "blocked", rejection);
+    throw error;
+  }
   const caps = device.driver.capabilities as Record<string, unknown>;
   deviceProfile = {
     platform,
     environment: platform === "ios" ? "ios_simulator" : "android_emulator",
     osVersion: String(caps.platformVersion ?? caps["appium:platformVersion"] ?? "unknown"),
-    deviceName: String(caps.deviceName ?? caps["appium:deviceName"] ?? "unknown"),
+    deviceName: String(
+      (platform === "ios" ? simulatorName(values.udid) : undefined) ??
+        caps.deviceName ??
+        caps["appium:deviceName"] ??
+        "unknown",
+    ),
     automation: {
       appium: process.env.APPIUM_VERSION ?? "unknown",
       driver: platform === "ios" ? "xcuitest" : "uiautomator2",

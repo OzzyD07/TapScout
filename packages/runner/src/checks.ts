@@ -600,7 +600,7 @@ export function buildModeChecks(
           title: `App closes after saving long text in ${p.fieldLabel}`,
           expected:
             "Long input is accepted, shortened or rejected with a message; the app keeps running.",
-          observed: `After entering bounded long text (~330 characters) in ${p.fieldLabel} on "${p.formLabel}" and tapping "${p.submitLabel}", the app process was no longer running. ${p.detail}`,
+          observed: `After entering bounded long text (~330 characters) in ${p.fieldLabel} on "${p.formLabel}" and tapping "${p.submitLabel}", the app process was no longer running.`,
           basis: "runtime_signal",
           kind: "runtime_signal",
           verification: p.reproduction.symptom > 0 ? "reproduced" : "observed",
