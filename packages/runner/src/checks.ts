@@ -26,6 +26,8 @@ export const TOUCH_TARGET = {
 const ACCOUNT_CREATION = /\b(sign ?up|register|create (an |your )?(account|profile))\b/i;
 const ACCOUNT_DELETION = /\b(delete|remove|close|erase)\b.{0,16}\b(account|profile|my data)\b/i;
 const PRIVACY = /\bprivacy\b/i;
+/** Where apps put account deletion; without visiting one, absence is not evidence. */
+const ACCOUNT_SCREEN = /\b(settings|account|preferences|privacy)\b/i;
 
 /** Dated rule references (docs/03 §6.5): the rule pack, never model memory. */
 const RULES = {
@@ -469,6 +471,16 @@ export function buildModeChecks(
         status: "not_tested",
         storeStatus: "not_assessed",
         summary: "No account creation was observed, so the deletion requirement was not assessed.",
+        scope: screensScope,
+        ruleRef: rule,
+      });
+    } else if (!t.deletionEntry && ![...t.screens].some((s) => ACCOUNT_SCREEN.test(s))) {
+      check({
+        checkId: "store.account_deletion",
+        mode: "store_readiness",
+        status: "inconclusive",
+        storeStatus: "needs_additional_information",
+        summary: `Account creation seen on "${t.accountCreation.screenLabel}", but no settings or account screen was reached, so a deletion entry could not be looked for.`,
         scope: screensScope,
         ruleRef: rule,
       });

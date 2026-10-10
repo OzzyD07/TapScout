@@ -161,6 +161,17 @@ describe("store readiness", () => {
     });
   });
 
+  it("asks for more information instead of reporting when no settings screen was reached", () => {
+    const t = new ModeTracker("android", 2.625);
+    t.observe("Create profile", screen(form), "reg", 1);
+    t.observe("Profile", screen([el({ label: "Edit profile" })]), "prof", 2);
+    const r = buildModeChecks(t, ctx(["store_readiness"]));
+    expect(r.findings).toHaveLength(0);
+    expect(r.checks.find((c) => c.checkId === "store.account_deletion")?.storeStatus).toBe(
+      "needs_additional_information",
+    );
+  });
+
   it("finds the deletion entry and an opened privacy policy", () => {
     const t = new ModeTracker("android", 2.625);
     t.observe("Create profile", screen(form), "reg", 1);

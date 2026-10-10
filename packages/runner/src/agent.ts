@@ -515,14 +515,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         try {
           await device.hideKeyboard();
         } catch (error) {
-          // The return key ends editing in most single-line fields (React Native: blurOnSubmit).
-          try {
-            await device.pressEnter();
-            return;
-          } catch {
-            // Fall through to a tap outside the field.
-          }
-          // Otherwise a tap on plain content text (not the navigation bar) usually closes it.
+          // A tap on plain content text (not the navigation bar) ends editing in most apps.
           const neutral = snap.screen.elements.find(
             (e) =>
               e.role === "text" &&
@@ -530,6 +523,22 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               !e.clickable &&
               e.bounds.y > snap.screen.heightPx * 0.15,
           );
+          // In a multi-line field the return key adds a new line, so prefer the tap there.
+          const multiline = snap.screen.elements.some(
+            (e) => e.visible && /TextView$/.test(e.platformClass) && e.role === "text_field",
+          );
+          if (neutral && multiline) {
+            const p = center(neutral);
+            await device.tapAt(p.x, p.y);
+            return;
+          }
+          // The return key ends editing in most single-line fields (React Native: blurOnSubmit).
+          try {
+            await device.pressEnter();
+            return;
+          } catch {
+            // Fall through to the tap.
+          }
           if (!neutral) throw error;
           const p = center(neutral);
           await device.tapAt(p.x, p.y);
@@ -1059,13 +1068,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     for (const raw of snippets.slice(0, 5)) {
       if (typeof raw !== "string") continue;
       const visible = raw.replace(/[….]+$/, "").trim();
-      if (visible.length < 6) continue;
+      if (visible.length < 12) continue;
       // Grounding: some element must hold a longer text that starts with the visible part.
       const full = screen.elements
         .filter((e) => e.role !== "text_field")
         .map((e) => e.text ?? e.label ?? "")
+        // A clipped container shows the start of its text; a snippet from the middle is more
+        // likely an intentional ellipsis (e.g. one-line subtitles).
         .find(
-          (t) => t.toLowerCase().includes(visible.toLowerCase()) && t.length > visible.length + 3,
+          (t) =>
+            t.trim().toLowerCase().startsWith(visible.toLowerCase()) &&
+            t.length > visible.length + 3,
         );
       if (full) modeTracker.clipping.push({ screenLabel, text: visible, artifactId: shot });
     }
