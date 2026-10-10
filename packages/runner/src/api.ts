@@ -4,6 +4,9 @@ import type {
   EventBatchResponse,
   FinishSessionRequest,
   HeartbeatResponse,
+  RelayPlanRequest,
+  RelayResponse,
+  RelayVisionRequest,
   RunEventInput,
   RunnerBootstrapResponse,
 } from "@tapscout/shared";
@@ -19,9 +22,15 @@ export class RunnerApiError extends Error {
   }
 }
 
-/** Errors that a retry can fix: network failures, 5xx and 429. Never retried: 4xx decisions. */
+/**
+ * Errors that a retry can fix: network failures, 5xx and rate limits. Never retried: 4xx decisions,
+ * including an exhausted model budget (also 429).
+ */
 function retryable(error: unknown): boolean {
-  if (error instanceof RunnerApiError) return error.status >= 500 || error.status === 429;
+  if (error instanceof RunnerApiError) {
+    if (error.code === "budget_exhausted") return false;
+    return error.status >= 500 || error.status === 429;
+  }
   return true;
 }
 
@@ -48,9 +57,15 @@ export class RunnerApi {
     this.token = token;
   }
 
-  private async post<T>(path: string, body: unknown, bearer?: string): Promise<T> {
+  private async post<T>(
+    path: string,
+    body: unknown,
+    bearer?: string,
+    opts: { retries?: number; timeoutMs?: number } = {},
+  ): Promise<T> {
     const auth = bearer ?? this.token;
     if (!auth) throw new Error("runner API called before bootstrap");
+    const retries = opts.retries ?? this.retries;
     let attempt = 0;
     for (;;) {
       try {
@@ -58,7 +73,7 @@ export class RunnerApi {
           method: "POST",
           headers: { authorization: `Bearer ${auth}`, "content-type": "application/json" },
           body: JSON.stringify(body ?? {}),
-          signal: AbortSignal.timeout(30_000),
+          signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000),
         });
         const text = await res.text();
         const json = text ? (JSON.parse(text) as unknown) : {};
@@ -73,7 +88,7 @@ export class RunnerApi {
         return json as T;
       } catch (error) {
         attempt += 1;
-        if (attempt > this.retries || !retryable(error)) throw error;
+        if (attempt > retries || !retryable(error)) throw error;
         await this.sleep(500 * 2 ** (attempt - 1));
       }
     }
@@ -106,6 +121,24 @@ export class RunnerApi {
       "/api/runner/artifacts/complete",
       body,
     );
+  }
+
+  /**
+   * One Nemotron call through the relay. At most 2 transient retries; each retry is a new provider
+   * request and is charged to the planner budget (docs/03 §9).
+   */
+  relayPlan(body: RelayPlanRequest) {
+    return this.post<RelayResponse>("/api/relay/plan", body, undefined, {
+      retries: 2,
+      timeoutMs: 60_000,
+    });
+  }
+
+  relayVision(body: RelayVisionRequest) {
+    return this.post<RelayResponse>("/api/relay/vision", body, undefined, {
+      retries: 1,
+      timeoutMs: 60_000,
+    });
   }
 
   finish(body: FinishSessionRequest) {

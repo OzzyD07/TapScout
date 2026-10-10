@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// TapScout device runner (F1 pilot): GitHub OIDC bootstrap → lease + heartbeat → download build →
-// Appium session → evidence + events → finish. The first action is deterministic; the Nemotron
-// planner replaces it in F2. Never prints tokens or signed URLs.
+// TapScout device runner: GitHub OIDC bootstrap → lease + heartbeat → download build → Appium
+// session → autonomous agent loop (Nemotron planner via the relay) → evidence + events → finish.
+// Never prints tokens or signed URLs.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -15,6 +15,7 @@ import type {
   SessionCounters,
   StopReason,
 } from "@tapscout/shared";
+import { runAgent } from "./agent.js";
 import { fetchGithubOidcToken, RunnerApi, RunnerApiError } from "./api.js";
 import { EventSink } from "./events.js";
 import { uploadEvidence } from "./uploads.js";
@@ -48,6 +49,10 @@ class Stop extends Error {
   }
 }
 
+/** Planner answers measured at ~130–150 tokens; the cap leaves room without wasting reservation. */
+const PLANNER_MAX_OUTPUT_TOKENS = 500;
+
+const startedAt = Date.now();
 const outDir = join(values.out ?? ".artifacts/run", platform);
 await mkdir(outDir, { recursive: true });
 const api = new RunnerApi({ baseUrl: values.api });
@@ -88,14 +93,9 @@ function checkpoint(): void {
   if (stopSignal) throw stopSignal;
 }
 
-async function evidence(file: string, kind: "screenshot" | "hierarchy", step: number) {
-  return uploadEvidence(api, file, kind, step);
-}
-
 let device: DeviceSession | undefined;
 let deviceProfile: DeviceProfile | undefined;
 let finish: FinishSessionRequest | null = null;
-let step = 0;
 
 try {
   sink.emit({
@@ -158,89 +158,70 @@ try {
   sink.emit({ type: "phase_changed", payload: { from: "preparing", to: "exploring" } });
   checkpoint();
 
-  // Observe the launch screen.
-  const start = await device.find({ testId: "welcome-get-started", label: "Get started" }, 90_000);
-  const launch = await device.observe(outDir, `step-${step}-launch`);
-  const launchShot = await evidence(launch.screenshot, "screenshot", step);
-  await evidence(launch.hierarchy, "hierarchy", step);
-  counters.screensObserved += 1;
-  sink.emit({
-    type: "observation",
-    stepIndex: step,
-    payload: {
-      observationId: `obs-${step}`,
-      isNewState: true,
-      elementCount: 0,
-      screenshotArtifactId: launchShot,
+  // Autonomous exploration (F2): Observe → Plan (Nemotron) → Validate → Act → Evaluate.
+  // The job clock is not visible to the runner; device setup before it is bounded by the
+  // preparation budget, so the soft stop is measured from runner start minus that allowance.
+  const softDeadline =
+    startedAt + (boot.budget.qaSoftStopMinute - boot.budget.preparationMaxMinutes) * 60_000;
+  const agent = await runAgent(
+    {
+      device,
+      emit: (event) => sink.emit(event),
+      flush: () => sink.flush(),
+      async saveEvidence(name, kind, data, stepIndex) {
+        const file = join(outDir, `${name}.${kind === "screenshot" ? "png" : "xml"}`);
+        await writeFile(file, data);
+        return uploadEvidence(api, file, kind, stepIndex);
+      },
+      plan: (messages, purpose) =>
+        api.relayPlan({
+          purpose,
+          messages,
+          responseSchema: "planner_output_v1",
+          maxOutputTokens: PLANNER_MAX_OUTPUT_TOKENS,
+        }),
+      vision: (artifactId, prompt) => api.relayVision({ artifactId, prompt, maxOutputTokens: 200 }),
+      checkpoint,
+      now: () => Date.now(),
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      log: (message) => console.log(`runner: ${message}`),
     },
-  });
-  await sink.flush();
-  checkpoint();
-  if (!start)
-    throw new Stop(
-      "access_blocked",
-      "blocked",
-      "launch screen did not show the expected entry action",
-    );
-
-  // One deterministic action (F1). In F2 the Nemotron planner proposes it.
-  step += 1;
-  const commandId = `cmd-${step}`;
-  sink.emit({
-    type: "action_planned",
-    stepIndex: step,
-    payload: {
-      commandId,
-      goalId: "pilot-entry",
-      summary: 'Tap "Get started"',
-      decisionSummary: "F1 pilot: deterministic first action to verify the device chain.",
-      source: "deterministic",
-    },
-  });
-  const t0 = Date.now();
-  await device.tap(start);
-  const next = await device.find({ testId: "register-name", label: "Name" }, 30_000);
-  const after = await device.observe(outDir, `step-${step}-after-tap`);
-  const afterShot = await evidence(after.screenshot, "screenshot", step);
-  await evidence(after.hierarchy, "hierarchy", step);
-  counters.actionsExecuted += 1;
-  counters.screensObserved += 1;
-  counters.transitionsObserved += next ? 1 : 0;
-  sink.emit({
-    type: "action_executed",
-    stepIndex: step,
-    payload: {
-      commandId,
-      summary: 'Tap "Get started"',
-      outcome: next ? "ok" : "uncertain",
-      durationMs: Date.now() - t0,
-      screenshotArtifactId: afterShot,
-      resultSummary: next
-        ? "Registration form is visible."
-        : "Expected registration form not observed.",
-    },
-  });
+    { platform, modes: boot.modes, budget: boot.budget, softDeadline, counters },
+  );
+  console.log(
+    `runner: agent stopped (${agent.stopReason}): ${agent.detail} — ${agent.screens} screens, ` +
+      `${counters.actionsExecuted} actions, ${counters.plannerCalls} planner calls`,
+  );
+  if (agent.blockers.length > 0) {
+    sink.emit({
+      type: "blocked",
+      payload: {
+        kind: agent.stopReason === "infrastructure_failed" ? "infrastructure" : "access",
+        reason: agent.blockers.join(" ").slice(0, 400),
+      },
+    });
+  }
   sink.emit({ type: "counters", payload: counters });
   sink.emit({
     type: "stopped",
-    payload: { reason: "goals_exhausted", detail: "F1 pilot flow finished" },
+    payload: { reason: agent.stopReason, detail: agent.detail.slice(0, 300) },
   });
   await sink.flush();
 
   finish = {
-    phase: "completed",
-    stopReason: "goals_exhausted",
+    phase: agent.phase,
+    stopReason: agent.stopReason,
     result: {
       platform,
       sessionId: boot.sessionId,
-      phase: "completed",
-      stopReason: "goals_exhausted",
+      phase: agent.phase,
+      stopReason: agent.stopReason,
       device: deviceProfile,
       build: { buildId: boot.build.buildId, sha256 },
       counters,
       checks: [],
       findingIds: [],
-      blockers: [],
+      blockers: agent.blockers.map((b) => b.slice(0, 400)),
     },
     device: deviceProfile,
   };

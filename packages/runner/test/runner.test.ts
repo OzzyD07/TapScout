@@ -41,6 +41,38 @@ describe("RunnerApi", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry an exhausted model budget, and caps relay retries at 2", async () => {
+    const exhausted = vi
+      .fn()
+      .mockResolvedValue(response(429, { error: { code: "budget_exhausted", message: "spent" } }));
+    const api = new RunnerApi({
+      baseUrl: "https://api.test",
+      fetch: exhausted,
+      sleep: async () => {},
+    });
+    api.setToken("t");
+    const body = {
+      purpose: "plan" as const,
+      messages: [{ role: "user" as const, content: "x" }],
+      responseSchema: "planner_output_v1" as const,
+      maxOutputTokens: 100,
+    };
+    await expect(api.relayPlan(body)).rejects.toMatchObject({ code: "budget_exhausted" });
+    expect(exhausted).toHaveBeenCalledTimes(1);
+
+    const upstream = vi.fn(async () =>
+      response(502, { error: { code: "upstream_error", message: "down" } }),
+    );
+    const api2 = new RunnerApi({
+      baseUrl: "https://api.test",
+      fetch: upstream,
+      sleep: async () => {},
+    });
+    api2.setToken("t");
+    await expect(api2.relayPlan(body)).rejects.toMatchObject({ status: 502 });
+    expect(upstream).toHaveBeenCalledTimes(3);
+  });
+
   it("rotates the session token from heartbeats", async () => {
     const fetchImpl = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
       response(200, {
