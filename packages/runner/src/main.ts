@@ -19,7 +19,7 @@ import {
 import { runAgent } from "./agent.js";
 import { fetchGithubOidcToken, RunnerApi, RunnerApiError } from "./api.js";
 import { EventSink } from "./events.js";
-import { uploadEvidence } from "./uploads.js";
+import { EvidenceUploader } from "./uploads.js";
 
 const { values } = parseArgs({
   options: {
@@ -97,6 +97,7 @@ function checkpoint(): void {
 let device: DeviceSession | undefined;
 let deviceProfile: DeviceProfile | undefined;
 let finish: FinishSessionRequest | null = null;
+const uploads = new EvidenceUploader(api);
 
 try {
   sink.emit({
@@ -172,8 +173,9 @@ try {
       async saveEvidence(name, kind, data, stepIndex) {
         const file = join(outDir, `${name}.${kind === "screenshot" ? "png" : "xml"}`);
         await writeFile(file, data);
-        return uploadEvidence(api, file, kind, stepIndex);
+        return uploads.start(file, kind, stepIndex);
       },
+      evidenceReady: (artifactId) => uploads.ready(artifactId),
       plan: (messages, purpose) =>
         api.relayPlan({
           purpose,
@@ -286,6 +288,9 @@ try {
 }
 
 let exitCode = 0;
+// Evidence still in flight must be complete before the lease ends with the finish call.
+await uploads.drain().catch(() => undefined);
+if (uploads.failures > 0) console.warn(`runner: ${uploads.failures} evidence uploads failed`);
 if (finish) {
   try {
     await sink.flush();

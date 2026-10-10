@@ -1,7 +1,11 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { RunEventInput } from "@tapscout/shared";
 import { describe, expect, it, vi } from "vitest";
 import { RunnerApi, RunnerApiError } from "../src/api.js";
 import { EventSink } from "../src/events.js";
+import { EvidenceUploader } from "../src/uploads.js";
 
 function response(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -127,5 +131,63 @@ describe("EventSink", () => {
     expect(retry?.map((e) => e.eventId)).toEqual(first?.map((e) => e.eventId));
     expect(retry?.map((e) => e.clientSequence)).toEqual([1, 2, 3]);
     expect(retry?.[2]?.phase).toBe("exploring");
+  });
+});
+
+describe("EvidenceUploader", () => {
+  it("returns the id after presign and finishes the transfer in the background", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tapscout-"));
+    const file = join(dir, "shot.png");
+    await writeFile(file, Buffer.from([1, 2, 3]));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const complete = vi.fn(async () => ({ artifactId: "a1", status: "ready" as const }));
+    const api = {
+      presign: vi.fn(async () => ({
+        artifactId: "a1",
+        objectKey: "k",
+        uploadUrl: "https://storage.test/u",
+        requiredHeaders: {},
+        expiresAt: "2026-10-10T00:00:00Z",
+      })),
+      complete,
+    };
+    const fetchImpl = vi.fn(async () => {
+      await gate;
+      return new Response("", { status: 200 });
+    });
+    const uploads = new EvidenceUploader(api, fetchImpl as unknown as typeof fetch);
+    expect(await uploads.start(file, "screenshot", 1)).toBe("a1");
+    expect(complete).not.toHaveBeenCalled();
+    const ready = uploads.ready("a1");
+    release();
+    await ready;
+    expect(complete).toHaveBeenCalledOnce();
+    await uploads.drain();
+    expect(uploads.failures).toBe(0);
+  });
+
+  it("counts failed transfers instead of throwing", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "tapscout-"));
+    const file = join(dir, "h.xml");
+    await writeFile(file, "<x/>");
+    const api = {
+      presign: vi.fn(async () => ({
+        artifactId: "a2",
+        objectKey: "k",
+        uploadUrl: "https://storage.test/u",
+        requiredHeaders: {},
+        expiresAt: "2026-10-10T00:00:00Z",
+      })),
+      complete: vi.fn(),
+    };
+    const fetchImpl = vi.fn(async () => new Response("no", { status: 500 }));
+    const uploads = new EvidenceUploader(api, fetchImpl as unknown as typeof fetch, () => {});
+    await uploads.start(file, "hierarchy");
+    await uploads.drain();
+    expect(uploads.failures).toBe(1);
+    expect(api.complete).not.toHaveBeenCalled();
   });
 });

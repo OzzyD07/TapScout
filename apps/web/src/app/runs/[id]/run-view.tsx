@@ -410,9 +410,21 @@ export function RunView(props: {
               {shot ? (
                 // biome-ignore lint/performance/noImgElement: signed Storage redirect, not a static asset
                 <img
+                  key={shot}
                   src={`/api/artifacts/${shot}`}
                   alt={`Latest ${platformName(session.platform)} screenshot`}
                   className="block aspect-[9/19.5] w-full object-cover object-top"
+                  onError={(e) => {
+                    // The runner uploads evidence in the background: retry briefly until ready.
+                    const img = e.currentTarget;
+                    const tries = Number(img.dataset.tries ?? 0);
+                    if (tries < 5) {
+                      img.dataset.tries = String(tries + 1);
+                      setTimeout(() => {
+                        img.src = `/api/artifacts/${shot}?retry=${tries + 1}`;
+                      }, 1500);
+                    }
+                  }}
                 />
               ) : (
                 <div className="flex aspect-[9/19.5] items-center justify-center p-6 text-center text-sm text-muted">

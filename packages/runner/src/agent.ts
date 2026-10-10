@@ -83,6 +83,8 @@ export interface AgentPorts {
   ): Promise<string>;
   plan(messages: ChatMessage[], purpose: "plan" | "repair"): Promise<RelayResponse>;
   vision(artifactId: string, prompt: string): Promise<RelayResponse>;
+  /** Waits until a background evidence upload is complete (optional). */
+  evidenceReady?(artifactId: string): Promise<void>;
   /** Throws when the run was cancelled or the lease was lost. */
   checkpoint(): void;
   now(): number;
@@ -214,6 +216,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const goals: ProposedGoal[] = [];
   let appId = device.appIdFromCapabilities();
   let lastShot: string | undefined;
+  const timing = new Map<string, { total: number; count: number }>();
+  async function timed<T>(name: string, work: () => Promise<T>): Promise<T> {
+    const t0 = ports.now();
+    try {
+      return await work();
+    } finally {
+      const t = timing.get(name) ?? { total: 0, count: 0 };
+      t.total += ports.now() - t0;
+      t.count += 1;
+      timing.set(name, t);
+    }
+  }
   let window: { width: number; height: number } | null = null;
 
   const tracker = new FunctionalTracker();
@@ -263,6 +277,19 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       });
     }
     counters.checksRun = checks.filter((c) => c.status !== "not_tested").length;
+    const timingText = [...timing.entries()]
+      .map(([k, v]) => `${k} ${(v.total / v.count / 1000).toFixed(1)}s×${v.count}`)
+      .join(", ");
+    if (timingText) {
+      ports.log(`timing (avg×count): ${timingText}`);
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "info",
+          message: `Step timing (average × count): ${timingText}`.slice(0, 500),
+        },
+      });
+    }
     for (const c of checks) {
       ports.emit({
         type: "check_result",
@@ -281,18 +308,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     // The screenshot is a device image and usually still works when the app is gone.
     let png: Buffer;
     try {
-      png = await device.screenshotPng();
+      png = await timed("screenshot", () => device.screenshotPng());
     } catch (error) {
       if (!APP_UNAVAILABLE.test((error as Error).message ?? "")) throw error;
       png = Buffer.alloc(0);
     }
     // Ask for the state first: the page source of an app that is not in front can hang WDA
     // (iOS, after a link opened Safari) or fail ("is not running, possibly crashed").
-    let appState = appId ? await device.appState(appId) : 4;
+    let appState = appId ? await timed("app state", () => device.appState(appId as string)) : 4;
     let xml = "";
     if (appState === 4) {
       try {
-        xml = await device.pageSource();
+        xml = await timed("page source", () => device.pageSource());
       } catch (error) {
         if (!APP_UNAVAILABLE.test((error as Error).message ?? "")) throw error;
         appState = appId ? await device.appState(appId) : 1;
@@ -303,7 +330,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const size = pngSize(png);
     const scale = platform === "ios" && size && window.width > 0 ? size.width / window.width : 1;
     const screen = normalizeHierarchy(platform, xml, { scale });
-    if (platform === "android" && xml) screen.keyboardVisible = await device.keyboardShown();
+    if (platform === "android" && xml) {
+      screen.keyboardVisible = await timed("keyboard", () => device.keyboardShown());
+    }
     if (!appId && platform === "ios" && screen.topPackage) {
       appId = screen.topPackage;
       appState = await device.appState(appId);
@@ -318,14 +347,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   async function record(name: string, snap: Snapshot, at: number): Promise<string> {
     let shot = lastShot;
     if (snap.png.length > 0 || !shot) {
-      shot = await ports.saveEvidence(
-        name,
-        "screenshot",
-        snap.png.length > 0 ? snap.png : PLACEHOLDER_PNG,
-        at,
+      shot = await timed("evidence", () =>
+        ports.saveEvidence(
+          name,
+          "screenshot",
+          snap.png.length > 0 ? snap.png : PLACEHOLDER_PNG,
+          at,
+        ),
       );
     }
-    if (snap.xml) await ports.saveEvidence(name, "hierarchy", snap.xml, at);
+    if (snap.xml) {
+      await timed("evidence", () => ports.saveEvidence(name, "hierarchy", snap.xml, at));
+    }
     lastShot = shot;
     return shot;
   }
@@ -400,7 +433,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       counters.plannerCalls += 1;
       let res: RelayResponse;
       try {
-        res = await ports.plan(messages, attempt === 0 ? "plan" : "repair");
+        res = await timed("planner", () => ports.plan(messages, attempt === 0 ? "plan" : "repair"));
         plannerFailures = 0;
       } catch (error) {
         if (error instanceof RunnerApiError && error.code === "budget_exhausted") {
@@ -511,6 +544,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     switch (action.type) {
       case "tap": {
         if (!target) throw new Error("tap without target");
+        // iOS element queries cost ~1 s each; the bounds were observed a moment ago.
+        if (platform === "ios" && target.visible) {
+          const p = center(target);
+          await device.tapAt(p.x, p.y);
+          return;
+        }
         const found = await resolve(target);
         if (found) await device.tap(found);
         else {
@@ -959,7 +998,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       const t0 = ports.now();
       let error: string | undefined;
       try {
-        await execute(action, target, snap);
+        await timed(`execute ${action.type}`, () => execute(action, target, snap));
         if (action.type === "type" && target) {
           tracker.noteTyped(generatedText(action.input), target, state.label, step);
         }
@@ -1087,6 +1126,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     counters.visionCalls += 1;
     let content: string;
     try {
+      await ports.evidenceReady?.(shot);
       content = (await ports.vision(shot, CLIPPING_PROMPT)).content;
     } catch (error) {
       ports.log(`clipping check failed: ${(error as Error).message}`);
