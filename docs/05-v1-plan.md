@@ -383,3 +383,26 @@ Tamamlanan:
 
 `fixed` build'de yanlış pozitif bulgu çıkmadı; `seeded` kalıcılık hatası iki platformda da tekrar üretildi. G3 (en az 3 ekran, geçersiz eylem uygulanmaması) v1 üzerinde de karşılandı: reddedilen planner önerileri uygulanmadı, yerine repair veya deterministik fallback çalıştı. Diğer seeded hatalar (label'sız ikon, hesap silme eksikliği, klavye altında Continue, clipping, crash) ilgili modların kontrolleri yazılınca ölçülecek.
 
+## 16. Diğer mod kontrolleri ve ground-truth değerlendirmesi (11 Ekim 2026)
+
+Tamamlanan (`packages/runner/src/checks.ts`, `agent.ts`):
+
+| Mod | Kontrol | Yöntem |
+|---|---|---|
+| Accessibility | `a11y.control_labels`, `a11y.touch_targets` | Hierarchy; dp/pt ölçümü (Android yoğunluğu sürücüden). 48dp/44pt altı `inconclusive` liste, 32dp/28pt altı bulgu |
+| UI/UX | `ui.keyboard_occlusion` | iOS: klavye bandındaki ve XCUITest'in `visible=false` dediği kontroller; Android: klavye kapalıyken görülüp açılınca hierarchy'den kaybolan kontroller |
+| UI/UX | `ui.text_clipping` | MiniCPM (ekran adı başına bir kez, en çok 6); `...` ile bitenler atılır, kalan hierarchy'deki daha uzun bir metnin parçası olmalı (`groundClipping`) |
+| Store Readiness | `store.account_deletion`, `store.privacy_policy` | Hesap oluşturma görülürse silme girişi aranır; ayar/hesap ekranına ulaşılmadıysa bulgu değil `needs_additional_information`. Tarihli kural referansları |
+| Stress | `stress.long_text`, `stress.crash` | Daha önce gönderilmiş forma sınırlı uzun metin + gönder; süreç kaybı (app state 1 veya crash diyaloğu) `runtime_signal`, 2 replay |
+
+Değerlendirme: `node --env-file=.env quality/evaluate-run.mjs --run <id>` bulguları `quality/ground-truth/fieldnotes-seeded-v1.json` ile eşler (fixed için her bulgu yanlış pozitif).
+
+| Run | Varyant | Android | iOS |
+|---|---|---|---|
+| `113d648a`, `fd156d79`, `4cc0a298`, `1bbb0329` | fixed | 0 yanlış pozitif (4/4 koşu) | 0 yanlış pozitif (son 3 koşu) |
+| `4a2c863d` | seeded | 5/6 | 3/6 |
+| `cce22f6d`, `5c7560f0`, `105335e8` | seeded | **6/6** (3 koşu üst üste) | — |
+| `105335e8` | seeded | — | **4/6**: kalıcılık 2/2, label'sız ikon, klavye örtmesi, kırpılma; Settings'e ve tekrar forma ulaşılamadan zaman bitti (stres `not_tested`, hesap silme `needs_additional_information`) |
+
+Yol boyunca bulunan ve düzeltilen agent/cihaz sorunları: iOS çöken uygulamada `source` hatası (artık gözlem), arka plandaki uygulamanın `source`'u WDA'yı kilitliyordu (önce app state), Android IME kontrolleri hierarchy'den siler, çok satırlı alanda dönüş tuşu klavyeyi kapatmaz, seeded klavye hatası Android'de de var (ground-truth güncellendi). Örnek uygulamaya kayıtta uzun başlıklı başlangıç notu eklendi (liste düzeni gerçekten sınanıyor).
+

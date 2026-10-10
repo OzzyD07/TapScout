@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (11 Ekim):** F2'nin relay, observer, agent döngüsü, Functional modu ve örnek uygulama v1'i bitti; `seeded` kalıcılık hatası iki platformda Reproduced 2/2. Sırada F3 hazırlığı: Bug/Stress, UI/UX, Accessibility ve Store Readiness kontrolleri (`05` §5) ve ground-truth değerlendirme script'i.
+- **Şu an (11 Ekim):** F2 ve beş modun ilk kontrol paketi bitti. Beş modlu koşularda `fixed` build'de yanlış pozitif yok; `seeded` Android 6/6, iOS 4/6 (kalan ikisi iOS'un zaman bütçesinde ulaşılamayan ekranlar). Değerlendirme script'i `quality/evaluate-run.mjs`. Ayrıntı `05` §16.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 117 birim testi (shared 9, adapters 5, runner 42, web 61) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 134 birim testi (shared 9, adapters 5, runner 59, web 61) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -115,9 +115,11 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
-- **Diğer mod kontrolleri (`05` §5):** Accessibility (label'sız ikon buton: `seeded`'de `profile-settings` yalnız id ile görünüyor), UI/UX (klavye altında kalan eylem: observer'daki `[under keyboard]` işareti hazır sinyal), Store Readiness (hesap silme girişi, privacy policy bağlantısı: agent bağlantıyı açıp uygulamadan çıktığını görüyor), Bug/Stress (uzun not başlığında crash).
-- **Ground-truth değerlendirmesi:** `quality/` altında koşu sonrası bulguları `fieldnotes-seeded-v1.json` ile eşleyen script.
-- actionlint yerelde çalıştırılamadı (Docker kapalı); qa-run'daki tek değişiklik iki `rm -rf quality` adımı.
+- **iOS hızı ve kapsamı:** iOS'ta eylem başına ~21 sn (Android ~5 sn); 12 dk'lık QA penceresinde Settings ve stres testine sıra gelmiyor. Gözlem başına screenshot + source + iki yükleme + settle süreleri ölçülüp kısaltılmalı (ör. yüklemeleri arka plana almak, settle'ı kısaltmak).
+- **Keşif önceliği:** Store/Accessibility seçiliyken etiketsiz ikon butonları ve ayar ekranları daha erken denenmeli (planner hint var, garanti yok).
+- **Run sayfası:** yeni kontroller/bulgular (Store durumları dahil) gerçek tarayıcıda kontrol edilmedi.
+- **Rapor özeti (Nemotron):** relay'de `report_summary` hazır; rapor job'una bağlanmadı.
+- actionlint yerelde çalıştırılamadı (Docker kapalı).
 
 ### Açık borçlar
 
@@ -130,4 +132,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–15'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2 bitti (relay, agent döngüsü, Functional modu, örnek uygulama v1); sırada §7 "Hemen sıradaki": diğer mod kontrolleri ve ground-truth değerlendirmesi. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–16'yı oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2 ve beş modun ilk kontrol paketi bitti; değerlendirme `quality/evaluate-run.mjs`. Sırada §7 "Hemen sıradaki": iOS hızı/kapsamı, rapor özeti. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
