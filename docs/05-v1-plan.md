@@ -339,4 +339,8 @@ Tamamlanan F1 kodu:
 
 **İlk uçtan uca koşu (10 Ekim):** run `dae8c768`, workflow `38046720574`. Koşu `create_test_run` ile oluşturuldu, outbox claim edildi, `qa-run.yml` GitHub API ile tetiklendi ve workflow kimliği kaydedildi (`scripts/dev-run.mjs`). Her iki job GitHub OIDC ile lease aldı, build'i Supabase Storage'dan imzalı URL ile indirip hash'ledi, uygulamayı kurdu, "Get started"a dokundu ve kayıt ekranını doğruladı. Platform başına 8 olay sıralı yazıldı, 8 kanıt (screenshot + hierarchy) `ready` durumuna geçti ve iki oturum `completed / goals_exhausted` ile kapandı. Süreler: Android job 2,6 dk, iOS job 7,7 dk. Run durumu `running` kaldı; sonuç rapor job'u (F1'in kalan işi) eklenince `completed/partial` olacak.
 
-Kalan F1 işleri: web'den run oluşturma + dispatch (şimdilik `scripts/dev-run.mjs`), run sayfasında Realtime timeline, model relay ve ilk Nemotron çağrısı, rapor job iskeleti. Bunların bir kısmı proje sahibinden `SUPABASE_SECRET_KEY`, `GITHUB_DISPATCH_TOKEN`, Supabase Pro ve Token Factory anahtarını bekler.
+**Rapor job'lu ikinci koşu (10 Ekim):** run `2f3b8028`, workflow `38048071240`. Android 3,3 dk, iOS 12,1 dk, rapor job'u 0,1 dk. İki oturum `completed`, 16 olay, 8 kanıt hazır, deterministik rapor kaydedildi ve run `completed` durumuna geçti.
+
+Web tarafı (10 Ekim): `POST /api/runs` (Start Test, koşu başına claim + tek dispatch, kullanıcı başına en çok 2 aktif koşu), iptal, RLS kontrollü kanıt görüntüleme, Realtime + geçmiş backfill ile canlı run sayfası, panelde test başlatma formu, `/api/report` + qa-run rapor job'u.
+
+Kalan F1 işleri: web'den başlatılan koşunun proje sahibi tarafından tarayıcıda denenmesi, model relay ve ilk Nemotron çağrısı (F2 başı). Bunların bir kısmı proje sahibinden `SUPABASE_SECRET_KEY`, `GITHUB_DISPATCH_TOKEN`, Supabase Pro ve Token Factory anahtarını bekler.
