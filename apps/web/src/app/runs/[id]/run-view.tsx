@@ -3,7 +3,6 @@
 import { MODES } from "@tapscout/shared";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import type { CheckView, FindingView } from "@/lib/report/view";
 import {
   describeEvent,
   fromRow,
@@ -17,6 +16,8 @@ import {
   type Tone,
 } from "@/lib/runs/timeline";
 import { createClient } from "@/lib/supabase/browser";
+import { ReportSection, type ReportSnapshot } from "./report-section";
+import { Badge, platformName, runTone } from "./ui";
 
 export interface RunSnapshot {
   id: string;
@@ -46,14 +47,6 @@ export interface SessionSnapshot {
   build: { app_name: string; file_name: string; sample_variant: string | null } | null;
 }
 
-const TONE_CLASSES: Record<Tone, string> = {
-  neutral: "bg-border/60 text-text",
-  info: "bg-accent/15 text-accent",
-  ok: "bg-ok/15 text-ok",
-  warn: "bg-warn/15 text-warn",
-  danger: "bg-danger/15 text-danger",
-};
-
 const DOT_CLASSES: Record<Tone, string> = {
   neutral: "bg-muted",
   info: "bg-accent",
@@ -62,75 +55,7 @@ const DOT_CLASSES: Record<Tone, string> = {
   danger: "bg-danger",
 };
 
-function Badge({ tone, children }: { tone: Tone; children: React.ReactNode }) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${TONE_CLASSES[tone]}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function runTone(status: string, cancelRequested: boolean): Tone {
-  if (cancelRequested && (status === "queued" || status === "running")) return "warn";
-  if (status === "completed") return "ok";
-  if (status === "partial") return "warn";
-  if (status === "infrastructure_failed") return "danger";
-  if (status === "running") return "info";
-  return "neutral";
-}
-
-const platformName = (p: string) => (p === "ios" ? "iOS Simulator" : "Android Emulator");
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en", { hour12: false });
-
-export interface ReportSnapshot {
-  overallStatus: string;
-  createdAt: string;
-  limitations: string[];
-  checks: CheckView[];
-  findings: FindingView[];
-}
-
-const CHECK_STATUS: Record<string, { label: string; tone: Tone }> = {
-  passed_within_scope: { label: "Passed (within scope)", tone: "ok" },
-  failed: { label: "Failed", tone: "danger" },
-  inconclusive: { label: "Inconclusive", tone: "warn" },
-  not_tested: { label: "Not tested", tone: "neutral" },
-  unsupported: { label: "Unsupported", tone: "neutral" },
-};
-
-const SEVERITY_TONE: Record<string, Tone> = {
-  critical: "danger",
-  high: "danger",
-  medium: "warn",
-  low: "neutral",
-  info: "neutral",
-};
-
-const checkName = (id: string) =>
-  ({
-    "functional.flow_transitions": "Screen transitions",
-    "functional.form_feedback": "Form feedback",
-    "functional.return_paths": "Return paths",
-    "functional.persistence": "Saved data after relaunch",
-    "a11y.control_labels": "Control labels",
-    "a11y.touch_targets": "Touch target size",
-    "ui.keyboard_occlusion": "Controls under the keyboard",
-    "ui.text_clipping": "Clipped text (AI estimate)",
-    "store.account_deletion": "In-app account deletion",
-    "store.privacy_policy": "Privacy policy",
-    "stress.long_text": "Long text input",
-    "stress.crash": "Unexpected app exit",
-  })[id] ?? id;
-
-const STORE_STATUS: Record<string, { label: string; tone: Tone }> = {
-  evidence_found: { label: "Evidence found", tone: "ok" },
-  potential_risk: { label: "Potential risk", tone: "warn" },
-  needs_additional_information: { label: "Needs more information", tone: "neutral" },
-  not_applicable: { label: "Not applicable", tone: "neutral" },
-  not_assessed: { label: "Not assessed", tone: "neutral" },
-};
 
 export function RunView(props: {
   report: ReportSnapshot | null;
@@ -285,99 +210,15 @@ export function RunView(props: {
       </header>
 
       {props.report ? (
-        <section
-          aria-label="Report"
-          className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4"
-        >
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold">Report</h2>
-            <Badge tone={runTone(props.report.overallStatus, false)}>
-              {runStatusLabel(props.report.overallStatus, false)}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted">
-            {sessions.map((s) => `${platformName(s.platform)}: ${phaseLabel(s.phase)}`).join(" · ")}
-          </p>
-          {props.report.findings.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-sm font-semibold">Findings</h3>
-              {props.report.findings.map((f) => (
-                <article
-                  key={f.findingId}
-                  className="flex flex-col gap-1 rounded-xl border border-border p-3 text-sm"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={SEVERITY_TONE[f.severity] ?? "neutral"}>{f.severity}</Badge>
-                    <span className="font-medium">{f.title}</span>
-                    <span className="text-xs text-muted">
-                      {platformName(f.platform)} · {f.reproduction}
-                    </span>
-                  </div>
-                  <p className="text-muted">
-                    <span className="font-medium text-text">Expected:</span> {f.expected}
-                  </p>
-                  <p className="text-muted">
-                    <span className="font-medium text-text">Observed:</span> {f.observed}
-                  </p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="text-muted">Basis: {f.basis.replace(/_/g, " ")}</span>
-                    {f.evidence.map((e) => (
-                      <button
-                        key={`${e.role}-${e.artifactId}`}
-                        type="button"
-                        className="text-accent"
-                        onClick={() => {
-                          const s = sessions.find((x) => x.platform === f.platform);
-                          if (s) setSelected(s.id);
-                          setPinnedShot(e.artifactId);
-                        }}
-                      >
-                        {e.role} screenshot
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : null}
-          {props.report.checks.length > 0 ? (
-            <div className="flex flex-col gap-1">
-              <h3 className="text-sm font-semibold">Checks</h3>
-              <ul className="flex flex-col gap-1 text-sm">
-                {props.report.checks.map((c) => (
-                  <li
-                    key={`${c.platform}-${c.checkId}`}
-                    className="flex flex-col gap-0.5 border-b border-border py-1 sm:flex-row sm:items-start sm:gap-3"
-                  >
-                    <span className="flex shrink-0 items-center gap-2 sm:w-72">
-                      {c.storeStatus ? (
-                        <Badge tone={STORE_STATUS[c.storeStatus]?.tone ?? "neutral"}>
-                          {STORE_STATUS[c.storeStatus]?.label ?? c.storeStatus}
-                        </Badge>
-                      ) : (
-                        <Badge tone={CHECK_STATUS[c.status]?.tone ?? "neutral"}>
-                          {CHECK_STATUS[c.status]?.label ?? c.status}
-                        </Badge>
-                      )}
-                      <span>
-                        {checkName(c.checkId)}{" "}
-                        <span className="text-xs text-muted">
-                          ({c.platform === "ios" ? "iOS" : "Android"})
-                        </span>
-                      </span>
-                    </span>
-                    <span className="text-xs text-muted">{c.summary}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <ul className="list-disc pl-5 text-xs text-muted">
-            {props.report.limitations.map((l) => (
-              <li key={l}>{l}</li>
-            ))}
-          </ul>
-        </section>
+        <ReportSection
+          report={props.report}
+          phases={sessions.map((s) => ({ platform: s.platform, phase: s.phase }))}
+          onShowEvidence={(platform, artifactId) => {
+            const s = sessions.find((x) => x.platform === platform);
+            if (s) setSelected(s.id);
+            setPinnedShot(artifactId);
+          }}
+        />
       ) : null}
 
       <div role="tablist" aria-label="Platforms" className="flex gap-2 border-b border-border">

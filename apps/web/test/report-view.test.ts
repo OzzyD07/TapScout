@@ -61,7 +61,52 @@ describe("reportView", () => {
   });
 
   it("returns empty lists for reports from before checks existed", () => {
-    expect(reportView({ limitations: [] })).toEqual({ checks: [], findings: [] });
-    expect(reportView(null)).toEqual({ checks: [], findings: [] });
+    const empty = { checks: [], findings: [], summary: null };
+    expect(reportView({ limitations: [] })).toEqual(empty);
+    expect(reportView(null)).toEqual(empty);
+  });
+
+  it("labels findings in summary order and keeps replay steps in index order", () => {
+    const withReplay = {
+      ...finding("high-1", "high"),
+      replay: {
+        precondition: "Profile reachable",
+        resets: ["app_process"],
+        path: [
+          { index: 1, description: "Tap 'Save'", locator: "edit-save" },
+          { index: 0, description: "Open 'Edit profile'" },
+        ],
+        observe: "Value still shown",
+      },
+    };
+    const view = reportView({ findings: [finding("low-1", "low"), withReplay] });
+    expect(view.findings.map((f) => [f.label, f.findingId])).toEqual([
+      ["F1", "high-1"],
+      ["F2", "low-1"],
+    ]);
+    expect(view.findings[0]?.replay?.steps).toEqual([
+      { description: "Open 'Edit profile'", locator: undefined },
+      { description: "Tap 'Save'", locator: "edit-save" },
+    ]);
+    expect(view.findings[1]?.replay).toBeNull();
+  });
+
+  it("shows only a validated summary, and only links to findings of this report", () => {
+    const summary = {
+      text: "Data loss [F1].",
+      model: "m",
+      referencesValidated: true,
+      findingRefs: { F1: "high-1", F9: "gone" },
+    };
+    const data = { findings: [finding("high-1", "high")], summary };
+    expect(reportView(data).summary).toEqual({
+      text: "Data loss [F1].",
+      model: "m",
+      refs: { F1: "high-1" },
+    });
+    expect(
+      reportView({ ...data, summary: { ...summary, referencesValidated: false } }).summary,
+    ).toBeNull();
+    expect(reportView({ ...data, summary: null }).summary).toBeNull();
   });
 });
