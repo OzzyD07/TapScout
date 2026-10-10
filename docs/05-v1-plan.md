@@ -406,3 +406,20 @@ Değerlendirme: `node --env-file=.env quality/evaluate-run.mjs --run <id>` bulgu
 
 Yol boyunca bulunan ve düzeltilen agent/cihaz sorunları: iOS çöken uygulamada `source` hatası (artık gözlem), arka plandaki uygulamanın `source`'u WDA'yı kilitliyordu (önce app state), Android IME kontrolleri hierarchy'den siler, çok satırlı alanda dönüş tuşu klavyeyi kapatmaz, seeded klavye hatası Android'de de var (ground-truth güncellendi). Örnek uygulamaya kayıtta uzun başlıklı başlangıç notu eklendi (liste düzeni gerçekten sınanıyor).
 
+## 17. iOS hızı ve koşu sağlamlığı (11 Ekim 2026)
+
+Ölçüm (runner'daki adım zamanlaması timeline'a not olarak yazılır; Appium log'u `run-ios` artifact'inde):
+
+| | Önce (`105335e8`, `78ff4a21`) | Sonra (`15dae39a`, `bcd6a32e`) |
+|---|---|---|
+| iOS Appium oturumunun açılması | 222 sn | 90–160 sn |
+| iOS dokunma | ~5 sn (öğe sorgusu) | ~1 sn (gözlenen bounds) |
+| Klavye kapatma | 8,8 sn | 0,6–1,6 sn |
+| iOS oturum başına eylem (30 planner çağrısıyla) | 34 | 41–54 |
+
+Değişiklikler: `appium:isHeadless` (sürücü açık simülatörü pencereli yeniden başlatıyordu, ~107 sn); Xcode sorguları simülatör açılırken ısıtılır (soğuk runner'da ~84 sn); kanıt dosyaları arka planda yüklenir (ön imza beklenir, aktarım değil); iOS'ta dokunma gözlenen bounds'un merkezine, yazmada ekstra click yok ve boş alan temizlenmez; iOS'ta genel klavye kapatma denenmez (dönüş tuşu / metne dokunma); otomatik düzeltme ve öneri kapalı. `mobile: tap` denendi, W3C'den yavaş çıktı ve geri alındı.
+
+Sağlamlık: uygulama arka plandayken page source istenmez (Safari açıkken WDA kilitleniyordu) ve iOS'ta kökteki başka bundle "uygulama dışında" sayılır; erken cihaz hatasında (ilk 5 eylem) Appium oturumu bir kez yeniden açılır; Stress, bir form ilk kez gönderilince sıraya alınır ve gözlenen yoldan hemen sınanır.
+
+Son seeded koşu `bcd6a32e`: iki platformda 5/6, yanlış pozitif yok; uzun metin crash'i iki platformda yakalandı (iOS 2/2, Android 1/2). Koşudan koşuya kaçan bulgular kapsamdan (o koşuda Settings'e girilmemesi, About you'nun düzenlenmemesi) ve dürüstçe `not_tested` / `needs_additional_information` olarak raporlanıyor.
+
