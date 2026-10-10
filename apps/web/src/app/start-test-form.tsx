@@ -10,10 +10,19 @@ export interface BuildOption {
   label: string;
 }
 
+/** `builds` is newest first; the newest build of each platform is preselected. */
 export function StartTestForm({ builds }: { builds: BuildOption[] }) {
   const router = useRouter();
-  const android = builds.find((b) => b.platform === "android");
-  const ios = builds.find((b) => b.platform === "ios");
+  const byPlatform = {
+    android: builds.filter((b) => b.platform === "android"),
+    ios: builds.filter((b) => b.platform === "ios"),
+  };
+  const [chosen, setChosen] = useState({
+    android: byPlatform.android[0]?.id,
+    ios: byPlatform.ios[0]?.id,
+  });
+  const android = byPlatform.android.find((b) => b.id === chosen.android);
+  const ios = byPlatform.ios.find((b) => b.id === chosen.ios);
   const [platforms, setPlatforms] = useState({ android: Boolean(android), ios: Boolean(ios) });
   const [modes, setModes] = useState<TestMode[]>(["functional"]);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +62,7 @@ export function StartTestForm({ builds }: { builds: BuildOption[] }) {
   if (!android && !ios) {
     return (
       <p className="rounded-xl border border-dashed border-border p-6 text-sm text-muted">
-        No accepted builds yet. Sample Android and iOS builds will appear here.
+        No builds yet. Sample Android and iOS builds will appear here, or upload your own below.
       </p>
     );
   }
@@ -70,18 +79,36 @@ export function StartTestForm({ builds }: { builds: BuildOption[] }) {
             ] as const
           ).map(([key, build]) =>
             build ? (
-              <label
+              <div
                 key={key}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/5"
+                className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/5"
               >
-                <input
-                  type="checkbox"
-                  checked={platforms[key]}
-                  onChange={(e) => setPlatforms((p) => ({ ...p, [key]: e.target.checked }))}
-                  className="accent-accent"
-                />
-                {build.label}
-              </label>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={platforms[key]}
+                    onChange={(e) => setPlatforms((p) => ({ ...p, [key]: e.target.checked }))}
+                    className="accent-accent"
+                  />
+                  {key === "ios" ? "iOS Simulator" : "Android"}
+                </label>
+                {byPlatform[key].length > 1 ? (
+                  <select
+                    aria-label={`${key === "ios" ? "iOS" : "Android"} build`}
+                    value={build.id}
+                    onChange={(e) => setChosen((c) => ({ ...c, [key]: e.target.value }))}
+                    className="h-8 max-w-xs rounded-md border border-border bg-bg px-2 text-xs"
+                  >
+                    {byPlatform[key].map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs text-muted">{build.label}</span>
+                )}
+              </div>
             ) : null,
           )}
         </div>

@@ -4,13 +4,16 @@ import { runStatusLabel } from "@/lib/runs/timeline";
 import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { signOut } from "./login/actions";
 import { type BuildOption, StartTestForm } from "./start-test-form";
+import { UploadBuild } from "./upload-build";
 
 interface BuildRow {
   id: string;
   platform: "android" | "ios";
   app_name: string;
+  file_name: string;
   sample_variant: string | null;
   is_sample: boolean;
+  created_at: string;
 }
 
 interface RunRow {
@@ -32,8 +35,8 @@ export default async function Dashboard() {
   const [builds, runs] = await Promise.all([
     supabase
       .from("app_builds")
-      .select("id, platform, app_name, sample_variant, is_sample")
-      .eq("validation_status", "accepted")
+      .select("id, platform, app_name, file_name, sample_variant, is_sample, created_at")
+      .in("validation_status", ["uploaded", "accepted"])
       .order("created_at", { ascending: false })
       .limit(20)
       .returns<BuildRow[]>(),
@@ -47,18 +50,17 @@ export default async function Dashboard() {
       .returns<RunRow[]>(),
   ]);
 
-  // Newest accepted build per platform; the sample app is the default choice for the jury.
-  const options: BuildOption[] = [];
-  for (const platform of ["android", "ios"] as const) {
-    const b = builds.data?.find((x) => x.platform === platform);
-    if (b) {
-      options.push({
-        id: b.id,
-        platform,
-        label: `${b.app_name} · ${platform === "ios" ? "iOS Simulator" : "Android"}${b.is_sample ? " (sample)" : ""}`,
-      });
-    }
-  }
+  // Newest first: a build the user just uploaded is preselected, otherwise the sample app.
+  const options: BuildOption[] = (builds.data ?? []).map((b) => ({
+    id: b.id,
+    platform: b.platform,
+    label: b.is_sample
+      ? `${b.app_name} (sample${b.sample_variant ? `: ${b.sample_variant}` : ""})`
+      : `${b.app_name} · ${b.file_name} · ${new Date(b.created_at).toLocaleDateString("en")}`,
+  }));
+  const maxMb = Math.floor(
+    (Number(process.env.STORAGE_BUILDS_MAX_BYTES) || 50 * 1024 * 1024) / (1024 * 1024),
+  );
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8">
@@ -87,6 +89,7 @@ export default async function Dashboard() {
         ) : (
           <StartTestForm builds={options} />
         )}
+        <UploadBuild maxMb={maxMb} />
       </section>
 
       <section className="flex flex-col gap-3">
