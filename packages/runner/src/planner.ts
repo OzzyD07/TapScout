@@ -13,8 +13,6 @@ import {
 import type { NormalizedScreen, Platform } from "./observer.js";
 import type { ScreenState, StateGraph } from "./state.js";
 
-export const PROMPT_VERSION = "planner-2026-10-10.v1";
-
 /** Action types the F2 executor implements. Stress actions arrive with the stress mode. */
 export const ENABLED_ACTIONS = new Set<ProposedAction["type"]>([
   "tap",
@@ -126,6 +124,11 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
     );
   }
   lines.push(`Selected test modes: ${ctx.modes.join(", ")}.`);
+  if (ctx.modes.includes("functional")) {
+    lines.push(
+      "Functional mode: the first time you meet a form, submit it once with a required field left empty to see its validation feedback, then fill it in and save. Open saved items again to see that they were kept.",
+    );
+  }
   if (ctx.warning) lines.push(`WARNING: ${ctx.warning}`);
 
   return [

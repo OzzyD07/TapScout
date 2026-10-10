@@ -50,6 +50,43 @@ export interface ScreenState {
   tried: Map<string, { count: number; summary: string; results: string[] }>;
 }
 
+/** What a recorded action targeted, so it can be found again on a later observation. */
+export interface TargetIdentity {
+  role: string;
+  stableId?: string;
+  label?: string;
+  text?: string;
+}
+
+export function identityOf(e: UiElement): TargetIdentity {
+  return { role: e.role, stableId: e.stableId, label: e.label, text: e.text };
+}
+
+/** Re-resolves a recorded target on the current screen: stable id, then label, then text. */
+export function matchElement(elements: UiElement[], id: TargetIdentity): UiElement | undefined {
+  if (id.stableId) {
+    const byId = elements.find((e) => e.stableId === id.stableId);
+    if (byId) return byId;
+  }
+  if (id.label) {
+    const byLabel = elements.filter((e) => e.label === id.label && e.role === id.role);
+    if (byLabel.length === 1) return byLabel[0];
+  }
+  if (id.text) {
+    const byText = elements.filter((e) => e.text === id.text && e.role === id.role);
+    if (byText.length === 1) return byText[0];
+  }
+  return undefined;
+}
+
+/** An observed, replayable navigation between two named screens. */
+export interface Edge {
+  fromLabel: string;
+  toLabel: string;
+  type: "tap" | "back";
+  target?: TargetIdentity;
+}
+
 export interface HistoryEntry {
   step: number;
   fromLabel: string;
@@ -61,6 +98,7 @@ export class StateGraph {
   private readonly states = new Map<string, ScreenState>();
   private readonly recentPairs: string[] = [];
   readonly history: HistoryEntry[] = [];
+  readonly edges: Edge[] = [];
   transitions = 0;
 
   constructor(private readonly loopRepeats = 3) {}
@@ -92,8 +130,18 @@ export class StateGraph {
     return { state, isNew: true };
   }
 
-  /** Links an executed action to the state it produced. */
-  record(fromFp: string, actionKey: string, summary: string, toFp: string | null, step: number) {
+  /**
+   * Links an executed action to the state it produced. Taps and backs that moved to another
+   * named screen are kept as edges for replay (navigation only, never typing).
+   */
+  record(
+    fromFp: string,
+    actionKey: string,
+    summary: string,
+    toFp: string | null,
+    step: number,
+    exec?: { type: string; target?: UiElement },
+  ) {
     const from = this.states.get(fromFp);
     const to = toFp ? this.states.get(toFp) : undefined;
     const result =
@@ -111,6 +159,22 @@ export class StateGraph {
       from.tried.set(actionKey, entry);
     }
     if (toFp && toFp !== fromFp) this.transitions += 1;
+    if (
+      from &&
+      to &&
+      from.label !== to.label &&
+      (exec?.type === "tap" || exec?.type === "back") &&
+      !this.edges.some(
+        (e) => e.fromLabel === from.label && e.toLabel === to.label && e.type === exec.type,
+      )
+    ) {
+      this.edges.push({
+        fromLabel: from.label,
+        toLabel: to.label,
+        type: exec.type,
+        target: exec.target ? identityOf(exec.target) : undefined,
+      });
+    }
     this.history.push({ step, fromLabel: from?.label ?? "?", summary, result });
     this.recentPairs.push(`${fromFp}|${actionKey}`);
     if (this.recentPairs.length > 12) this.recentPairs.shift();
@@ -126,6 +190,25 @@ export class StateGraph {
   stuckFor(n: number): boolean {
     const tail = this.history.slice(-n);
     return tail.length === n && tail.every((h) => h.result === "same screen");
+  }
+
+  /** Shortest observed route between two named screens (BFS over recorded edges). */
+  pathBetween(fromLabel: string, toLabel: string, maxSteps = 4): Edge[] | null {
+    if (fromLabel === toLabel) return [];
+    const queue: { label: string; path: Edge[] }[] = [{ label: fromLabel, path: [] }];
+    const seen = new Set([fromLabel]);
+    while (queue.length > 0) {
+      const { label, path } = queue.shift() as { label: string; path: Edge[] };
+      if (path.length >= maxSteps) continue;
+      for (const edge of this.edges.filter((e) => e.fromLabel === label)) {
+        if (seen.has(edge.toLabel)) continue;
+        const next = [...path, edge];
+        if (edge.toLabel === toLabel) return next;
+        seen.add(edge.toLabel);
+        queue.push({ label: edge.toLabel, path: next });
+      }
+    }
+    return null;
   }
 
   visited(): ScreenState[] {

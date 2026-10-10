@@ -4,16 +4,17 @@
 // Never prints tokens or signed URLs.
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { type DevicePlatform, DeviceSession } from "@tapscout/adapters";
-import type {
-  DeviceProfile,
-  FinishSessionRequest,
-  SessionCounters,
-  StopReason,
+import {
+  type DeviceProfile,
+  type FinishSessionRequest,
+  runVersionStamp,
+  type SessionCounters,
+  type StopReason,
 } from "@tapscout/shared";
 import { runAgent } from "./agent.js";
 import { fetchGithubOidcToken, RunnerApi, RunnerApiError } from "./api.js";
@@ -186,7 +187,16 @@ try {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       log: (message) => console.log(`runner: ${message}`),
     },
-    { platform, modes: boot.modes, budget: boot.budget, softDeadline, counters },
+    {
+      platform,
+      modes: boot.modes,
+      budget: boot.budget,
+      softDeadline,
+      counters,
+      run: { runId, sessionId: boot.sessionId },
+      versions: runVersionStamp(boot.budget.budgetVersion),
+      newId: randomUUID,
+    },
   );
   console.log(
     `runner: agent stopped (${agent.stopReason}): ${agent.detail} — ${agent.screens} screens, ` +
@@ -219,10 +229,11 @@ try {
       device: deviceProfile,
       build: { buildId: boot.build.buildId, sha256 },
       counters,
-      checks: [],
-      findingIds: [],
+      checks: agent.checks,
+      findingIds: agent.findings.map((f) => f.findingId),
       blockers: agent.blockers.map((b) => b.slice(0, 400)),
     },
+    findings: agent.findings,
     device: deviceProfile,
   };
 } catch (error) {

@@ -4,6 +4,7 @@ import {
   DEFAULT_PLATFORM_BUDGET,
   type RelayResponse,
   type RunEventInput,
+  runVersionStamp,
   type SessionCounters,
 } from "@tapscout/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -132,6 +133,12 @@ function harness(
     softDeadline: 10 * 60_000,
     counters,
     settleMs: 10,
+    run: { runId: "run-1", sessionId: "session-1" },
+    versions: runVersionStamp(DEFAULT_PLATFORM_BUDGET.budgetVersion),
+    newId: (() => {
+      let n = 0;
+      return () => `00000000-0000-4000-8000-f${String(++n).padStart(11, "0")}`;
+    })(),
   };
   return { ports, config, events, counters };
 }
@@ -154,7 +161,7 @@ describe("runAgent", () => {
     expect(executed[0]?.payload).toMatchObject({
       summary: 'Tap "Get started"',
       outcome: "ok",
-      resultSummary: expect.stringContaining('opened "Create your profile"'),
+      resultSummary: expect.stringContaining('opened "Create profile"'),
     });
     const planned = h.events.filter((e) => e.type === "action_planned");
     expect(planned.every((e) => (e.payload as { source: string }).source === "planner")).toBe(true);

@@ -176,6 +176,7 @@ function androidCandidates(root: XmlNode) {
   const candidates: Candidate[] = [];
   let interruption: SystemInterruption | null = null;
   let title: string | undefined;
+  let heading: string | undefined;
   let alertTitle = "";
   let order = 0;
 
@@ -201,7 +202,12 @@ function androidCandidates(root: XmlNode) {
     const label = clip(a["content-desc"]) ?? clip(a.hint);
     const stableId = id ? id.replace(/^[\w.]+:id\//, "") : undefined;
     const password = a.password === "true";
-    if (!title && a.heading === "true" && text) title = text;
+    // The app bar title (a plain text in the top band) names the screen like iOS's navigation
+    // bar does; in-page headings often contain user data ("Hi, Alex").
+    if (!title && text && !clickable && role === "text" && heightPx > 0) {
+      if (bounds.y + bounds.height <= heightPx * 0.13) title = text;
+    }
+    if (!heading && a.heading === "true" && text) heading = text;
     candidates.push({
       order: order++,
       role,
@@ -219,6 +225,7 @@ function androidCandidates(root: XmlNode) {
     });
   }
   if (interruption) interruption.title = alertTitle;
+  title ??= heading;
   const topPackage = [...packages.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
   return {
     candidates,

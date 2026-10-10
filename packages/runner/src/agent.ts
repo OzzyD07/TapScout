@@ -4,7 +4,10 @@
 
 import {
   type ChatMessage,
+  type CheckResult,
   describeAction,
+  type Finding,
+  formatReproduction,
   type PlatformBudget,
   type ProposedAction,
   type ProposedGoal,
@@ -14,8 +17,16 @@ import {
   type StopReason,
   type TestMode,
   type UiElement,
+  type VersionStamp,
 } from "@tapscout/shared";
 import { RunnerApiError } from "./api.js";
+import {
+  buildFunctionalChecks,
+  FunctionalTracker,
+  type PersistenceCandidate,
+  type PersistenceProbe,
+  valueVisible,
+} from "./functional.js";
 import { type NormalizedScreen, normalizeHierarchy, type Platform, pngSize } from "./observer.js";
 import {
   buildPlannerMessages,
@@ -24,7 +35,7 @@ import {
   repairMessages,
   validatePlannerAnswer,
 } from "./planner.js";
-import { actionKey, fingerprint, StateGraph } from "./state.js";
+import { actionKey, fingerprint, matchElement, StateGraph } from "./state.js";
 
 /** The subset of DeviceSession the loop uses; a fake implements it in tests. */
 export interface AgentDevice {
@@ -81,6 +92,10 @@ export interface AgentConfig {
   /** Epoch ms after which no new QA or model work starts (docs/03 §9 soft stop). */
   softDeadline: number;
   counters: SessionCounters;
+  /** Identity and versions stamped on findings. */
+  run: { runId: string; sessionId: string };
+  versions: VersionStamp;
+  newId(): string;
   /** How long to wait for the first usable app screen. */
   launchTimeoutMs?: number;
   settleMs?: number;
@@ -92,7 +107,11 @@ export interface AgentOutcome {
   detail: string;
   blockers: string[];
   screens: number;
+  checks: CheckResult[];
+  findings: Finding[];
 }
+
+type Ending = Pick<AgentOutcome, "phase" | "stopReason" | "detail" | "blockers">;
 
 interface Snapshot {
   png: Buffer;
@@ -106,6 +125,10 @@ interface Snapshot {
 interface Pending {
   commandId: string;
   fromFp: string;
+  fromLabel: string;
+  fromElements: UiElement[];
+  actionType: ProposedAction["type"];
+  target?: UiElement;
   key: string;
   summary: string;
   outcome: "ok" | "failed";
@@ -114,7 +137,7 @@ interface Pending {
 }
 
 class AgentStop extends Error {
-  constructor(readonly outcome: Omit<AgentOutcome, "screens">) {
+  constructor(readonly outcome: Ending) {
     super(outcome.detail);
   }
 }
@@ -126,6 +149,8 @@ const MAX_RELAUNCHES = 3;
 /** Exploration is over when this many actions found no new state and this screen is fully tried. */
 const NO_PROGRESS_STEPS = 10;
 const CONTROL_ROLES = new Set(["button", "link", "tab", "cell"]);
+/** Device actions a persistence check needs at least (relaunch, navigation, one replay). */
+const PROBE_MIN_ACTIONS = 8;
 const VISION_PROMPT =
   "In at most two sentences: what screen of the app is this, and which main controls are visible?";
 
@@ -148,10 +173,46 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let appId = device.appIdFromCapabilities();
   let window: { width: number; height: number } | null = null;
 
-  const outcome = (o: Omit<AgentOutcome, "screens">): AgentOutcome => ({
-    ...o,
-    screens: graph.size,
-  });
+  const tracker = new FunctionalTracker();
+  let failedActions = 0;
+
+  /** Check results (selected modes only) and the session outcome. */
+  function finalize(
+    end: Ending,
+    probes: PersistenceProbe[] | { skipped: string },
+    findings: Finding[] = [],
+  ): AgentOutcome {
+    const checks = config.modes.includes("functional")
+      ? buildFunctionalChecks({
+          platform,
+          screenLabels: [
+            ...new Set(
+              graph
+                .visited()
+                .filter((st) => st.fingerprint !== OFF_APP)
+                .map((st) => st.label),
+            ),
+          ],
+          transitions: graph.transitions,
+          failedActions,
+          tracker,
+          probes,
+        })
+      : [];
+    counters.checksRun = checks.filter((c) => c.status !== "not_tested").length;
+    for (const c of checks) {
+      ports.emit({
+        type: "check_result",
+        payload: {
+          checkId: c.checkId,
+          mode: c.mode,
+          status: c.status,
+          summary: c.summary.slice(0, 300),
+        },
+      });
+    }
+    return { ...end, screens: graph.size, checks, findings };
+  }
 
   async function observe(): Promise<Snapshot> {
     const png = await device.screenshotPng();
@@ -206,16 +267,19 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       await ports.saveEvidence("launch-timeout", "screenshot", last.png, 0);
       await ports.saveEvidence("launch-timeout", "hierarchy", last.xml, 0);
     }
-    return outcome({
-      phase: "blocked",
-      stopReason: "access_blocked",
-      detail: "The app did not show a usable screen within the launch timeout.",
-      blockers: [
-        last?.screen.interruption
-          ? `A system dialog kept covering the app: ${last.screen.interruption.title}`
-          : "No app screen with interactive elements appeared after launch.",
-      ],
-    });
+    return finalize(
+      {
+        phase: "blocked",
+        stopReason: "access_blocked",
+        detail: "The app did not show a usable screen within the launch timeout.",
+        blockers: [
+          last?.screen.interruption
+            ? `A system dialog kept covering the app: ${last.screen.interruption.title}`
+            : "No app screen with interactive elements appeared after launch.",
+        ],
+      },
+      { skipped: "The app never showed a usable screen." },
+    );
   }
 
   // ---- Planner call with one repair and bounded failures.
@@ -304,7 +368,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (untried) return { action: { type: "tap", targetRef: untried.ref }, target: untried };
     const tried = graph.get(fp)?.tried;
     const back = tried?.get(actionKey("back"));
-    if (!back || back.results.at(-1) !== "same screen") return { action: { type: "back" } };
+    if (back?.results.at(-1) !== "same screen") return { action: { type: "back" } };
     const least = controlsOf(screen).sort(
       (a, b) =>
         (tried?.get(actionKey("tap", a))?.count ?? 0) -
@@ -375,6 +439,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
   // ---- Main loop.
   let step = 0;
+  /** The latest recorded observation; the persistence probe continues from it. */
+  let current: { snap: Snapshot; label: string; shot: string } | null = null;
   let pending: Pending | null = null;
   let fresh: Snapshot | null = first;
   let consecutiveInterruptions = 0;
@@ -382,7 +448,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let stuckWarnings = 0;
   let lastNewStateStep = 0;
 
-  try {
+  async function explore(): Promise<Ending> {
     for (;;) {
       ports.checkpoint();
       const snap: Snapshot = fresh ?? (await observe());
@@ -408,6 +474,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
+      current = { snap, label: state.label, shot };
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
@@ -418,7 +485,22 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           pending.summary,
           snap.appForeground ? fp : null,
           step,
+          pending.outcome === "ok"
+            ? { type: pending.actionType, target: pending.target }
+            : undefined,
         );
+        if (pending.outcome === "ok") {
+          tracker.noteOutcome({
+            type: pending.actionType,
+            target: pending.target,
+            fromLabel: pending.fromLabel,
+            fromElements: pending.fromElements,
+            toLabel: snap.appForeground ? state.label : null,
+            toElements: snap.screen.elements,
+            step,
+            artifactId: shot,
+          });
+        }
         counters.transitionsObserved = graph.transitions;
         const result = graph.history.at(-1)?.result ?? "";
         ports.emit({
@@ -455,20 +537,20 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
       // Budget gates before any new QA or model work (docs/03 §9).
       if (ports.now() >= config.softDeadline) {
-        return outcome({
+        return {
           phase: "completed",
           stopReason: "budget_exhausted",
           detail: "QA time budget reached.",
           blockers: [],
-        });
+        };
       }
       if (counters.actionsExecuted >= budget.maxDeviceActions) {
-        return outcome({
+        return {
           phase: "completed",
           stopReason: "budget_exhausted",
           detail: "Device action budget used up.",
           blockers: [],
-        });
+        };
       }
 
       let action: ProposedAction;
@@ -480,14 +562,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (!snap.appForeground) {
         relaunches += 1;
         if (relaunches > MAX_RELAUNCHES) {
-          return outcome({
+          return {
             phase: "completed",
             stopReason: "access_blocked",
             detail: "The app could not be kept in the foreground.",
             blockers: [
               "The app left the foreground repeatedly and relaunching did not keep it open.",
             ],
-          });
+          };
         }
         action = { type: "relaunch", clearData: false };
         decisionSummary = "The app is no longer in the foreground; relaunch it.";
@@ -496,23 +578,23 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           step - lastNewStateStep >= NO_PROGRESS_STEPS &&
           untriedControls(snap.screen, fp).length === 0
         ) {
-          return outcome({
+          return {
             phase: "completed",
             stopReason: "goals_exhausted",
             detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every control here was tried.`,
             blockers: [],
-          });
+          };
         }
         let warning: string | undefined;
         if (graph.stuckFor(4)) {
           stuckWarnings += 1;
           if (stuckWarnings > 3) {
-            return outcome({
+            return {
               phase: "completed",
               stopReason: "goals_exhausted",
               detail: "No further progress: recent actions kept returning to the same screen.",
               blockers: [],
-            });
+            };
           }
           warning =
             "The last 4 actions did not change the screen. Choose a different control, scroll, or go back.";
@@ -600,6 +682,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       let error: string | undefined;
       try {
         await execute(action, target, snap);
+        if (action.type === "type" && target) {
+          tracker.noteTyped(generatedText(action.input), target, state.label, step);
+        }
       } catch (e) {
         if (isSessionDead(e)) throw e;
         error = (e as Error).message.split("\n")[0]?.slice(0, 200) ?? "action failed";
@@ -608,16 +693,356 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       pending = {
         commandId,
         fromFp: fp,
+        fromLabel: state.label,
+        fromElements: snap.screen.elements,
+        actionType: action.type,
+        target,
         key: keyOf(action, target),
         summary,
         outcome: error ? "failed" : "ok",
         durationMs: Math.max(0, ports.now() - t0),
         error,
       };
+      if (error) failedActions += 1;
       await ports.sleep(config.settleMs ?? 800);
     }
-  } catch (error) {
-    if (error instanceof AgentStop) return outcome(error.outcome);
-    throw error;
   }
+
+  // ---- Deterministic actions for checks and replays (no planner involved).
+  class ProbeBlocked extends Error {}
+
+  async function act(
+    action: ProposedAction,
+    target: UiElement | undefined,
+    why: string,
+    source: "deterministic" | "replay",
+  ): Promise<boolean> {
+    if (!current) throw new ProbeBlocked("no observation");
+    if (counters.actionsExecuted >= budget.maxDeviceActions) {
+      throw new ProbeBlocked("device action budget used up");
+    }
+    ports.checkpoint();
+    step += 1;
+    const commandId = `cmd-${step}`;
+    const summary = describeAction(action, target?.label ?? target?.text ?? target?.stableId).slice(
+      0,
+      200,
+    );
+    ports.emit({
+      type: "action_planned",
+      stepIndex: step,
+      payload: {
+        commandId,
+        goalId: "functional-persistence",
+        summary,
+        decisionSummary: why.slice(0, 280),
+        source,
+      },
+    });
+    const t0 = ports.now();
+    let error: string | undefined;
+    try {
+      await execute(action, target, current.snap);
+    } catch (e) {
+      if (isSessionDead(e)) throw e;
+      error = (e as Error).message.split("\n")[0]?.slice(0, 200) ?? "action failed";
+    }
+    counters.actionsExecuted += 1;
+    const durationMs = Math.max(0, ports.now() - t0);
+    await ports.sleep(action.type === "relaunch" ? 3_000 : (config.settleMs ?? 800));
+    let snap = await observe();
+    for (let i = 0; i < 4 && (snap.screen.interruption || snap.screen.elements.length === 0); i++) {
+      if (snap.screen.interruption) await dismissInterruption(snap);
+      else await ports.sleep(2_000);
+      snap = await observe();
+    }
+    const shot = await ports.saveEvidence(`step-${step}`, "screenshot", snap.png, step);
+    await ports.saveEvidence(`step-${step}`, "hierarchy", snap.xml, step);
+    const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
+    const label =
+      graph.get(fp)?.label ?? (snap.appForeground ? (snap.screen.title ?? "") : "Outside the app");
+    current = { snap, label, shot };
+    ports.emit({
+      type: "action_executed",
+      stepIndex: step,
+      payload: {
+        commandId,
+        summary,
+        outcome: error ? "failed" : "ok",
+        durationMs,
+        screenshotArtifactId: shot,
+        resultSummary: (error ? `Failed: ${error}` : `Now on ${JSON.stringify(label)}.`).slice(
+          0,
+          300,
+        ),
+      },
+    });
+    await ports.flush();
+    return !error;
+  }
+
+  function relaunchApp(why: string) {
+    return act({ type: "relaunch", clearData: false }, undefined, why, "deterministic");
+  }
+
+  /** Follows observed navigation edges (taps and backs only) to a named screen. */
+  async function navigateTo(toLabel: string): Promise<boolean> {
+    for (let hops = 0; hops < 5; hops++) {
+      if (!current) return false;
+      if (current.label === toLabel) return true;
+      const edge = graph.pathBetween(current.label, toLabel)?.[0];
+      if (!edge) return false;
+      if (edge.type === "back") {
+        await act({ type: "back" }, undefined, `Go back towards "${toLabel}".`, "replay");
+        continue;
+      }
+      const target = edge.target
+        ? matchElement(current.snap.screen.elements, edge.target)
+        : undefined;
+      if (!target) return false;
+      await act(
+        { type: "tap", targetRef: target.ref },
+        target,
+        `Open "${toLabel}" along an observed path.`,
+        "replay",
+      );
+    }
+    return current?.label === toLabel;
+  }
+
+  function freshValue(value: string, n: number): string {
+    return value.includes("@") ? `persist${n}@example.com` : `Check ${n} ${value}`.slice(0, 80);
+  }
+
+  /** Re-enters a new value, saves, relaunches and looks again: up to 2 valid replays (docs/03 §7). */
+  async function reproduceLoss(probe: PersistenceProbe): Promise<Finding> {
+    const c = probe.candidate;
+    const reproduction = {
+      target: 2,
+      started: 0,
+      valid: 0,
+      symptom: 0,
+      blocked: [] as Finding["reproduction"]["blocked"],
+    };
+    const replayShots: string[] = [];
+    while (reproduction.valid < 2 && reproduction.started < 3) {
+      reproduction.started += 1;
+      const value = freshValue(c.value, reproduction.started);
+      try {
+        if (!(await navigateTo(c.formLabel)) || !current) {
+          reproduction.blocked.push({
+            reason: "access_blocked",
+            detail: `"${c.formLabel}" could not be reached again.`,
+          });
+          break;
+        }
+        const field = matchElement(current.snap.screen.elements, c.field);
+        if (!field) {
+          reproduction.blocked.push({
+            reason: "reset_failed",
+            detail: `${c.fieldLabel} not found.`,
+          });
+          break;
+        }
+        await act(
+          { type: "type", targetRef: field.ref, input: { kind: "literal", value }, submit: false },
+          field,
+          `Replay: enter a new value in ${c.fieldLabel}.`,
+          "replay",
+        );
+        let commit = matchElement(current.snap.screen.elements, c.commit);
+        if (!commit && current.snap.screen.keyboardVisible) {
+          await act({ type: "hide_keyboard" }, undefined, "Hide the keyboard.", "replay");
+          commit = matchElement(current.snap.screen.elements, c.commit);
+        }
+        if (!commit) {
+          reproduction.blocked.push({
+            reason: "reset_failed",
+            detail: `"${c.commitLabel}" not found.`,
+          });
+          break;
+        }
+        await act(
+          { type: "tap", targetRef: commit.ref },
+          commit,
+          `Replay: save with "${c.commitLabel}".`,
+          "replay",
+        );
+        if (current.label !== c.screenLabel || !valueVisible(value, current.snap.screen.elements)) {
+          reproduction.blocked.push({
+            reason: "reset_failed",
+            detail: "The new value was not shown after saving, so the replay is not valid.",
+          });
+          continue;
+        }
+        await relaunchApp("Replay: relaunch the app.");
+        if (!(await navigateTo(c.screenLabel)) || !current) {
+          reproduction.blocked.push({
+            reason: "access_blocked",
+            detail: `"${c.screenLabel}" could not be reached after the relaunch.`,
+          });
+          continue;
+        }
+        reproduction.valid += 1;
+        replayShots.push(current.shot);
+        if (!valueVisible(value, current.snap.screen.elements)) reproduction.symptom += 1;
+      } catch (error) {
+        if (!(error instanceof ProbeBlocked)) throw error;
+        reproduction.blocked.push({ reason: "budget", detail: error.message });
+        break;
+      }
+    }
+
+    const shortValue = c.value.length > 60 ? `${c.value.slice(0, 57)}…` : c.value;
+    return {
+      findingId: config.newId(),
+      runId: config.run.runId,
+      sessionId: config.run.sessionId,
+      platform,
+      mode: "functional",
+      checkId: "functional.persistence",
+      title: `Saved ${c.fieldLabel} is lost after the app restarts`.slice(0, 160),
+      expected:
+        `After saving "${shortValue}" in ${c.fieldLabel} on "${c.formLabel}" with "${c.commitLabel}", ` +
+        `"${c.screenLabel}" keeps showing it after the app is relaunched.`,
+      observed:
+        `"${c.screenLabel}" showed the value right after saving, ` +
+        "but no longer showed it after the app was relaunched.",
+      expectationBasis: "observed_invariant",
+      evidenceKind: "measured",
+      verification: reproduction.symptom > 0 ? "reproduced" : "observed",
+      reproduction,
+      confidence:
+        reproduction.valid > 0 && reproduction.symptom === reproduction.valid ? "high" : "medium",
+      severity: "high",
+      severityRationale:
+        "User-entered data silently disappears after a restart although the app showed it as saved.",
+      conditions: [
+        platform === "ios" ? "iOS Simulator" : "Android Emulator",
+        "relaunch without clearing app data",
+      ],
+      replay: {
+        precondition: `"${c.screenLabel}" is reachable with the data entered earlier in this session.`,
+        resets: ["app_process"],
+        path: [
+          { index: 0, description: `Open "${c.formLabel}"` },
+          {
+            index: 1,
+            description: `Type a new value into ${c.fieldLabel}`,
+            locator: c.field.stableId ?? c.field.label,
+          },
+          {
+            index: 2,
+            description: `Tap "${c.commitLabel}"`,
+            locator: c.commit.stableId ?? c.commit.label,
+          },
+          { index: 3, description: "Relaunch the app (data kept)" },
+          { index: 4, description: `Open "${c.screenLabel}"` },
+        ],
+        observe: `The new ${c.fieldLabel} value is still shown on "${c.screenLabel}".`,
+      },
+      evidence: [
+        { artifactId: c.savedArtifactId, role: "before" },
+        ...(probe.afterArtifactId
+          ? [{ artifactId: probe.afterArtifactId, role: "after" as const }]
+          : []),
+        ...replayShots.map((artifactId) => ({ artifactId, role: "replay" as const })),
+      ],
+      versions: config.versions,
+      createdAt: new Date(ports.now()).toISOString(),
+    };
+  }
+
+  /** Functional persistence check: relaunch, re-open each saved value's screen, look again. */
+  async function persistenceProbe(
+    candidates: PersistenceCandidate[],
+    findings: Finding[],
+  ): Promise<PersistenceProbe[]> {
+    ports.emit({
+      type: "phase_changed",
+      payload: {
+        from: "exploring",
+        to: "testing",
+        reason: "Persistence check: relaunch the app and re-open saved data.",
+      },
+    });
+    const results: PersistenceProbe[] = [];
+    try {
+      await relaunchApp("Relaunch the app to check that saved data is still there.");
+      for (const c of candidates) {
+        if (!(await navigateTo(c.screenLabel)) || !current) {
+          results.push({ candidate: c, status: "unreachable" });
+          continue;
+        }
+        const kept = valueVisible(c.value, current.snap.screen.elements);
+        results.push({
+          candidate: c,
+          status: kept ? "kept" : "lost",
+          afterArtifactId: current.shot,
+        });
+      }
+    } catch (error) {
+      if (!(error instanceof ProbeBlocked)) throw error;
+      for (const c of candidates) {
+        if (!results.some((r) => r.candidate === c))
+          results.push({ candidate: c, status: "unreachable" });
+      }
+    }
+    const lost = results.find((r) => r.status === "lost");
+    if (lost) {
+      const findingId = config.newId();
+      ports.emit({
+        type: "finding_candidate",
+        payload: {
+          findingId,
+          mode: "functional",
+          title: `Saved ${lost.candidate.fieldLabel} is lost after the app restarts`.slice(0, 160),
+          severity: "high",
+        },
+      });
+      ports.emit({
+        type: "phase_changed",
+        payload: { from: "testing", to: "reproducing", reason: "Replay the save → relaunch path." },
+      });
+      const finding = { ...(await reproduceLoss(lost)), findingId };
+      lost.findingId = findingId;
+      findings.push(finding);
+      ports.emit({
+        type: "finding_updated",
+        payload: {
+          findingId,
+          verification: finding.verification,
+          reproductionLabel: formatReproduction(finding.reproduction).slice(0, 120),
+        },
+      });
+    }
+    await ports.flush();
+    return results;
+  }
+
+  let ending: Ending;
+  try {
+    ending = await explore();
+  } catch (error) {
+    if (!(error instanceof AgentStop)) throw error;
+    ending = error.outcome;
+  }
+
+  const findings: Finding[] = [];
+  let probes: PersistenceProbe[] | { skipped: string };
+  if (!config.modes.includes("functional")) {
+    probes = { skipped: "Functional mode was not selected." };
+  } else if (tracker.candidates.length === 0) {
+    probes = {
+      skipped:
+        "No saved value was seen on another screen during exploration, so nothing could be re-checked after a relaunch.",
+    };
+  } else if (ports.now() >= config.softDeadline) {
+    probes = { skipped: "The QA time budget ran out before the persistence check." };
+  } else if (counters.actionsExecuted + PROBE_MIN_ACTIONS > budget.maxDeviceActions) {
+    probes = { skipped: "Too few device actions were left for the persistence check." };
+  } else {
+    probes = await persistenceProbe(tracker.candidates.slice(-3), findings);
+  }
+  return finalize(ending, probes, findings);
 }
