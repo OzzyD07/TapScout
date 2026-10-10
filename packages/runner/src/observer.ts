@@ -249,12 +249,20 @@ function iosCandidates(root: XmlNode, scale: number) {
   let title: string | undefined;
   let order = 0;
 
+  const insideKeyboard = new Set<XmlNode>();
+  for (const node of app ? walk(app) : []) {
+    if ((node.attrs.type ?? node.tag) === "XCUIElementTypeKeyboard") {
+      for (const child of walk(node)) if (child !== node) insideKeyboard.add(child);
+    }
+  }
   for (const node of app ? walk(app) : []) {
     const a = node.attrs;
     const type = a.type ?? node.tag;
     if (!type.startsWith("XCUIElementType") || type === "XCUIElementTypeApplication") continue;
     const role = iosRole(type);
     if (role === "keyboard") keyboardVisible = true;
+    // Keys of the software keyboard are not app UI (they would read as new texts).
+    if (insideKeyboard.has(node)) continue;
     if (role === "dialog") dialogVisible = true;
     if (type === "XCUIElementTypeNavigationBar" && a.name) title ??= clip(a.name);
     if (a.visible === "false") continue;

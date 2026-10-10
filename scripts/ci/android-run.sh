@@ -8,6 +8,13 @@ out="${OUT:-.artifacts/run}"
 mkdir -p "$out/android"
 
 adb devices -l > "$out/android/adb-devices.txt"
+
+# The emulator's launcher often hangs after a cold boot ("Pixel Launcher isn't responding") and
+# its ANR dialog then covers the app under test (runs cdf5265f, 5af91f1f). Appium starts the app
+# directly, so the launcher is not needed during the run.
+for launcher in com.google.android.apps.nexuslauncher com.android.launcher3; do
+  adb shell pm disable-user --user 0 "$launcher" > /dev/null 2>&1 || true
+done
 OUT="$out" bash scripts/ci/start-appium.sh
 
 status=0

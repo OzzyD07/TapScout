@@ -216,6 +216,11 @@ describe("functional persistence check", () => {
       (e) => e.type === "action_planned" && (e.payload as { source: string }).source === "replay",
     );
     expect(replays.length).toBeGreaterThan(0);
+    // The check runs right after the save and exploration resumes afterwards.
+    const phases = events
+      .filter((e) => e.type === "phase_changed")
+      .map((e) => (e.payload as { to: string }).to);
+    expect(phases).toEqual(["testing", "reproducing", "exploring"]);
   });
 });
 

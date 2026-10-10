@@ -183,6 +183,48 @@ describe("runAgent", () => {
     expect(first?.payload).toMatchObject({ summary: 'Tap "Get started"' });
   });
 
+  it("does not count an action interrupted by a system dialog as a result", async () => {
+    const device = fakeDevice();
+    let anr = false;
+    const source = device.pageSource;
+    device.pageSource = async () => (anr ? xml("android-anr") : source());
+    const tap = device.tap;
+    device.tap = async (t) => {
+      await tap(t);
+      anr = true; // the launcher hangs right after the tap
+    };
+    device.tapAt = vi.fn(async () => {
+      anr = false;
+    });
+    const h = harness(device, scriptedPlanner(), 2);
+    await runAgent(h.ports, h.config);
+    const first = h.events.find((e) => e.type === "action_executed");
+    expect(first?.payload).toMatchObject({
+      outcome: "uncertain",
+      resultSummary: expect.stringContaining("system dialog"),
+    });
+  });
+
+  it("stops as an infrastructure problem when system dialogs keep coming back", async () => {
+    const device = fakeDevice();
+    let anr = false;
+    const source = device.pageSource;
+    device.pageSource = async () => (anr ? xml("android-anr") : source());
+    device.tap = async () => {
+      anr = true;
+    };
+    device.back = async () => {
+      anr = true;
+    };
+    device.tapAt = vi.fn(async () => {
+      anr = false;
+    });
+    const h = harness(device, scriptedPlanner(), 30);
+    const out = await runAgent(h.ports, h.config);
+    expect(out).toMatchObject({ stopReason: "infrastructure_failed" });
+    expect(out.blockers[0]).toContain("System dialog");
+  });
+
   it("dismisses a system ANR dialog with Wait before exploring", async () => {
     const device = fakeDevice({ anrFirst: true });
     const h = harness(device, scriptedPlanner(), 1);

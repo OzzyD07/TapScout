@@ -129,6 +129,8 @@ interface Pending {
   fromElements: UiElement[];
   actionType: ProposedAction["type"];
   target?: UiElement;
+  /** A system dialog appeared before the result was observed: the outcome is unknown. */
+  interrupted?: boolean;
   key: string;
   summary: string;
   outcome: "ok" | "failed";
@@ -151,6 +153,11 @@ const NO_PROGRESS_STEPS = 10;
 const CONTROL_ROLES = new Set(["button", "link", "tab", "cell"]);
 /** Device actions a persistence check needs at least (relaunch, navigation, one replay). */
 const PROBE_MIN_ACTIONS = 8;
+/** Persistence checks per session (one per saved field). */
+const MAX_PERSISTENCE_PROBES = 3;
+/** System dialogs within this many recent actions mean the device is not usable. */
+const INTERRUPTION_WINDOW = 8;
+const MAX_INTERRUPTIONS_IN_WINDOW = 5;
 const VISION_PROMPT =
   "In at most two sentences: what screen of the app is this, and which main controls are visible?";
 
@@ -447,6 +454,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let relaunches = 0;
   let stuckWarnings = 0;
   let lastNewStateStep = 0;
+  const interruptionSteps: number[] = [];
+  const findings: Finding[] = [];
+  const probes: PersistenceProbe[] = [];
+  const probedFields = new Set<string>();
+  let probeSkipped: string | null = null;
 
   async function explore(): Promise<Ending> {
     for (;;) {
@@ -455,7 +467,13 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       fresh = null;
       if (snap.screen.interruption) {
         consecutiveInterruptions += 1;
-        if (consecutiveInterruptions > MAX_CONSECUTIVE_INTERRUPTIONS) {
+        if (pending) pending.interrupted = true;
+        interruptionSteps.push(step);
+        const recent = interruptionSteps.filter((s) => s > step - INTERRUPTION_WINDOW).length;
+        if (
+          consecutiveInterruptions > MAX_CONSECUTIVE_INTERRUPTIONS ||
+          recent > MAX_INTERRUPTIONS_IN_WINDOW
+        ) {
           throw new AgentStop({
             phase: "completed",
             stopReason: "infrastructure_failed",
@@ -478,6 +496,22 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
+      let created: PersistenceCandidate[] = [];
+      if (pending?.interrupted) {
+        ports.emit({
+          type: "action_executed",
+          stepIndex: step,
+          payload: {
+            commandId: pending.commandId,
+            summary: pending.summary,
+            outcome: "uncertain",
+            durationMs: pending.durationMs,
+            screenshotArtifactId: shot,
+            resultSummary: "A system dialog interrupted this action; its result is unknown.",
+          },
+        });
+        pending = null;
+      }
       if (pending) {
         graph.record(
           pending.fromFp,
@@ -490,7 +524,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             : undefined,
         );
         if (pending.outcome === "ok") {
-          tracker.noteOutcome({
+          created = tracker.noteOutcome({
             type: pending.actionType,
             target: pending.target,
             fromLabel: pending.fromLabel,
@@ -534,6 +568,21 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       });
       ports.emit({ type: "counters", payload: { ...counters } });
       await ports.flush();
+
+      // Functional: re-check a value right after it was saved, while the app still holds it.
+      const toProbe =
+        probes.length < MAX_PERSISTENCE_PROBES
+          ? created.find((c) => c.screenLabel === state.label && !probedFields.has(fieldId(c)))
+          : undefined;
+      if (config.modes.includes("functional") && toProbe) {
+        const reason = probeBlockedReason();
+        if (reason) probeSkipped ??= reason;
+        else {
+          probedFields.add(fieldId(toProbe));
+          probes.push(await probeCandidate(toProbe));
+          continue;
+        }
+      }
 
       // Budget gates before any new QA or model work (docs/03 §9).
       if (ports.now() >= config.softDeadline) {
@@ -792,8 +841,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (current.label === toLabel) return true;
       const edge = graph.pathBetween(current.label, toLabel)?.[0];
       if (!edge) return false;
+      const before = current.label;
       if (edge.type === "back") {
         await act({ type: "back" }, undefined, `Go back towards "${toLabel}".`, "replay");
+        if (current?.label === before) return false;
         continue;
       }
       const target = edge.target
@@ -806,6 +857,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         `Open "${toLabel}" along an observed path.`,
         "replay",
       );
+      // A step that leaves us where we were (a form rejecting the submit) will not get better.
+      if ((current as { label: string } | null)?.label === before) return false;
     }
     return current?.label === toLabel;
   }
@@ -953,50 +1006,48 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     };
   }
 
-  /** Functional persistence check: relaunch, re-open each saved value's screen, look again. */
-  async function persistenceProbe(
-    candidates: PersistenceCandidate[],
-    findings: Finding[],
-  ): Promise<PersistenceProbe[]> {
+  function fieldId(c: PersistenceCandidate): string {
+    return `${c.formLabel}|${c.field.stableId ?? c.field.label ?? c.field.text ?? ""}`;
+  }
+
+  function probeBlockedReason(): string | null {
+    if (ports.now() >= config.softDeadline) {
+      return "The QA time budget ran out before the persistence check.";
+    }
+    if (counters.actionsExecuted + PROBE_MIN_ACTIONS > budget.maxDeviceActions) {
+      return "Too few device actions were left for the persistence check.";
+    }
+    return null;
+  }
+
+  /** Functional persistence check for one saved value: relaunch, re-open, look again (docs/03 §6.1). */
+  async function probeCandidate(c: PersistenceCandidate): Promise<PersistenceProbe> {
     ports.emit({
       type: "phase_changed",
       payload: {
         from: "exploring",
         to: "testing",
-        reason: "Persistence check: relaunch the app and re-open saved data.",
+        reason: `Persistence check: relaunch and look for the saved ${c.fieldLabel}.`,
       },
     });
-    const results: PersistenceProbe[] = [];
+    let probe: PersistenceProbe = { candidate: c, status: "unreachable" };
     try {
-      await relaunchApp("Relaunch the app to check that saved data is still there.");
-      for (const c of candidates) {
-        if (!(await navigateTo(c.screenLabel)) || !current) {
-          results.push({ candidate: c, status: "unreachable" });
-          continue;
-        }
+      await relaunchApp(`Relaunch the app to check that the saved ${c.fieldLabel} is kept.`);
+      if ((await navigateTo(c.screenLabel)) && current) {
         const kept = valueVisible(c.value, current.snap.screen.elements);
-        results.push({
-          candidate: c,
-          status: kept ? "kept" : "lost",
-          afterArtifactId: current.shot,
-        });
+        probe = { candidate: c, status: kept ? "kept" : "lost", afterArtifactId: current.shot };
       }
     } catch (error) {
       if (!(error instanceof ProbeBlocked)) throw error;
-      for (const c of candidates) {
-        if (!results.some((r) => r.candidate === c))
-          results.push({ candidate: c, status: "unreachable" });
-      }
     }
-    const lost = results.find((r) => r.status === "lost");
-    if (lost) {
+    if (probe.status === "lost") {
       const findingId = config.newId();
       ports.emit({
         type: "finding_candidate",
         payload: {
           findingId,
           mode: "functional",
-          title: `Saved ${lost.candidate.fieldLabel} is lost after the app restarts`.slice(0, 160),
+          title: `Saved ${c.fieldLabel} is lost after the app restarts`.slice(0, 160),
           severity: "high",
         },
       });
@@ -1004,8 +1055,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         type: "phase_changed",
         payload: { from: "testing", to: "reproducing", reason: "Replay the save → relaunch path." },
       });
-      const finding = { ...(await reproduceLoss(lost)), findingId };
-      lost.findingId = findingId;
+      const finding = { ...(await reproduceLoss(probe)), findingId };
+      probe.findingId = findingId;
       findings.push(finding);
       ports.emit({
         type: "finding_updated",
@@ -1016,8 +1067,16 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         },
       });
     }
+    ports.emit({
+      type: "phase_changed",
+      payload: {
+        from: probe.status === "lost" ? "reproducing" : "testing",
+        to: "exploring",
+        reason: "Back to exploration.",
+      },
+    });
     await ports.flush();
-    return results;
+    return probe;
   }
 
   let ending: Ending;
@@ -1028,21 +1087,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     ending = error.outcome;
   }
 
-  const findings: Finding[] = [];
-  let probes: PersistenceProbe[] | { skipped: string };
-  if (!config.modes.includes("functional")) {
-    probes = { skipped: "Functional mode was not selected." };
-  } else if (tracker.candidates.length === 0) {
-    probes = {
-      skipped:
-        "No saved value was seen on another screen during exploration, so nothing could be re-checked after a relaunch.",
-    };
-  } else if (ports.now() >= config.softDeadline) {
-    probes = { skipped: "The QA time budget ran out before the persistence check." };
-  } else if (counters.actionsExecuted + PROBE_MIN_ACTIONS > budget.maxDeviceActions) {
-    probes = { skipped: "Too few device actions were left for the persistence check." };
-  } else {
-    probes = await persistenceProbe(tracker.candidates.slice(-3), findings);
-  }
-  return finalize(ending, probes, findings);
+  return finalize(
+    ending,
+    probes.length > 0
+      ? probes
+      : {
+          skipped:
+            probeSkipped ??
+            "No saved value was seen on another screen during exploration, so nothing could be re-checked after a relaunch.",
+        },
+    findings,
+  );
 }

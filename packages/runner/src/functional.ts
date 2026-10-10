@@ -122,8 +122,10 @@ export class FunctionalTracker {
     });
   }
 
-  noteOutcome(o: ActionOutcome): void {
-    if (o.toLabel === null) return;
+  /** Records an action's observed result; returns the persistence candidates it created. */
+  noteOutcome(o: ActionOutcome): PersistenceCandidate[] {
+    if (o.toLabel === null) return [];
+    const created: PersistenceCandidate[] = [];
     const formHasFields = o.fromElements.some((e) => e.role === "text_field");
 
     if (
@@ -162,7 +164,7 @@ export class FunctionalTracker {
           this.candidates = this.candidates.filter(
             (c) => !(c.screenLabel === o.toLabel && fieldKey(c.field) === fieldKey(w.field)),
           );
-          this.candidates.push({
+          const candidate: PersistenceCandidate = {
             value: w.value,
             field: w.field,
             fieldLabel: w.fieldLabel,
@@ -172,7 +174,9 @@ export class FunctionalTracker {
             commitLabel: displayName(o.target),
             savedStep: o.step,
             savedArtifactId: o.artifactId,
-          });
+          };
+          this.candidates.push(candidate);
+          created.push(candidate);
         }
       }
       // Leaving a form ends its unsaved input either way.
@@ -188,6 +192,7 @@ export class FunctionalTracker {
           valueVisible(c.value, o.toElements),
       )
       .slice(-MAX_CANDIDATES);
+    return created;
   }
 }
 

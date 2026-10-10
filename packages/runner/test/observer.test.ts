@@ -76,6 +76,21 @@ describe("normalizeHierarchy", () => {
   });
 });
 
+describe("iOS keyboard", () => {
+  it("reports the keyboard but never lists its keys as elements", () => {
+    const xml = `<AppiumAUT><XCUIElementTypeApplication type="XCUIElementTypeApplication" name="App" x="0" y="0" width="400" height="800" bundleId="b">
+      <XCUIElementTypeTextField type="XCUIElementTypeTextField" name="title" label="Title" enabled="true" visible="true" x="20" y="100" width="360" height="40"/>
+      <XCUIElementTypeKeyboard type="XCUIElementTypeKeyboard" enabled="true" visible="true" x="0" y="500" width="400" height="300">
+        <XCUIElementTypeKey type="XCUIElementTypeKey" name="delete" label="delete" enabled="true" visible="true" x="340" y="700" width="50" height="40"/>
+        <XCUIElementTypeButton type="XCUIElementTypeButton" name="more" label="numbers" enabled="true" visible="true" x="10" y="750" width="50" height="40"/>
+      </XCUIElementTypeKeyboard>
+    </XCUIElementTypeApplication></AppiumAUT>`;
+    const s = normalizeHierarchy("ios", xml, { scale: 1 });
+    expect(s.keyboardVisible).toBe(true);
+    expect(s.elements.map((e) => e.label)).toEqual(["Title"]);
+  });
+});
+
 describe("pngSize", () => {
   it("reads IHDR dimensions", () => {
     const b = new Uint8Array(24);
