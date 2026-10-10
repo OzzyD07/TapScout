@@ -126,6 +126,11 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
     );
   }
   lines.push(`Selected test modes: ${ctx.modes.join(", ")}.`);
+  if (ctx.modes.includes("store_readiness") || ctx.modes.includes("accessibility")) {
+    lines.push(
+      "Also visit settings, account and help screens, including icon-only buttons; open a privacy policy link once (it may leave the app).",
+    );
+  }
   if (ctx.modes.includes("functional")) {
     lines.push(
       "Functional mode: the first time you meet a form, submit it once with a required field left empty to see its validation feedback, then fill it in and save. Open saved items again to see that they were kept.",

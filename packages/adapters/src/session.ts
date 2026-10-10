@@ -93,6 +93,16 @@ export class DeviceSession {
     return this.driver.getPageSource();
   }
 
+  /** Android screen density in dpi (160 = 1 px per dp); undefined on iOS. */
+  async displayDensity(): Promise<number | undefined> {
+    if (this.platform !== "android") return undefined;
+    try {
+      return Number(await this.driver.getDisplayDensity()) || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   async keyboardShown(): Promise<boolean> {
     try {
       return Boolean(await this.driver.isKeyboardShown());

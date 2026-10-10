@@ -6,6 +6,7 @@ export interface CheckView {
   checkId: string;
   mode: string;
   status: string;
+  storeStatus?: string;
   summary: string;
   scope: string;
 }
@@ -45,6 +46,7 @@ export function reportView(data: unknown): { checks: CheckView[]; findings: Find
               checkId: r.data.checkId,
               mode: r.data.mode,
               status: r.data.status,
+              storeStatus: r.data.storeStatus,
               summary: r.data.summary,
               scope: r.data.scope,
             },

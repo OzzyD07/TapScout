@@ -114,7 +114,23 @@ const checkName = (id: string) =>
     "functional.form_feedback": "Form feedback",
     "functional.return_paths": "Return paths",
     "functional.persistence": "Saved data after relaunch",
+    "a11y.control_labels": "Control labels",
+    "a11y.touch_targets": "Touch target size",
+    "ui.keyboard_occlusion": "Controls under the keyboard",
+    "ui.text_clipping": "Clipped text (AI estimate)",
+    "store.account_deletion": "In-app account deletion",
+    "store.privacy_policy": "Privacy policy",
+    "stress.long_text": "Long text input",
+    "stress.crash": "Unexpected app exit",
   })[id] ?? id;
+
+const STORE_STATUS: Record<string, { label: string; tone: Tone }> = {
+  evidence_found: { label: "Evidence found", tone: "ok" },
+  potential_risk: { label: "Potential risk", tone: "warn" },
+  needs_additional_information: { label: "Needs more information", tone: "neutral" },
+  not_applicable: { label: "Not applicable", tone: "neutral" },
+  not_assessed: { label: "Not assessed", tone: "neutral" },
+};
 
 export function RunView(props: {
   report: ReportSnapshot | null;
@@ -334,9 +350,15 @@ export function RunView(props: {
                     className="flex flex-col gap-0.5 border-b border-border py-1 sm:flex-row sm:items-start sm:gap-3"
                   >
                     <span className="flex shrink-0 items-center gap-2 sm:w-72">
-                      <Badge tone={CHECK_STATUS[c.status]?.tone ?? "neutral"}>
-                        {CHECK_STATUS[c.status]?.label ?? c.status}
-                      </Badge>
+                      {c.storeStatus ? (
+                        <Badge tone={STORE_STATUS[c.storeStatus]?.tone ?? "neutral"}>
+                          {STORE_STATUS[c.storeStatus]?.label ?? c.storeStatus}
+                        </Badge>
+                      ) : (
+                        <Badge tone={CHECK_STATUS[c.status]?.tone ?? "neutral"}>
+                          {CHECK_STATUS[c.status]?.label ?? c.status}
+                        </Badge>
+                      )}
                       <span>
                         {checkName(c.checkId)}{" "}
                         <span className="text-xs text-muted">

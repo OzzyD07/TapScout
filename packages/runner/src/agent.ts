@@ -20,6 +20,7 @@ import {
   type VersionStamp,
 } from "@tapscout/shared";
 import { RunnerApiError } from "./api.js";
+import { buildModeChecks, ModeTracker, type StressProbe } from "./checks.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
@@ -31,12 +32,13 @@ import {
 import { type NormalizedScreen, normalizeHierarchy, type Platform, pngSize } from "./observer.js";
 import {
   buildPlannerMessages,
+  extractJson,
   generatedText,
   type PlanningContext,
   repairMessages,
   validatePlannerAnswer,
 } from "./planner.js";
-import { actionKey, fingerprint, matchElement, StateGraph } from "./state.js";
+import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
 
 /** The subset of DeviceSession the loop uses; a fake implements it in tests. */
 export interface AgentDevice {
@@ -45,6 +47,8 @@ export interface AgentDevice {
   screenshotPng(): Promise<Buffer>;
   pageSource(): Promise<string>;
   keyboardShown(): Promise<boolean>;
+  /** Android density in dpi, for dp measurements; optional. */
+  displayDensity?(): Promise<number | undefined>;
   appState(appId: string): Promise<number>;
   appIdFromCapabilities(): string | undefined;
   find(
@@ -119,6 +123,8 @@ interface Snapshot {
   xml: string;
   screen: NormalizedScreen;
   appForeground: boolean;
+  /** Appium app state (1 = not running: the process is gone). */
+  appState: number;
   /** Screenshot pixels per driver unit (1 on Android, display scale on iOS). */
   scale: number;
 }
@@ -132,6 +138,8 @@ interface Pending {
   target?: UiElement;
   /** A system dialog appeared before the result was observed: the outcome is unknown. */
   interrupted?: boolean;
+  /** Title of a crash dialog shown right after the action. */
+  crashDialog?: string;
   key: string;
   summary: string;
   outcome: "ok" | "failed";
@@ -154,6 +162,14 @@ const NO_PROGRESS_STEPS = 10;
 const CONTROL_ROLES = new Set(["button", "link", "tab", "cell"]);
 /** Device actions a persistence check needs at least (relaunch, navigation, one replay). */
 const PROBE_MIN_ACTIONS = 8;
+/** Long-text stress probes per session (one per form). */
+const MAX_STRESS_PROBES = 2;
+/** Screens checked for clipped text by the vision model per session. */
+const MAX_VISION_SCREENS = 4;
+/** Texts at least this long make a screen worth a visual clipping check. */
+const LONG_TEXT = 40;
+const CLIPPING_PROMPT =
+  'Look at this mobile app screen. List every piece of text that is visibly cut off: truncated in the middle of a word without an ellipsis, or partly hidden by its container. Reply with JSON only: {"cut_off": ["<the visible part of each cut-off text>"]}, or {"cut_off": []} when none is cut off.';
 /** Persistence checks per session (one per saved field). */
 const MAX_PERSISTENCE_PROBES = 3;
 /** System dialogs within this many recent actions mean the device is not usable. */
@@ -182,14 +198,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let window: { width: number; height: number } | null = null;
 
   const tracker = new FunctionalTracker();
+  const modeTracker = new ModeTracker(platform, 1);
+  let unitScaleKnown = false;
   let failedActions = 0;
 
   /** Check results (selected modes only) and the session outcome. */
   function finalize(
     end: Ending,
     probes: PersistenceProbe[] | { skipped: string },
-    findings: Finding[] = [],
+    functionalFindings: Finding[] = [],
   ): AgentOutcome {
+    let findings = functionalFindings;
     const checks = config.modes.includes("functional")
       ? buildFunctionalChecks({
           platform,
@@ -207,6 +226,23 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           probes,
         })
       : [];
+    const modes = buildModeChecks(modeTracker, {
+      platform,
+      modes: config.modes,
+      run: config.run,
+      versions: config.versions,
+      newId: config.newId,
+      now: ports.now,
+      device: platform === "ios" ? "iOS Simulator" : "Android Emulator",
+    });
+    checks.push(...modes.checks);
+    findings = [...findings, ...modes.findings];
+    for (const f of modes.findings) {
+      ports.emit({
+        type: "finding_candidate",
+        payload: { findingId: f.findingId, mode: f.mode, title: f.title, severity: f.severity },
+      });
+    }
     counters.checksRun = checks.filter((c) => c.status !== "not_tested").length;
     for (const c of checks) {
       ports.emit({
@@ -231,8 +267,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const screen = normalizeHierarchy(platform, xml, { scale });
     if (platform === "android") screen.keyboardVisible = await device.keyboardShown();
     if (!appId && platform === "ios" && screen.topPackage) appId = screen.topPackage;
-    const appForeground = appId ? (await device.appState(appId)) === 4 : true;
-    return { png, xml, screen, appForeground, scale };
+    const appState = appId ? await device.appState(appId) : 4;
+    return { png, xml, screen, appForeground: appState === 4, appState, scale };
   }
 
   async function dismissInterruption(snap: Snapshot): Promise<void> {
@@ -498,6 +534,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const findings: Finding[] = [];
   const probes: PersistenceProbe[] = [];
   const probedFields = new Set<string>();
+  const stressProbed = new Set<string>();
   let probeSkipped: string | null = null;
 
   async function explore(): Promise<Ending> {
@@ -507,7 +544,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       fresh = null;
       if (snap.screen.interruption) {
         consecutiveInterruptions += 1;
-        if (pending) pending.interrupted = true;
+        if (pending) {
+          pending.interrupted = true;
+          if (snap.screen.interruption.kind === "crash") {
+            pending.crashDialog = snap.screen.interruption.title || "the app stopped";
+          }
+        }
         interruptionSteps.push(step);
         const recent = interruptionSteps.filter((s) => s > step - INTERRUPTION_WINDOW).length;
         if (
@@ -533,10 +575,24 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
       current = { snap, label: state.label, shot };
+      if (!unitScaleKnown) {
+        unitScaleKnown = true;
+        const dpi = platform === "android" ? await device.displayDensity?.() : undefined;
+        modeTracker.setUnitScale(platform === "ios" ? snap.scale : dpi ? dpi / 160 : 2.625);
+      }
+      if (snap.appForeground) modeTracker.observe(state.label, snap.screen, shot, step);
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
       let created: PersistenceCandidate[] = [];
+      if (pending?.interrupted && pending.crashDialog) {
+        recordCrash(
+          pending.summary,
+          pending.fromLabel,
+          `The system reported "${pending.crashDialog}".`,
+          shot,
+        );
+      }
       if (pending?.interrupted) {
         ports.emit({
           type: "action_executed",
@@ -563,7 +619,28 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? { type: pending.actionType, target: pending.target }
             : undefined,
         );
+        if (
+          pending.outcome === "ok" &&
+          snap.appState <= 1 &&
+          !["relaunch", "background"].includes(pending.actionType)
+        ) {
+          recordCrash(
+            pending.summary,
+            pending.fromLabel,
+            "The app process was not running afterwards.",
+            shot,
+          );
+        }
         if (pending.outcome === "ok") {
+          modeTracker.noteAction({
+            type: pending.actionType,
+            target: pending.target,
+            fromLabel: pending.fromLabel,
+            fromHadFields: pending.fromElements.some((e) => e.role === "text_field"),
+            toLabel: snap.appForeground ? state.label : null,
+            leftApp: !snap.appForeground,
+            artifactId: shot,
+          });
           created = tracker.noteOutcome({
             type: pending.actionType,
             target: pending.target,
@@ -622,6 +699,33 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           probes.push(await probeCandidate(toProbe));
           continue;
         }
+      }
+
+      // Stress: a form that was submitted before gets one bounded long-text probe.
+      if (
+        snap.appForeground &&
+        config.modes.includes("stress") &&
+        modeTracker.formSubmits.has(state.label) &&
+        !stressProbed.has(state.label) &&
+        stressProbed.size < MAX_STRESS_PROBES &&
+        !probeBlockedReason()
+      ) {
+        stressProbed.add(state.label);
+        await stressLongText(state.label);
+        continue;
+      }
+
+      // UI/UX: ask the vision model about clipped text on new screens with long text.
+      if (
+        isNew &&
+        snap.appForeground &&
+        config.modes.includes("ui_ux") &&
+        !snap.screen.secretsVisible &&
+        modeTracker.visionScreens < MAX_VISION_SCREENS &&
+        counters.visionCalls < budget.maxVisionRequests &&
+        snap.screen.elements.some((e) => (e.text ?? e.label ?? "").length >= LONG_TEXT)
+      ) {
+        await checkClipping(state.label, snap.screen, shot);
       }
 
       // Budget gates before any new QA or model work (docs/03 §9).
@@ -820,7 +924,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     target: UiElement | undefined,
     why: string,
     source: "deterministic" | "replay",
-  ): Promise<boolean> {
+  ): Promise<{ ok: boolean; crashed: boolean; crashDialog?: string }> {
     if (!current) throw new ProbeBlocked("no observation");
     if (counters.actionsExecuted >= budget.maxDeviceActions) {
       throw new ProbeBlocked("device action budget used up");
@@ -837,7 +941,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       stepIndex: step,
       payload: {
         commandId,
-        goalId: "functional-persistence",
+        goalId: source === "replay" ? "replay" : "check",
         summary,
         decisionSummary: why.slice(0, 280),
         source,
@@ -855,7 +959,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const durationMs = Math.max(0, ports.now() - t0);
     await ports.sleep(action.type === "relaunch" ? 3_000 : (config.settleMs ?? 800));
     let snap = await observe();
+    let crashDialog: string | undefined;
     for (let i = 0; i < 4 && (snap.screen.interruption || snap.screen.elements.length === 0); i++) {
+      if (snap.screen.interruption?.kind === "crash") {
+        crashDialog = snap.screen.interruption.title || "the app stopped";
+      }
       if (snap.screen.interruption) await dismissInterruption(snap);
       else await ports.sleep(2_000);
       snap = await observe();
@@ -882,7 +990,192 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       },
     });
     await ports.flush();
-    return !error;
+    const crashed =
+      crashDialog !== undefined ||
+      (snap.appState <= 1 && action.type !== "relaunch" && action.type !== "background");
+    return { ok: !error, crashed, crashDialog };
+  }
+
+  function recordCrash(
+    afterAction: string,
+    screenLabel: string,
+    detail: string,
+    artifactId: string,
+  ) {
+    modeTracker.crashes.push({ afterAction, screenLabel, detail, artifactId, step });
+    ports.emit({
+      type: "note",
+      payload: {
+        level: "error",
+        message: `The app stopped after ${afterAction}. ${detail}`.slice(0, 500),
+      },
+    });
+  }
+
+  /** UI/UX clipping candidates from the vision model, kept only when the hierarchy agrees. */
+  async function checkClipping(screenLabel: string, screen: NormalizedScreen, shot: string) {
+    modeTracker.visionScreens += 1;
+    counters.visionCalls += 1;
+    let content: string;
+    try {
+      content = (await ports.vision(shot, CLIPPING_PROMPT)).content;
+    } catch (error) {
+      ports.log(`clipping check failed: ${(error as Error).message}`);
+      return;
+    }
+    const parsed = extractJson(content) as { cut_off?: unknown } | null;
+    const snippets = Array.isArray(parsed?.cut_off) ? parsed.cut_off : [];
+    for (const raw of snippets.slice(0, 5)) {
+      if (typeof raw !== "string") continue;
+      const visible = raw.replace(/[….]+$/, "").trim();
+      if (visible.length < 6) continue;
+      // Grounding: some element must hold a longer text that starts with the visible part.
+      const full = screen.elements
+        .map((e) => e.text ?? e.label ?? "")
+        .find(
+          (t) => t.toLowerCase().includes(visible.toLowerCase()) && t.length > visible.length + 3,
+        );
+      if (full) modeTracker.clipping.push({ screenLabel, text: visible, artifactId: shot });
+    }
+  }
+
+  /** Stress: bounded long text into a form that was submitted before, then submit (docs/03 §6.2). */
+  async function stressLongText(formLabel: string): Promise<void> {
+    const submit = modeTracker.formSubmits.get(formLabel);
+    if (!submit) return;
+    const submitLabel = submit.label ?? submit.text ?? submit.stableId ?? "submit";
+    ports.emit({
+      type: "phase_changed",
+      payload: { from: "exploring", to: "testing", reason: `Stress: long text on "${formLabel}".` },
+    });
+    let fieldLabel = "a text field";
+    const evidence: StressProbe["evidence"] = [];
+
+    const attempt = async (): Promise<"crash" | "survived" | "blocked"> => {
+      if (!current) return "blocked";
+      const field = current.snap.screen.elements.find(
+        (e) => e.role === "text_field" && e.visible && e.enabled && !e.masked,
+      );
+      if (!field) return "blocked";
+      fieldLabel = field.label ?? field.stableId ?? fieldLabel;
+      await act(
+        {
+          type: "type",
+          targetRef: field.ref,
+          input: { kind: "generator", generator: "long_text" },
+          submit: false,
+        },
+        field,
+        `Stress: enter bounded long text in ${fieldLabel}.`,
+        "deterministic",
+      );
+      let commit = matchElement(current.snap.screen.elements, identityOf(submit));
+      if ((!commit || !commit.visible) && current.snap.screen.keyboardVisible) {
+        await act({ type: "hide_keyboard" }, undefined, "Hide the keyboard.", "deterministic");
+        commit = matchElement(current.snap.screen.elements, identityOf(submit));
+      }
+      if (!commit || !commit.visible) return "blocked";
+      const r = await act(
+        { type: "tap", targetRef: commit.ref },
+        commit,
+        `Stress: save with "${submitLabel}".`,
+        "deterministic",
+      );
+      evidence.push({ artifactId: current.shot, role: r.crashed ? "symptom" : "after" });
+      return r.crashed ? "crash" : "survived";
+    };
+
+    const reproduction: StressProbe["reproduction"] = {
+      target: 0,
+      started: 0,
+      valid: 0,
+      symptom: 0,
+      blocked: [],
+    };
+    let outcome: StressProbe["outcome"] = "inconclusive";
+    let detail = "";
+    try {
+      const first = await attempt();
+      if (first === "blocked") {
+        detail = "the form or its submit control could not be used";
+      } else if (first === "survived") {
+        outcome = "survived";
+        detail = "the app kept running";
+      } else {
+        outcome = "crash";
+        detail = "the app process stopped";
+        ports.emit({
+          type: "phase_changed",
+          payload: { from: "testing", to: "reproducing", reason: "Replay the long-text crash." },
+        });
+        reproduction.target = 2;
+        while (reproduction.valid < 2 && reproduction.started < 3) {
+          reproduction.started += 1;
+          await relaunchApp("Relaunch the app after the crash.");
+          if (!(await navigateTo(formLabel))) {
+            reproduction.blocked.push({
+              reason: "access_blocked",
+              detail: `"${formLabel}" could not be reached again.`,
+            });
+            break;
+          }
+          const again = await attempt();
+          if (again === "blocked") {
+            reproduction.blocked.push({
+              reason: "reset_failed",
+              detail: "The form could not be filled again.",
+            });
+            continue;
+          }
+          reproduction.valid += 1;
+          if (again === "crash") reproduction.symptom += 1;
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof ProbeBlocked)) throw error;
+      if (outcome === "crash")
+        reproduction.blocked.push({ reason: "budget", detail: error.message });
+      else detail = error.message;
+    }
+    if (current && !current.snap.appForeground) {
+      try {
+        await relaunchApp("Relaunch the app to continue exploring.");
+      } catch (error) {
+        if (!(error instanceof ProbeBlocked)) throw error;
+      }
+    }
+    modeTracker.stress.push({
+      formLabel,
+      fieldLabel,
+      submitLabel,
+      outcome,
+      detail,
+      reproduction,
+      evidence,
+    });
+    ports.emit({
+      type: "check_result",
+      payload: {
+        checkId: "stress.long_text",
+        mode: "stress",
+        status:
+          outcome === "crash"
+            ? "failed"
+            : outcome === "survived"
+              ? "passed_within_scope"
+              : "inconclusive",
+        summary: `${formLabel} / ${fieldLabel}: ${detail}`.slice(0, 300),
+      },
+    });
+    ports.emit({
+      type: "phase_changed",
+      payload: {
+        from: outcome === "crash" ? "reproducing" : "testing",
+        to: "exploring",
+        reason: "Back to exploration.",
+      },
+    });
+    await ports.flush();
   }
 
   function relaunchApp(why: string) {
