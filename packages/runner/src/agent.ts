@@ -57,7 +57,7 @@ export interface AgentDevice {
   ): Promise<{ elementId: string } | null>;
   tap(target: { elementId: string }): Promise<void>;
   tapAt(x: number, y: number): Promise<void>;
-  typeInto(target: { elementId: string }, text: string): Promise<void>;
+  typeInto(target: { elementId: string }, text: string, clear?: boolean): Promise<void>;
   pressEnter(): Promise<void>;
   scroll(
     direction: "up" | "down" | "left" | "right",
@@ -562,7 +562,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         if (!target) throw new Error("type without target");
         const found = await resolve(target);
         if (!found) throw new Error("the text field could not be resolved on the current screen");
-        await device.typeInto(found, generatedText(action.input));
+        // Clearing is only needed when the observation showed text in the field.
+        await device.typeInto(found, generatedText(action.input), Boolean(target.text));
         if (action.submit) await device.pressEnter();
         return;
       }

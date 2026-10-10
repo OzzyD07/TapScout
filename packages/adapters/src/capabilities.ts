@@ -44,6 +44,9 @@ export function buildCapabilities(options: SessionOptions): Record<string, unkno
     ...(options.prebuiltWdaPath
       ? { "appium:usePreinstalledWDA": true, "appium:prebuiltWDAPath": options.prebuiltWdaPath }
       : {}),
+    // The CI simulator is booted headless; without this the driver restarts it with a visible
+    // window, which cost ~2.5 min per session (run 78ff4a21).
+    "appium:isHeadless": true,
     "appium:wdaLaunchTimeout": 600_000,
     "appium:wdaConnectionTimeout": 600_000,
     "appium:simulatorStartupTimeout": 300_000,

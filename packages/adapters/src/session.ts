@@ -126,6 +126,11 @@ export class DeviceSession {
 
   /** A single touch tap at a point in driver units. Only for verified, current bounds. */
   async tapAt(x: number, y: number): Promise<void> {
+    if (this.platform === "ios") {
+      // XCUITest's coordinate tap is much cheaper than synthesising W3C pointer actions.
+      await this.driver.execute("mobile: tap", { x: Math.round(x), y: Math.round(y) });
+      return;
+    }
     await this.driver.performActions([
       {
         type: "pointer",
@@ -142,9 +147,13 @@ export class DeviceSession {
     await this.driver.releaseActions();
   }
 
-  async typeInto(target: ResolvedTarget, text: string): Promise<void> {
-    await this.driver.elementClick(target.elementId);
-    await this.driver.elementClear(target.elementId);
+  /**
+   * Replaces the field's text. On iOS sendKeys focuses the field itself, so the extra click is
+   * skipped; `clear` can be skipped when the field is known to be empty.
+   */
+  async typeInto(target: ResolvedTarget, text: string, clear = true): Promise<void> {
+    if (this.platform !== "ios") await this.driver.elementClick(target.elementId);
+    if (clear) await this.driver.elementClear(target.elementId);
     if (text) await this.driver.elementSendKeys(target.elementId, text);
   }
 
