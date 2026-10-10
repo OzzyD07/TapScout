@@ -23,6 +23,7 @@ import { RunnerApiError } from "./api.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
+  isBackControl,
   type PersistenceCandidate,
   type PersistenceProbe,
   valueVisible,
@@ -363,6 +364,19 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return controlsOf(screen).filter((e) => !tried?.has(actionKey("tap", e)));
   }
 
+  /** Untried controls the open keyboard covers: still part of this screen, just not reachable yet. */
+  function coveredControls(screen: NormalizedScreen, fp: string): UiElement[] {
+    const tried = graph.get(fp)?.tried;
+    return screen.elements.filter(
+      (e) =>
+        !e.visible && e.enabled && CONTROL_ROLES.has(e.role) && !tried?.has(actionKey("tap", e)),
+    );
+  }
+
+  function keyboardCloseFailed(fp: string): boolean {
+    return graph.get(fp)?.tried.get(actionKey("hide_keyboard"))?.results.at(-1) === "same screen";
+  }
+
   /**
    * Deterministic fallback: an untried control, else back (unless back already left us on this
    * screen), else the least-tried control.
@@ -651,7 +665,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       } else {
         if (
           step - lastNewStateStep >= NO_PROGRESS_STEPS &&
-          untriedControls(snap.screen, fp).length === 0
+          untriedControls(snap.screen, fp).length === 0 &&
+          (coveredControls(snap.screen, fp).length === 0 || keyboardCloseFailed(fp))
         ) {
           return {
             phase: "completed",
@@ -717,6 +732,20 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         } else {
           ({ action, target } = fallback(snap.screen, fp));
           decisionSummary = "No valid planner proposal; trying an untried control or going back.";
+        }
+
+        // Leaving a form while the keyboard hides controls nobody tried (often the submit button)
+        // would never test them: close the keyboard first.
+        if (
+          snap.screen.keyboardVisible &&
+          (action.type === "back" || isBackControl(target)) &&
+          coveredControls(snap.screen, fp).length > 0 &&
+          !keyboardCloseFailed(fp)
+        ) {
+          action = { type: "hide_keyboard" };
+          target = undefined;
+          source = "deterministic";
+          decisionSummary = "The keyboard covers controls that were not tried yet; close it first.";
         }
 
         // Same action from the same state again and again: replace it instead of looping.
