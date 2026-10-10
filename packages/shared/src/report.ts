@@ -36,6 +36,8 @@ export const ReportSummary = z.object({
   model: z.string(),
   /** True only after every finding/artifact reference in the text was checked against the records. */
   referencesValidated: z.boolean(),
+  /** `[F1]`-style labels used in the text → the finding each one points at. */
+  findingRefs: z.record(z.string().regex(/^F\d+$/), Id).default({}),
 });
 export type ReportSummary = z.infer<typeof ReportSummary>;
 

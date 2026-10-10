@@ -1,4 +1,11 @@
-import type { CheckResult, Finding, TestMode, VersionStamp } from "@tapscout/shared";
+import type {
+  CheckResult,
+  Finding,
+  Report,
+  ReportSummary,
+  TestMode,
+  VersionStamp,
+} from "@tapscout/shared";
 import { z } from "zod";
 import { fromDbError, fromZodError, HttpError, type PostgrestLikeError } from "@/lib/api/errors";
 import { OidcRejected, type VerifiedWorkflowIdentity } from "@/lib/runner/oidc";
@@ -19,6 +26,11 @@ export interface ReportDeps {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<RpcResult>;
   verifyOidc(token: string): Promise<VerifiedWorkflowIdentity>;
   loadContext(runId: string): Promise<ReportContext>;
+  /** Model summary under the report lease; null when unavailable. Never blocks the report. */
+  summarize(
+    report: Report,
+    scope: { runId: string; reportAttemptId: string; leaseVersion: number },
+  ): Promise<ReportSummary | null>;
 }
 
 const Body = z.object({ runId: z.uuid() });
@@ -83,7 +95,7 @@ export async function reportRun(
   if (!attempt) throw new HttpError(500, "internal", "report lease was not returned");
 
   const context = await deps.loadContext(runId);
-  const report = buildReport({
+  const deterministic = buildReport({
     runId,
     reportVersion: attempt.report_version,
     modes: context.modes,
@@ -93,6 +105,17 @@ export async function reportRun(
     checks: context.checks,
     findings: context.findings,
   });
+  const summary = await deps
+    .summarize(deterministic, {
+      runId,
+      reportAttemptId: attempt.report_attempt_id,
+      leaseVersion: attempt.lease_version,
+    })
+    .catch((error: unknown) => {
+      console.error("report: summary failed", error);
+      return null;
+    });
+  const report: Report = { ...deterministic, summary };
   const saved = await deps.rpc("save_report", {
     p_run_id: runId,
     p_report_attempt_id: attempt.report_attempt_id,

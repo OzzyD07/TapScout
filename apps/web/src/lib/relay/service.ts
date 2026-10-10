@@ -8,8 +8,8 @@ import { fromDbError, fromZodError, HttpError, type PostgrestLikeError } from "@
 import { type RunnerScope, verifyRunnerToken } from "@/lib/runner/token";
 import type { ChatFn, ProviderMessage, ProviderRequest } from "./provider";
 
-type DeviceScope = Extract<RunnerScope, { kind: "device" }>;
-type ReportScope = Extract<RunnerScope, { kind: "report" }>;
+export type DeviceScope = Extract<RunnerScope, { kind: "device" }>;
+export type ReportScope = Extract<RunnerScope, { kind: "report" }>;
 type RpcResult = { data: unknown; error: PostgrestLikeError | null };
 
 export const PLANNER_TIMEOUT_MS = 45_000;
@@ -193,6 +193,37 @@ export async function relayPlan(
       maxTokens: req.maxOutputTokens,
       temperature: 0.2,
       jsonSchema: { name: req.responseSchema, schema: responseJsonSchema(req.responseSchema) },
+      disableThinking: true,
+      timeoutMs: PLANNER_TIMEOUT_MS,
+    },
+  });
+}
+
+/**
+ * Report summary for a caller that already holds the report lease server-side (the report route),
+ * so no runner token is involved; the lease is still re-checked and the report budget applies.
+ */
+export async function relayReportSummary(
+  deps: RelayDeps,
+  scope: ReportScope,
+  messages: ProviderMessage[],
+  maxOutputTokens: number,
+): Promise<RelayResponse> {
+  if (!(await deps.reportLeaseIsCurrent(scope))) {
+    throw new HttpError(409, "lease_lost", "lease is no longer held by this attempt");
+  }
+  const prompt = messages.map((m) => (typeof m.content === "string" ? m.content : "")).join("");
+  return callWithBudget(deps, {
+    scope,
+    role: "report",
+    purpose: "report_summary",
+    estimatedInput: estimateTokens(prompt) + 16 * messages.length,
+    request: {
+      model: deps.models.planner,
+      messages,
+      maxTokens: maxOutputTokens,
+      temperature: 0.2,
+      jsonSchema: { name: "report_summary_v1", schema: responseJsonSchema("report_summary_v1") },
       disableThinking: true,
       timeoutMs: PLANNER_TIMEOUT_MS,
     },

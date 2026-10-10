@@ -2,9 +2,9 @@ import { z } from "zod";
 import { PlannerOutput } from "./actions.js";
 
 export const ReportSummaryOutput = z.object({
-  summary: z.string().max(3000),
-  /** Every finding id the summary mentions; validated against the stored findings. */
+  /** Every finding label the summary mentions; first, so the model commits to them before writing. */
   referencedFindingIds: z.array(z.string()).max(50),
+  summary: z.string().max(3000),
 });
 export type ReportSummaryOutput = z.infer<typeof ReportSummaryOutput>;
 

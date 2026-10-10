@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTokenFactoryChat, stripThinking } from "../src/lib/relay/provider";
-import { type RelayDeps, relayPlan, relayVision } from "../src/lib/relay/service";
+import {
+  type RelayDeps,
+  relayPlan,
+  relayReportSummary,
+  relayVision,
+} from "../src/lib/relay/service";
 import { issueRunnerToken } from "../src/lib/runner/token";
 
 const signingKey = "k".repeat(48);
@@ -188,6 +193,31 @@ describe("relayPlan", () => {
     await expect(
       relayPlan(deps(), await tokenFor(device), { ...planBody, responseSchema: "anything" }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+describe("relayReportSummary", () => {
+  it("re-checks the report lease and uses the registered summary schema", async () => {
+    const d = deps();
+    await relayReportSummary(d, report, [{ role: "user", content: "run data" }], 700);
+    expect(vi.mocked(d.rpc).mock.calls[0]?.[1]).toMatchObject({
+      p_report_attempt_id: report.reportAttemptId,
+      p_role: "report",
+      p_output: 700,
+    });
+    const request = vi.mocked(d.chat).mock.calls[0]?.[0];
+    expect(request?.jsonSchema?.name).toBe("report_summary_v1");
+    expect(request?.disableThinking).toBe(true);
+    expect(vi.mocked(d.recordUsage).mock.calls[0]?.[0]).toMatchObject({
+      purpose: "report_summary",
+      reportAttemptId: report.reportAttemptId,
+    });
+  });
+
+  it("refuses when the report lease was lost", async () => {
+    const d = deps({ reportLeaseIsCurrent: vi.fn(async () => false) });
+    await expect(relayReportSummary(d, report, [], 700)).rejects.toMatchObject({ status: 409 });
+    expect(d.chat).not.toHaveBeenCalled();
   });
 });
 

@@ -2,10 +2,13 @@ import "server-only";
 import { CheckResult, Finding, TestMode, VersionStamp } from "@tapscout/shared";
 import { z } from "zod";
 import { HttpError } from "@/lib/api/errors";
+import { createRelayDeps } from "@/lib/relay/deps";
+import { relayReportSummary } from "@/lib/relay/service";
 import { verifyGithubOidc } from "@/lib/runner/oidc";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ReportDeps } from "./service";
+import { summarizeReport } from "./summary";
 
 const UNKNOWN_VERSIONS: VersionStamp = {
   agent: "unknown",
@@ -68,6 +71,19 @@ export function createReportDeps(): ReportDeps {
           return r.success ? [r.data] : [];
         }),
       };
+    },
+    async summarize(report, scope) {
+      // Missing model configuration only costs the summary, never the report.
+      const relay = createRelayDeps();
+      return summarizeReport(report, async (messages, maxOutputTokens) => {
+        const res = await relayReportSummary(
+          relay,
+          { kind: "report", ...scope },
+          messages,
+          maxOutputTokens,
+        );
+        return { content: res.content, model: res.model };
+      });
     },
   };
 }

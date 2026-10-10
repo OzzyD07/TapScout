@@ -88,6 +88,7 @@ function deps(context: Partial<ReportContext>, rpc?: ReportDeps["rpc"]): ReportD
       runnerEnvironment: "github-hosted",
     })),
     loadContext: vi.fn(async () => full),
+    summarize: vi.fn(async () => null),
     rpc:
       rpc ??
       vi.fn(async (fn: string) =>
@@ -112,6 +113,26 @@ describe("reportRun", () => {
       expect.objectContaining({ p_session_id: stuck.id, p_phase: "infrastructure_failed" }),
     );
     expect(d.rpc).toHaveBeenCalledWith("save_report", expect.objectContaining({ p_run_id: RUN }));
+  });
+
+  it("saves the model summary under the report lease, or the report without it", async () => {
+    const summary = { text: "No issues.", model: "m", referencesValidated: true, findingRefs: {} };
+    const d = deps({});
+    vi.mocked(d.summarize).mockResolvedValueOnce(summary);
+    await reportRun(d, "oidc", { runId: RUN });
+    expect(d.summarize).toHaveBeenCalledWith(expect.objectContaining({ summary: null }), {
+      runId: RUN,
+      reportAttemptId: "ra",
+      leaseVersion: 1,
+    });
+    expect(d.rpc).toHaveBeenCalledWith(
+      "save_report",
+      expect.objectContaining({ p_data: expect.objectContaining({ summary }) }),
+    );
+
+    const failing = deps({});
+    vi.mocked(failing.summarize).mockRejectedValueOnce(new Error("no model"));
+    expect((await reportRun(failing, "oidc", { runId: RUN })).status).toBe("saved");
   });
 
   it("skips cancelled runs without saving", async () => {
