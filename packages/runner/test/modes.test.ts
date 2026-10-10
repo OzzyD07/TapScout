@@ -404,6 +404,14 @@ describe("stress long-text probe", () => {
     );
   });
 
+  it("still probes a form when a persistence check runs right after its first save", async () => {
+    const { out } = await runNotes(true, ["functional", "stress"]);
+    expect(out.checks.find((c) => c.checkId === "functional.persistence")?.status).toBe(
+      "passed_within_scope",
+    );
+    expect(out.checks.find((c) => c.checkId === "stress.long_text")?.status).toBe("failed");
+  });
+
   it("passes when the app limits the input (fixed)", async () => {
     const { out } = await runNotes(false);
     expect(out.checks.find((c) => c.checkId === "stress.long_text")?.status).toBe(

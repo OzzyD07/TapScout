@@ -648,6 +648,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const probes: PersistenceProbe[] = [];
   const probedFields = new Set<string>();
   const stressProbed = new Set<string>();
+  const stressQueue: string[] = [];
   /** Screens (by name) already checked by the vision model. */
   const visionLabels = new Set<string>();
   let probeSkipped: string | null = null;
@@ -699,8 +700,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
       let created: PersistenceCandidate[] = [];
-      /** A form that was just submitted for the first time (Stress probes it right away). */
-      let submittedForm: string | null = null;
+
       if (pending?.interrupted && pending.crashDialog) {
         recordCrash(
           pending.summary,
@@ -748,7 +748,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           );
         }
         if (pending.outcome === "ok") {
-          submittedForm = modeTracker.noteAction({
+          const submitted = modeTracker.noteAction({
             type: pending.actionType,
             target: pending.target,
             fromLabel: pending.fromLabel,
@@ -757,6 +757,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             leftApp: !snap.appForeground,
             artifactId: shot,
           });
+          if (submitted) stressQueue.push(submitted);
           created = tracker.noteOutcome({
             type: pending.actionType,
             target: pending.target,
@@ -819,12 +820,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
       // Stress: a form that was submitted before gets one bounded long-text probe — right after
       // its first submit (going back along the observed path) or when exploration returns to it.
+      // Forms queue up when first submitted, so a persistence check in between does not lose them.
+      while (stressQueue.length > 0 && stressProbed.has(stressQueue[0] as string))
+        stressQueue.shift();
       const stressTarget =
-        submittedForm && !stressProbed.has(submittedForm)
-          ? submittedForm
-          : modeTracker.formSubmits.has(state.label) && !stressProbed.has(state.label)
-            ? state.label
-            : null;
+        stressQueue[0] ??
+        (modeTracker.formSubmits.has(state.label) && !stressProbed.has(state.label)
+          ? state.label
+          : null);
       if (
         stressTarget &&
         snap.appForeground &&
@@ -845,6 +848,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           await stressLongText(stressTarget);
           continue;
         }
+        // Not reachable now: try again when exploration comes back to it.
+        if (stressQueue[0] === stressTarget) stressQueue.shift();
         if (current && current.label !== state.label) continue;
       }
 
