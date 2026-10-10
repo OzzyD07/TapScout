@@ -1,7 +1,8 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Button, Field, Screen } from "../components/ui";
-import { loadProfile, type Profile, saveProfile } from "../lib/profile-store";
+import { loadProfile, type Profile, updateProfile } from "../lib/profile-store";
+import { COPY } from "../lib/variant";
 
 export default function EditProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -24,7 +25,7 @@ export default function EditProfile() {
     }
     setNameError(null);
     if (!profile) return;
-    await saveProfile({ ...profile, name: name.trim(), bio: bio.trim() });
+    await updateProfile({ ...profile, name: name.trim(), bio: bio.trim() });
     router.back();
   }
 
@@ -46,7 +47,7 @@ export default function EditProfile() {
         maxLength={280}
         style={{ minHeight: 96, textAlignVertical: "top" }}
       />
-      <Button testID="edit-save" label="Save" onPress={onSave} disabled={!profile} />
+      <Button testID="edit-save" label={COPY.save} onPress={onSave} disabled={!profile} />
     </Screen>
   );
 }

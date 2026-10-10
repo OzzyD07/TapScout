@@ -1,8 +1,9 @@
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Text } from "react-native";
-import { Body, Button, Card, Screen, Title, useTheme } from "../components/ui";
+import { Text, View } from "react-native";
+import { Body, Button, Card, IconButton, Screen, Title, useTheme } from "../components/ui";
 import { clearProfile, loadProfile, type Profile } from "../lib/profile-store";
+import { COPY, SEEDED, VARIANT } from "../lib/variant";
 
 export default function ProfileScreen() {
   const t = useTheme();
@@ -21,7 +22,14 @@ export default function ProfileScreen() {
 
   return (
     <Screen testID="profile-screen">
-      <Title>{profile ? `Hi, ${profile.name}` : "Profile"}</Title>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Title>{profile ? `Hi, ${profile.name}` : "Profile"}</Title>
+        <IconButton
+          testID="profile-settings"
+          accessibilityLabel={SEEDED ? undefined : "Settings"}
+          onPress={() => router.push("/settings")}
+        />
+      </View>
       <Card>
         <Text style={{ color: t.muted, fontSize: 13 }}>Email</Text>
         <Text testID="profile-email" style={{ color: t.text, fontSize: 16 }}>
@@ -33,12 +41,27 @@ export default function ProfileScreen() {
         </Text>
       </Card>
       <Body>Changes are saved on this device.</Body>
-      <Button
-        testID="profile-edit"
-        label="Edit profile"
-        onPress={() => router.push("/edit-profile")}
-      />
-      <Button testID="profile-sign-out" label="Sign out" kind="secondary" onPress={onSignOut} />
+      {VARIANT === "changed_flow" ? (
+        <>
+          <Button testID="profile-notes" label={COPY.notes} onPress={() => router.push("/notes")} />
+          <Button
+            testID="profile-edit"
+            label={COPY.editProfile}
+            kind="secondary"
+            onPress={() => router.push("/edit-profile")}
+          />
+        </>
+      ) : (
+        <>
+          <Button
+            testID="profile-edit"
+            label={COPY.editProfile}
+            onPress={() => router.push("/edit-profile")}
+          />
+          <Button testID="profile-notes" label={COPY.notes} onPress={() => router.push("/notes")} />
+        </>
+      )}
+      <Button testID="profile-sign-out" label={COPY.signOut} kind="secondary" onPress={onSignOut} />
     </Screen>
   );
 }

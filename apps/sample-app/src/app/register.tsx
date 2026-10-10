@@ -1,7 +1,9 @@
 import { router } from "expo-router";
 import { useState } from "react";
+import { View } from "react-native";
 import { Body, Button, Field, Screen, Title } from "../components/ui";
 import { saveProfile, validateEmail } from "../lib/profile-store";
+import { COPY, SEEDED } from "../lib/variant";
 
 export default function Register() {
   const [name, setName] = useState("");
@@ -46,7 +48,25 @@ export default function Register() {
         error={errors.email}
         returnKeyType="done"
       />
-      <Button testID="register-continue" label="Continue" onPress={onContinue} disabled={saving} />
+      {SEEDED ? null : (
+        <Button
+          testID="register-continue"
+          label={COPY.continue}
+          onPress={onContinue}
+          disabled={saving}
+        />
+      )}
+      {/* Seeded defect: pinned to the bottom of the window, so the keyboard covers it. */}
+      {SEEDED ? (
+        <View style={{ position: "absolute", left: 20, right: 20, bottom: 24 }}>
+          <Button
+            testID="register-continue"
+            label={COPY.continue}
+            onPress={onContinue}
+            disabled={saving}
+          />
+        </View>
+      ) : null}
     </Screen>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Body, Button, Screen, Title } from "../components/ui";
 import { loadProfile } from "../lib/profile-store";
+import { COPY } from "../lib/variant";
 
 export default function Welcome() {
   const [state, setState] = useState<"loading" | "new" | "existing">("loading");
@@ -26,7 +27,7 @@ export default function Welcome() {
       <Body>Keep short notes from the field and share a simple profile with your team.</Body>
       <Button
         testID="welcome-get-started"
-        label="Get started"
+        label={COPY.getStarted}
         onPress={() => router.push("/register")}
       />
     </Screen>

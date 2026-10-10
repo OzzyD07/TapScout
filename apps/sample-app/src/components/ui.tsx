@@ -126,6 +126,75 @@ export function Field({
   );
 }
 
+/**
+ * Icon-only button (three bars). `accessibilityLabel` is required for screen readers; the seeded
+ * build leaves it out on purpose.
+ */
+export function IconButton({
+  testID,
+  accessibilityLabel,
+  onPress,
+}: {
+  testID: string;
+  accessibilityLabel?: string;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.iconButton,
+        { borderColor: t.border, opacity: pressed ? 0.6 : 1 },
+      ]}
+    >
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[styles.iconBar, { backgroundColor: t.text }]} />
+      ))}
+    </Pressable>
+  );
+}
+
+/** Tappable list row with a title and an optional subtitle. */
+export function Row({
+  testID,
+  title,
+  subtitle,
+  onPress,
+  clipTitle = false,
+}: {
+  testID: string;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  clipTitle?: boolean;
+}) {
+  const t = useTheme();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: t.card, borderColor: t.border, opacity: pressed ? 0.8 : 1 },
+        clipTitle ? styles.rowClipped : null,
+      ]}
+    >
+      <Text style={[styles.rowTitle, { color: t.text }]}>{title}</Text>
+      {subtitle ? (
+        <Text numberOfLines={1} style={{ color: t.muted, fontSize: 13 }}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export function Card({ children }: { children: ReactNode }) {
   const t = useTheme();
   return (
@@ -153,4 +222,17 @@ const styles = StyleSheet.create({
   input: { minHeight: 48, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 16 },
   error: { fontSize: 13 },
   card: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 8 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  iconBar: { width: 18, height: 2, borderRadius: 1 },
+  row: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
+  rowClipped: { height: 48, overflow: "hidden" },
+  rowTitle: { fontSize: 16, fontWeight: "600" },
 });
