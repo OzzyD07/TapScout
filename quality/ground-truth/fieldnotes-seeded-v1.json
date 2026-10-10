@@ -2,7 +2,7 @@
   "app": "FieldNotes",
   "variant": "seeded",
   "version": "v1",
-  "note": "Post-run evaluation only. Never read by apps/* or packages/* (scripts/check-ground-truth.sh).",
+  "note": "Post-run evaluation only (quality/evaluate-run.mjs). Never read by apps/*, packages/* or scripts/* (scripts/check-ground-truth.sh).",
   "seeds": [
     {
       "id": "persistence-profile-edit",
@@ -12,7 +12,8 @@
       "where": "Profile → Edit profile → Save, then relaunch the app",
       "expected": "Name/About changes saved on Edit profile are still shown on Profile after a relaunch.",
       "actual": "The edit is kept only in memory; after a relaunch Profile shows the values from registration.",
-      "detection": "functional.persistence fails with observed_invariant evidence (before/after relaunch)."
+      "detection": "functional.persistence fails with observed_invariant evidence (before/after relaunch).",
+      "checkIds": ["functional.persistence"]
     },
     {
       "id": "unlabeled-settings-icon",
@@ -22,7 +23,8 @@
       "where": "Profile, icon button next to the title (testID profile-settings)",
       "expected": "Icon-only buttons expose a label to screen readers.",
       "actual": "The button has a role but no label and no text.",
-      "detection": "Accessibility label check on an interactive element without label/text."
+      "detection": "Accessibility label check on an interactive element without label/text.",
+      "checkIds": ["a11y.control_labels"]
     },
     {
       "id": "no-account-deletion",
@@ -32,7 +34,8 @@
       "where": "Settings",
       "expected": "Settings offers a way to delete the account (Apple 5.1.1(v), Google Play account deletion policy).",
       "actual": "Only the privacy policy link is present.",
-      "detection": "store_readiness account-deletion check: potential_risk."
+      "detection": "store_readiness account-deletion check: potential_risk.",
+      "checkIds": ["store.account_deletion"]
     },
     {
       "id": "keyboard-covers-continue",
@@ -42,7 +45,8 @@
       "where": "Create profile, with the keyboard open",
       "expected": "The primary action stays reachable while typing.",
       "actual": "Continue is pinned to the bottom of the window; the software keyboard covers it. Android may resize the window and not show the symptom.",
-      "detection": "UI/UX occluded-action candidate (element bounds under the keyboard)."
+      "detection": "UI/UX occluded-action candidate (element bounds under the keyboard).",
+      "checkIds": ["ui.keyboard_occlusion"]
     },
     {
       "id": "note-title-clipped",
@@ -52,7 +56,8 @@
       "where": "Notes list rows",
       "expected": "Long titles wrap or are truncated with an ellipsis.",
       "actual": "Rows have a fixed height with hidden overflow; title text is cut off.",
-      "detection": "UI/UX clipping candidate (text bounds exceed row bounds) or VLM candidate."
+      "detection": "UI/UX clipping candidate (text bounds exceed row bounds) or VLM candidate.",
+      "checkIds": ["ui.text_clipping"]
     },
     {
       "id": "crash-long-note-title",
@@ -62,7 +67,8 @@
       "where": "New note → Title (long text) → Save",
       "expected": "The app rejects or truncates the title.",
       "actual": "An exception in the press handler terminates the release build.",
-      "detection": "Stress long_text input; runtime_signal (process lost)."
+      "detection": "Stress long_text input; runtime_signal (process lost).",
+      "checkIds": ["stress.long_text", "stress.crash"]
     }
   ]
 }
