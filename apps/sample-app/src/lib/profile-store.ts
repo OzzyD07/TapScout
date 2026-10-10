@@ -67,6 +67,16 @@ export async function deleteNote(id: string): Promise<void> {
   await AsyncStorage.setItem(NOTES_KEY, JSON.stringify(notes.filter((n) => n.id !== id)));
 }
 
+/** A first note for new profiles, with a deliberately long title (list layout check). */
+export const STARTER_NOTE = {
+  title: "Welcome to FieldNotes: tap a note to read it, or add your own from this list",
+  body: "Notes stay on this device. Delete this one from its detail screen.",
+};
+
+export async function addStarterNote(): Promise<void> {
+  if ((await loadNotes()).length === 0) await addNote(STARTER_NOTE.title, STARTER_NOTE.body);
+}
+
 /** Account deletion: removes everything this app stored on the device. */
 export async function deleteAccount(): Promise<void> {
   unsavedEdit = null;

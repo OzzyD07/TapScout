@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { Body, Button, Field, Screen, Title } from "../components/ui";
-import { saveProfile, validateEmail } from "../lib/profile-store";
+import { addStarterNote, saveProfile, validateEmail } from "../lib/profile-store";
 import { COPY, SEEDED } from "../lib/variant";
 
 export default function Register() {
@@ -20,6 +20,7 @@ export default function Register() {
 
     setSaving(true);
     await saveProfile({ name: name.trim(), email: email.trim(), bio: "" });
+    await addStarterNote();
     setSaving(false);
     router.replace("/profile");
   }
