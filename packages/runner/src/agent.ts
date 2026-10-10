@@ -438,9 +438,20 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         try {
           await device.hideKeyboard();
         } catch (error) {
-          // Most apps close the keyboard on a tap outside the field: use a plain text above it.
+          // The return key ends editing in most single-line fields (React Native: blurOnSubmit).
+          try {
+            await device.pressEnter();
+            return;
+          } catch {
+            // Fall through to a tap outside the field.
+          }
+          // Otherwise a tap on plain content text (not the navigation bar) usually closes it.
           const neutral = snap.screen.elements.find(
-            (e) => e.role === "text" && e.visible && !e.clickable,
+            (e) =>
+              e.role === "text" &&
+              e.visible &&
+              !e.clickable &&
+              e.bounds.y > snap.screen.heightPx * 0.15,
           );
           if (!neutral) throw error;
           const p = center(neutral);

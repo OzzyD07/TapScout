@@ -225,12 +225,51 @@ describe("runAgent", () => {
     expect(out.blockers[0]).toContain("System dialog");
   });
 
+  it("closes the keyboard with the return key when the driver cannot dismiss it", async () => {
+    const device = fakeDevice();
+    let keyboard = true;
+    device.keyboardShown = async () => keyboard;
+    device.hideKeyboard = async () => {
+      throw new Error("Did not know how to dismiss the keyboard");
+    };
+    device.pressEnter = vi.fn(async () => {
+      keyboard = false;
+    });
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "explore",
+          observationId: obs,
+          nextAction: prompt.includes("Keyboard: visible")
+            ? { type: "hide_keyboard" }
+            : { type: "back" },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Close the keyboard.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 2);
+    await runAgent(h.ports, h.config);
+    expect(device.pressEnter).toHaveBeenCalledTimes(1);
+    expect(device.tapAt).not.toHaveBeenCalled();
+  });
+
   it("closes the keyboard by tapping plain text when the driver cannot dismiss it", async () => {
     const device = fakeDevice();
     let keyboard = true;
     device.keyboardShown = async () => keyboard;
     device.hideKeyboard = async () => {
       throw new Error("Did not know how to dismiss the keyboard");
+    };
+    device.pressEnter = async () => {
+      throw new Error("no focused field");
     };
     device.tapAt = vi.fn(async () => {
       keyboard = false;
