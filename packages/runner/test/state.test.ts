@@ -45,6 +45,14 @@ describe("StateGraph", () => {
     expect(g.get("a")?.visits).toBe(2);
   });
 
+  it("reports a changed state of the same screen (e.g. keyboard) as an update, not a new screen", () => {
+    const g = new StateGraph();
+    g.visit("form", "Create profile", 0);
+    g.visit("form+kb", "Create profile", 1);
+    g.record("form", "type:name", 'Type text into "Name"', "form+kb", 1);
+    expect(g.history.at(-1)?.result).toBe("updated this screen");
+  });
+
   it("keys actions by target identity, not by the per-observation ref", () => {
     const el = { ref: "el-4", stableId: "register-continue", label: "Continue" } as UiElement;
     expect(actionKey("tap", el)).toBe(actionKey("tap", { ...el, ref: "el-9" }));

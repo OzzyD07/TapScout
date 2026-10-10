@@ -101,7 +101,9 @@ export class StateGraph {
         ? "left the app"
         : toFp === fromFp
           ? "same screen"
-          : `opened ${JSON.stringify(to?.label ?? "a new screen")}`;
+          : to && from && to.label === from.label
+            ? "updated this screen"
+            : `opened ${JSON.stringify(to?.label ?? "a new screen")}`;
     if (from) {
       const entry = from.tried.get(actionKey) ?? { count: 0, summary, results: [] };
       entry.count += 1;

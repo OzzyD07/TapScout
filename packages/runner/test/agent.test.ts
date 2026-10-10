@@ -187,6 +187,33 @@ describe("runAgent", () => {
     expect(h.counters.screensObserved).toBeGreaterThanOrEqual(1);
   });
 
+  it("stops with goals_exhausted once nothing new is reachable, before the planner budget", async () => {
+    // A planner that only ever goes back and forth between the two screens.
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      const start = /(el-\d+) button "Get started"/.exec(prompt)?.[1];
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "explore",
+          observationId: obs,
+          nextAction: start ? { type: "tap", targetRef: start } : { type: "back" },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Next step.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(fakeDevice(), plan as ReturnType<typeof scriptedPlanner>, 30);
+    const out = await runAgent(h.ports, h.config);
+    expect(out.stopReason).toBe("goals_exhausted");
+    expect(h.counters.plannerCalls).toBeLessThan(30);
+  });
+
   it("reports access_blocked when the app never shows a usable screen", async () => {
     const device = fakeDevice();
     device.appState = async () => 1;

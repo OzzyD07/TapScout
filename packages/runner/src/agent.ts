@@ -123,6 +123,9 @@ const OFF_APP = "off-app";
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
 const MAX_PLANNER_FAILURES = 3;
 const MAX_RELAUNCHES = 3;
+/** Exploration is over when this many actions found no new state and this screen is fully tried. */
+const NO_PROGRESS_STEPS = 10;
+const CONTROL_ROLES = new Set(["button", "link", "tab", "cell"]);
 const VISION_PROMPT =
   "In at most two sentences: what screen of the app is this, and which main controls are visible?";
 
@@ -280,19 +283,34 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return null;
   }
 
-  /** Deterministic fallback: an untried control on this screen, else back. */
+  function controlsOf(screen: NormalizedScreen): UiElement[] {
+    return screen.elements.filter((e) => e.enabled && CONTROL_ROLES.has(e.role));
+  }
+
+  function untriedControls(screen: NormalizedScreen, fp: string): UiElement[] {
+    const tried = graph.get(fp)?.tried;
+    return controlsOf(screen).filter((e) => !tried?.has(actionKey("tap", e)));
+  }
+
+  /**
+   * Deterministic fallback: an untried control, else back (unless back already left us on this
+   * screen), else the least-tried control.
+   */
   function fallback(
     screen: NormalizedScreen,
     fp: string,
   ): { action: ProposedAction; target?: UiElement } {
-    const tried = graph.get(fp)?.tried;
-    const untried = screen.elements.find(
-      (e) =>
-        e.enabled &&
-        (e.role === "button" || e.role === "link" || e.role === "tab" || e.role === "cell") &&
-        !tried?.has(actionKey("tap", e)),
-    );
+    const untried = untriedControls(screen, fp)[0];
     if (untried) return { action: { type: "tap", targetRef: untried.ref }, target: untried };
+    const tried = graph.get(fp)?.tried;
+    const back = tried?.get(actionKey("back"));
+    if (!back || back.results.at(-1) !== "same screen") return { action: { type: "back" } };
+    const least = controlsOf(screen).sort(
+      (a, b) =>
+        (tried?.get(actionKey("tap", a))?.count ?? 0) -
+        (tried?.get(actionKey("tap", b))?.count ?? 0),
+    )[0];
+    if (least) return { action: { type: "tap", targetRef: least.ref }, target: least };
     return { action: { type: "back" } };
   }
 
@@ -362,6 +380,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let consecutiveInterruptions = 0;
   let relaunches = 0;
   let stuckWarnings = 0;
+  let lastNewStateStep = 0;
 
   try {
     for (;;) {
@@ -389,6 +408,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
+      if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
       if (pending) {
@@ -472,6 +492,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         action = { type: "relaunch", clearData: false };
         decisionSummary = "The app is no longer in the foreground; relaunch it.";
       } else {
+        if (
+          step - lastNewStateStep >= NO_PROGRESS_STEPS &&
+          untriedControls(snap.screen, fp).length === 0
+        ) {
+          return outcome({
+            phase: "completed",
+            stopReason: "goals_exhausted",
+            detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every control here was tried.`,
+            blockers: [],
+          });
+        }
         let warning: string | undefined;
         if (graph.stuckFor(4)) {
           stuckWarnings += 1;
