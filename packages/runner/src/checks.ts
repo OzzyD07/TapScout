@@ -196,15 +196,18 @@ export class ModeTracker {
     toLabel: string | null;
     leftApp: boolean;
     artifactId: string;
-  }): void {
-    if (o.type !== "tap" || !o.target) return;
+  }): string | null {
+    if (o.type !== "tap" || !o.target) return null;
     const text = `${o.target.label ?? ""} ${o.target.text ?? ""}`;
     if (PRIVACY.test(text) && o.leftApp) this.privacyOpened ??= { artifactId: o.artifactId };
+    let firstSubmit: string | null = null;
     const back =
       o.target.stableId === "BackButton" || /^(navigate up|back)$/i.test(o.target.label ?? "");
     if (o.fromHadFields && !back && o.toLabel && o.toLabel !== o.fromLabel) {
+      if (!this.formSubmits.has(o.fromLabel)) firstSubmit = o.fromLabel;
       this.formSubmits.set(o.fromLabel, o.target);
     }
+    return firstSubmit;
   }
 
   /** Covered controls that are real app controls (seen uncovered elsewhere in the session). */

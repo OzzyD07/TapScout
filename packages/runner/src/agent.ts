@@ -165,7 +165,7 @@ const CONTROL_ROLES = new Set(["button", "link", "tab", "cell"]);
 /** Device actions a persistence check needs at least (relaunch, navigation, one replay). */
 const PROBE_MIN_ACTIONS = 8;
 /** Long-text stress probes per session (one per form). */
-const MAX_STRESS_PROBES = 2;
+const MAX_STRESS_PROBES = 3;
 /** Screens checked for clipped text by the vision model per session. */
 const MAX_VISION_SCREENS = 6;
 /** Texts at least this long make a screen worth a visual clipping check. */
@@ -699,6 +699,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
       let created: PersistenceCandidate[] = [];
+      /** A form that was just submitted for the first time (Stress probes it right away). */
+      let submittedForm: string | null = null;
       if (pending?.interrupted && pending.crashDialog) {
         recordCrash(
           pending.summary,
@@ -746,7 +748,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           );
         }
         if (pending.outcome === "ok") {
-          modeTracker.noteAction({
+          submittedForm = modeTracker.noteAction({
             type: pending.actionType,
             target: pending.target,
             fromLabel: pending.fromLabel,
@@ -815,18 +817,35 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         }
       }
 
-      // Stress: a form that was submitted before gets one bounded long-text probe.
+      // Stress: a form that was submitted before gets one bounded long-text probe — right after
+      // its first submit (going back along the observed path) or when exploration returns to it.
+      const stressTarget =
+        submittedForm && !stressProbed.has(submittedForm)
+          ? submittedForm
+          : modeTracker.formSubmits.has(state.label) && !stressProbed.has(state.label)
+            ? state.label
+            : null;
       if (
+        stressTarget &&
         snap.appForeground &&
         config.modes.includes("stress") &&
-        modeTracker.formSubmits.has(state.label) &&
-        !stressProbed.has(state.label) &&
         stressProbed.size < MAX_STRESS_PROBES &&
         !probeBlockedReason()
       ) {
-        stressProbed.add(state.label);
-        await stressLongText(state.label);
-        continue;
+        let reached = stressTarget === state.label;
+        if (!reached) {
+          try {
+            reached = await navigateTo(stressTarget);
+          } catch (error) {
+            if (!(error instanceof ProbeBlocked)) throw error;
+          }
+        }
+        if (reached) {
+          stressProbed.add(stressTarget);
+          await stressLongText(stressTarget);
+          continue;
+        }
+        if (current && current.label !== state.label) continue;
       }
 
       // UI/UX: ask the vision model about clipped text on new screens with long text.
