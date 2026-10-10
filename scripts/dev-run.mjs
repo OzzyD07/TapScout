@@ -52,14 +52,24 @@ async function sampleBuild(platform) {
 
 const wantAndroid = values.platforms !== "ios";
 const wantIos = values.platforms !== "android";
-const config = { budget: shared.DEFAULT_PLATFORM_BUDGET, reportBudget: shared.DEFAULT_REPORT_BUDGET };
+const config = {
+  budget: shared.DEFAULT_PLATFORM_BUDGET,
+  reportBudget: shared.DEFAULT_REPORT_BUDGET,
+};
 const { data: runId, error: createError } = await db.rpc("create_test_run", {
   p_owner: owner.id,
   p_android_build: wantAndroid ? await sampleBuild("android") : null,
   p_ios_build: wantIos ? await sampleBuild("ios") : null,
   p_modes: values.modes.split(","),
   p_config: config,
-  p_version_stamp: { agent: "f1-pilot", prompt: "none", checkPack: "none", rulePack: "none", budget: config.budget.budgetVersion, plannerModel: "none" },
+  p_version_stamp: {
+    agent: "f1-pilot",
+    prompt: "none",
+    checkPack: "none",
+    rulePack: "none",
+    budget: config.budget.budgetVersion,
+    plannerModel: "none",
+  },
 });
 if (createError) throw createError;
 console.log(`run ${runId} created for ${values.owner}`);
