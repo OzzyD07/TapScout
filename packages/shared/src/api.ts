@@ -3,6 +3,7 @@ import { PlatformBudget } from "./budget.js";
 import { DeviceProfile, Id, Sha256, Timestamp, Uuid } from "./common.js";
 import { ArtifactKind, Platform, StopReason, TestMode } from "./enums.js";
 import { RUN_EVENT_BATCH_MAX, RunEventInput } from "./events.js";
+import { Finding } from "./findings.js";
 import { PlatformResult } from "./report.js";
 
 /** Upload limits — V1 proposals, finalised after the pilot (docs/05 §11). */
@@ -105,6 +106,8 @@ export const FinishSessionRequest = z.object({
   phase: z.enum(["completed", "blocked", "infrastructure_failed", "cancelled"]),
   stopReason: StopReason,
   result: PlatformResult,
+  /** Full findings of this session; `result.findingIds` must list exactly these. */
+  findings: z.array(Finding).max(50).optional(),
   device: DeviceProfile.optional(),
 });
 export type FinishSessionRequest = z.infer<typeof FinishSessionRequest>;

@@ -13,6 +13,7 @@ import { OidcRejected, type VerifiedWorkflowIdentity } from "./oidc";
 import { issueRunnerToken, type RunnerScope, requireDeviceScope, verifyRunnerToken } from "./token";
 
 export const LEASE_SECONDS = 300;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const HEARTBEAT_INTERVAL_SECONDS = 30;
 
 type RpcResult = { data: unknown; error: PostgrestLikeError | null };
@@ -177,8 +178,33 @@ export async function finishSession(deps: RunnerDeps, token: string, body: unkno
   const scope = await authenticateDevice(deps, token);
   const parsed = FinishSessionRequest.safeParse(body);
   if (!parsed.success) throw fromZodError(parsed.error);
-  if (parsed.data.result.sessionId !== scope.sessionId) {
+  const { result } = parsed.data;
+  const findings = parsed.data.findings ?? [];
+  if (result.sessionId !== scope.sessionId) {
     throw new HttpError(403, "forbidden", "result belongs to another session");
+  }
+  // Findings and checks must belong to this session and agree with the result they come with.
+  for (const f of findings) {
+    if (f.sessionId !== scope.sessionId || f.runId !== scope.runId) {
+      throw new HttpError(403, "forbidden", "finding belongs to another session");
+    }
+    if (f.platform !== result.platform || !UUID.test(f.findingId)) {
+      throw new HttpError(400, "invalid_request", "finding platform or id is invalid");
+    }
+  }
+  const ids = new Set(findings.map((f) => f.findingId));
+  if (
+    ids.size !== findings.length ||
+    result.findingIds.length !== ids.size ||
+    result.findingIds.some((id) => !ids.has(id))
+  ) {
+    throw new HttpError(400, "invalid_request", "result.findingIds must list exactly the findings");
+  }
+  if (result.checks.some((c) => c.platform !== result.platform)) {
+    throw new HttpError(400, "invalid_request", "check platform does not match the result");
+  }
+  if (new Set(result.checks.map((c) => c.checkId)).size !== result.checks.length) {
+    throw new HttpError(400, "invalid_request", "duplicate check ids");
   }
   await rpcRows(deps, "finish_session", {
     p_session_id: scope.sessionId,
@@ -188,6 +214,8 @@ export async function finishSession(deps: RunnerDeps, token: string, body: unkno
     p_stop_reason: parsed.data.stopReason,
     p_result: parsed.data.result,
     p_device_profile: parsed.data.device ?? null,
+    p_checks: result.checks,
+    p_findings: findings,
   });
   return { ok: true as const };
 }

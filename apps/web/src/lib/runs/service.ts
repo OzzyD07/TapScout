@@ -3,14 +3,13 @@ import {
   type CreateRunResponse,
   DEFAULT_PLATFORM_BUDGET,
   DEFAULT_REPORT_BUDGET,
+  runVersionStamp,
 } from "@tapscout/shared";
 import { fromDbError, fromZodError, HttpError, type PostgrestLikeError } from "@/lib/api/errors";
 import { type DispatchDeps, dispatchRun } from "./dispatch";
 
 /** Concurrent active runs per user; the rest wait visibly instead of starting more runners. */
 export const MAX_ACTIVE_RUNS_PER_USER = 2;
-
-export const AGENT_VERSION = "f1-pilot";
 
 export interface RunsDeps extends DispatchDeps {
   countActiveRuns(userId: string): Promise<number>;
@@ -39,14 +38,7 @@ export async function createRun(
     p_ios_build: parsed.data.builds.ios ?? null,
     p_modes: parsed.data.modes,
     p_config: config,
-    p_version_stamp: {
-      agent: AGENT_VERSION,
-      prompt: "none",
-      checkPack: "none",
-      rulePack: "none",
-      budget: config.budget.budgetVersion,
-      plannerModel: "none",
-    },
+    p_version_stamp: runVersionStamp(config.budget.budgetVersion),
   });
   if (error) throw fromDbError(error as PostgrestLikeError);
   const runId = String(data);

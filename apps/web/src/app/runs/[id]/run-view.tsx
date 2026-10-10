@@ -3,6 +3,7 @@
 import { MODES } from "@tapscout/shared";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import type { CheckView, FindingView } from "@/lib/report/view";
 import {
   describeEvent,
   fromRow,
@@ -87,7 +88,33 @@ export interface ReportSnapshot {
   overallStatus: string;
   createdAt: string;
   limitations: string[];
+  checks: CheckView[];
+  findings: FindingView[];
 }
+
+const CHECK_STATUS: Record<string, { label: string; tone: Tone }> = {
+  passed_within_scope: { label: "Passed (within scope)", tone: "ok" },
+  failed: { label: "Failed", tone: "danger" },
+  inconclusive: { label: "Inconclusive", tone: "warn" },
+  not_tested: { label: "Not tested", tone: "neutral" },
+  unsupported: { label: "Unsupported", tone: "neutral" },
+};
+
+const SEVERITY_TONE: Record<string, Tone> = {
+  critical: "danger",
+  high: "danger",
+  medium: "warn",
+  low: "neutral",
+  info: "neutral",
+};
+
+const checkName = (id: string) =>
+  ({
+    "functional.flow_transitions": "Screen transitions",
+    "functional.form_feedback": "Form feedback",
+    "functional.return_paths": "Return paths",
+    "functional.persistence": "Saved data after relaunch",
+  })[id] ?? id;
 
 export function RunView(props: {
   report: ReportSnapshot | null;
@@ -255,6 +282,74 @@ export function RunView(props: {
           <p className="text-sm text-muted">
             {sessions.map((s) => `${platformName(s.platform)}: ${phaseLabel(s.phase)}`).join(" · ")}
           </p>
+          {props.report.findings.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold">Findings</h3>
+              {props.report.findings.map((f) => (
+                <article
+                  key={f.findingId}
+                  className="flex flex-col gap-1 rounded-xl border border-border p-3 text-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={SEVERITY_TONE[f.severity] ?? "neutral"}>{f.severity}</Badge>
+                    <span className="font-medium">{f.title}</span>
+                    <span className="text-xs text-muted">
+                      {platformName(f.platform)} · {f.reproduction}
+                    </span>
+                  </div>
+                  <p className="text-muted">
+                    <span className="font-medium text-text">Expected:</span> {f.expected}
+                  </p>
+                  <p className="text-muted">
+                    <span className="font-medium text-text">Observed:</span> {f.observed}
+                  </p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="text-muted">Basis: {f.basis.replace(/_/g, " ")}</span>
+                    {f.evidence.map((e) => (
+                      <button
+                        key={`${e.role}-${e.artifactId}`}
+                        type="button"
+                        className="text-accent"
+                        onClick={() => {
+                          const s = sessions.find((x) => x.platform === f.platform);
+                          if (s) setSelected(s.id);
+                          setPinnedShot(e.artifactId);
+                        }}
+                      >
+                        {e.role} screenshot
+                      </button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          {props.report.checks.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <h3 className="text-sm font-semibold">Checks</h3>
+              <ul className="flex flex-col gap-1 text-sm">
+                {props.report.checks.map((c) => (
+                  <li
+                    key={`${c.platform}-${c.checkId}`}
+                    className="flex flex-col gap-0.5 border-b border-border py-1 sm:flex-row sm:items-start sm:gap-3"
+                  >
+                    <span className="flex shrink-0 items-center gap-2 sm:w-72">
+                      <Badge tone={CHECK_STATUS[c.status]?.tone ?? "neutral"}>
+                        {CHECK_STATUS[c.status]?.label ?? c.status}
+                      </Badge>
+                      <span>
+                        {checkName(c.checkId)}{" "}
+                        <span className="text-xs text-muted">
+                          ({c.platform === "ios" ? "iOS" : "Android"})
+                        </span>
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted">{c.summary}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <ul className="list-disc pl-5 text-xs text-muted">
             {props.report.limitations.map((l) => (
               <li key={l}>{l}</li>

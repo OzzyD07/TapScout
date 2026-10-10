@@ -62,14 +62,7 @@ const { data: runId, error: createError } = await db.rpc("create_test_run", {
   p_ios_build: wantIos ? await sampleBuild("ios") : null,
   p_modes: values.modes.split(","),
   p_config: config,
-  p_version_stamp: {
-    agent: "f1-pilot",
-    prompt: "none",
-    checkPack: "none",
-    rulePack: "none",
-    budget: config.budget.budgetVersion,
-    plannerModel: "none",
-  },
+  p_version_stamp: shared.runVersionStamp(config.budget.budgetVersion),
 });
 if (createError) throw createError;
 console.log(`run ${runId} created for ${values.owner}`);

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { reportView } from "@/lib/report/view";
 import { fromRow, type RunEventRow } from "@/lib/runs/timeline";
 import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { type RunSnapshot, RunView, type SessionSnapshot } from "./run-view";
@@ -72,6 +73,7 @@ export default async function RunPage({ params }: PageProps<"/runs/[id]">) {
                 overallStatus: report.overall_status,
                 createdAt: report.created_at,
                 limitations: (report.data as { limitations?: string[] }).limitations ?? [],
+                ...reportView(report.data),
               }
             : null
         }

@@ -9,3 +9,4 @@ export * from "./modes.js";
 export * from "./observation.js";
 export * from "./planner-schema.js";
 export * from "./report.js";
+export * from "./versions.js";

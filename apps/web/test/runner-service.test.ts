@@ -209,4 +209,100 @@ describe("heartbeat and auth", () => {
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
+
+  describe("with checks and findings", () => {
+    const FINDING = "44444444-4444-4444-8444-444444444444";
+    const counters = {
+      screensObserved: 2,
+      transitionsObserved: 1,
+      actionsExecuted: 5,
+      checksRun: 1,
+      plannerCalls: 3,
+      visionCalls: 0,
+    };
+    const check = {
+      checkId: "functional.persistence",
+      mode: "functional",
+      platform: "android",
+      status: "failed",
+      summary: "Lost after relaunch: About you.",
+      scope: "Profile",
+      findingIds: [FINDING],
+      evidence: [],
+    };
+    const finding = {
+      findingId: FINDING,
+      runId: RUN,
+      sessionId: SESSION,
+      platform: "android",
+      mode: "functional",
+      checkId: "functional.persistence",
+      title: "Saved About you is lost after the app restarts",
+      expected: "kept",
+      observed: "lost",
+      expectationBasis: "observed_invariant",
+      evidenceKind: "measured",
+      verification: "reproduced",
+      reproduction: { target: 2, started: 2, valid: 2, symptom: 2, blocked: [] },
+      confidence: "high",
+      severity: "high",
+      severityRationale: "data loss",
+      evidence: [],
+      versions: {
+        agent: "a",
+        prompt: "p",
+        checkPack: "c",
+        rulePack: "none",
+        budget: "b",
+        plannerModel: "m",
+      },
+      createdAt: "2026-10-10T12:00:00.000Z",
+    };
+    const body = (overrides: Record<string, unknown> = {}, f: unknown[] = [finding]) => ({
+      phase: "completed",
+      stopReason: "goals_exhausted",
+      result: {
+        platform: "android",
+        sessionId: SESSION,
+        phase: "completed",
+        build: { buildId: "b1" },
+        counters,
+        checks: [check],
+        findingIds: [FINDING],
+        ...overrides,
+      },
+      findings: f,
+    });
+
+    it("passes checks and findings to finish_session in one call", async () => {
+      const d = deps();
+      await finishSession(d, await deviceToken(), body());
+      expect(d.rpc).toHaveBeenCalledWith(
+        "finish_session",
+        expect.objectContaining({
+          p_checks: [expect.objectContaining({ checkId: "functional.persistence" })],
+          p_findings: [expect.objectContaining({ findingId: FINDING })],
+        }),
+      );
+    });
+
+    it("rejects a finding of another session", async () => {
+      await expect(
+        finishSession(deps(), await deviceToken(), body({}, [{ ...finding, sessionId: RUN }])),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("rejects findingIds that do not match the findings", async () => {
+      await expect(
+        finishSession(deps(), await deviceToken(), body({ findingIds: [] })),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        finishSession(
+          deps(),
+          await deviceToken(),
+          body({ checks: [{ ...check, platform: "ios" }] }),
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+  });
 });
