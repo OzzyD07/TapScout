@@ -104,6 +104,23 @@ describe("validatePlannerAnswer", () => {
     expect(validatePlannerAnswer("Sure! I will tap Continue.", ctx)).toMatchObject({ ok: false });
   });
 
+  it("rejects taps on controls covered by the keyboard", () => {
+    const ctx = context();
+    const id = "register-continue";
+    ctx.screen = {
+      ...ctx.screen,
+      keyboardVisible: true,
+      elements: ctx.screen.elements.map((e) => (e.stableId === id ? { ...e, visible: false } : e)),
+    };
+    expect(
+      validatePlannerAnswer(answer({ type: "tap", targetRef: ref(ctx, id) }), ctx),
+    ).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("hide_keyboard"),
+    });
+    expect(buildPlannerMessages(ctx)[1]?.content).toContain("[under keyboard]");
+  });
+
   it("builds a repair turn with the reason", () => {
     const ctx = context();
     const messages = repairMessages(buildPlannerMessages(ctx), "{}", "bad ref");

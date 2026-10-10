@@ -355,7 +355,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   function controlsOf(screen: NormalizedScreen): UiElement[] {
-    return screen.elements.filter((e) => e.enabled && CONTROL_ROLES.has(e.role));
+    return screen.elements.filter((e) => e.enabled && e.visible && CONTROL_ROLES.has(e.role));
   }
 
   function untriedControls(screen: NormalizedScreen, fp: string): UiElement[] {
@@ -371,9 +371,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     screen: NormalizedScreen,
     fp: string,
   ): { action: ProposedAction; target?: UiElement } {
+    // An open keyboard hides controls; closing it is the cheapest way to make progress.
+    const tried = graph.get(fp)?.tried;
+    const hid = tried?.get(actionKey("hide_keyboard"));
+    if (screen.keyboardVisible && hid?.results.at(-1) !== "same screen") {
+      return { action: { type: "hide_keyboard" } };
+    }
     const untried = untriedControls(screen, fp)[0];
     if (untried) return { action: { type: "tap", targetRef: untried.ref }, target: untried };
-    const tried = graph.get(fp)?.tried;
     const back = tried?.get(actionKey("back"));
     if (back?.results.at(-1) !== "same screen") return { action: { type: "back" } };
     const least = controlsOf(screen).sort(

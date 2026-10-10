@@ -250,8 +250,14 @@ function iosCandidates(root: XmlNode, scale: number) {
   let order = 0;
 
   const insideKeyboard = new Set<XmlNode>();
+  /** Top edge (screenshot px) of the software keyboard; app UI below it cannot be tapped. */
+  let keyboardTop: number | null = null;
   for (const node of app ? walk(app) : []) {
     if ((node.attrs.type ?? node.tag) === "XCUIElementTypeKeyboard") {
+      const y = Number(node.attrs.y) * scale;
+      if (node.attrs.visible !== "false" && Number.isFinite(y) && y > 0) {
+        keyboardTop = keyboardTop === null ? y : Math.min(keyboardTop, y);
+      }
       for (const child of walk(node)) if (child !== node) insideKeyboard.add(child);
     }
   }
@@ -295,6 +301,13 @@ function iosCandidates(root: XmlNode, scale: number) {
       checked: role === "switch" ? value === "1" : undefined,
       masked: secure,
     });
+  }
+  // Everything whose centre lies in the keyboard band (app controls it covers, and the keyboard's
+  // own accessory buttons such as Emoji or Dictate) is marked as not visible.
+  if (keyboardTop !== null) {
+    for (const c of candidates) {
+      if (c.bounds.y + c.bounds.height / 2 >= keyboardTop) c.visible = false;
+    }
   }
   return {
     candidates,
