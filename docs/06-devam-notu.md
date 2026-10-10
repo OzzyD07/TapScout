@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (10 Ekim akşam):** F2'nin relay, observer, agent döngüsü, Functional modu ve örnek uygulama v1'i yapıldı. Açık iş: `seeded` iOS'ta klavyenin kapattığı Continue yüzünden kayıt geçilemiyor (§7 "Hemen sıradaki").
+- **Şu an (11 Ekim):** F2'nin relay, observer, agent döngüsü, Functional modu ve örnek uygulama v1'i bitti; `seeded` kalıcılık hatası iki platformda Reproduced 2/2. Sırada F3 hazırlığı: Bug/Stress, UI/UX, Accessibility ve Store Readiness kontrolleri (`05` §5) ve ground-truth değerlendirme script'i.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 98 birim testi (shared 9, adapters 5, runner 28, web 56) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 117 birim testi (shared 9, adapters 5, runner 42, web 61) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -106,7 +106,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 2. ~~Observer~~ **bitti** (`packages/runner/src/observer.ts`): Android/iOS page source → ortak öğe sözlüğü (bounds screenshot pikselinde), secret maskeleme, Android ANR/crash diyaloğu tespiti.
 3. ~~State graph ve agent döngüsü~~ **bitti** (`state.ts`, `planner.ts`, `agent.ts`): yapısal parmak izi, döngü tespiti, karar başına 1 repair, deterministik fallback; 10 eylemdir yeni durum yoksa ve ekrandaki her kontrol denendiyse `goals_exhausted`. Prompt sürümü `planner-2026-10-10.v1`.
 4. ~~Functional modu~~ **bitti** (`functional.ts`, `agent.ts`): 4 kontrol (`flow_transitions`, `form_feedback`, `return_paths`, `persistence`). Kalıcılık kontrolü kaydın hemen ardından: yeniden başlat → gözlenen yolla ekrana dön → değeri ara; kaybolursa yeni değerle 2 replay (`n/m`). Kontroller/bulgular `finish_session` (migration `20261010132533`) ile aynı transaction'da yazılır; rapor ve run sayfası gösterir.
-   - Doğrulama: `fixed` iki platformda kalıcılık geçti, bulgu yok (`3a257421`). `seeded` Android "Saved About you is lost after the app restarts" **Reproduced 2/2** (`ff159524`, `33277262`). Android launcher ANR'ı CI'da launcher kapatılarak çözüldü.
+   - Doğrulama: `fixed` iki platformda kalıcılık geçti, bulgu yok (`3a257421`). `seeded` "Saved About you is lost after the app restarts" **Reproduced 2/2**: Android `33277262`, iOS `026837ac`. Android launcher ANR'ı CI'da launcher kapatılarak çözüldü. iOS'ta klavye altındaki kontroller `[under keyboard]` işaretlenir; klavye `hideKeyboard` → dönüş tuşu → metne dokunma sırasıyla kapatılır.
 5. ~~Örnek uygulama v1~~ **bitti** (`8976a48`; build'ler yayımlandı: fixed ve seeded). Hata listesi `quality/ground-truth/fieldnotes-seeded-v1.json`. Eski plan maddeleri:
    - Not listesi; ayarlar (privacy policy linki, hesap silme).
    - `seeded` / `fixed` / `changed_flow` varyantları; kasıtlı hatalar `05` §8'de.
@@ -115,8 +115,8 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
-- **`seeded` iOS kayıt engeli:** Continue klavyenin altında (kasıtlı UI/UX hatası). Klavye bandındaki öğeler `[under keyboard]` işaretleniyor; `hideKeyboard` başarısızsa dönüş tuşu, sonra metne dokunma deneniyor; son commit'te "klavye denenmemiş kontrolleri kapatıyorsa ekrandan çıkma, önce kapat" kuralı eklendi. **Bu son kural henüz gerçek koşuda denenmedi:** `node --env-file=.env scripts/dev-run.mjs --owner tester@tapscout.com --platforms ios --modes functional --variant seeded` ile dene (son denemeler `41091cdc`, `dbca0e68`, `c9143033`: form geri bildirimi doğru, kayıt geçilemedi).
-- Belgeler: `05`'e F2 Functional ölçümleri (§15) eklenecek.
+- **Diğer mod kontrolleri (`05` §5):** Accessibility (label'sız ikon buton: `seeded`'de `profile-settings` yalnız id ile görünüyor), UI/UX (klavye altında kalan eylem: observer'daki `[under keyboard]` işareti hazır sinyal), Store Readiness (hesap silme girişi, privacy policy bağlantısı: agent bağlantıyı açıp uygulamadan çıktığını görüyor), Bug/Stress (uzun not başlığında crash).
+- **Ground-truth değerlendirmesi:** `quality/` altında koşu sonrası bulguları `fieldnotes-seeded-v1.json` ile eşleyen script.
 - actionlint yerelde çalıştırılamadı (Docker kapalı); qa-run'daki tek değişiklik iki `rm -rf quality` adımı.
 
 ### Açık borçlar
@@ -130,4 +130,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–14'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2'nin relay, observer ve agent döngüsü bitti ve doğrulandı; sırada Functional modu (akış hedefleri, kaydet → yeniden aç kalıcılık kontrolü) ve örnek uygulama v1 var. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–15'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2 bitti (relay, agent döngüsü, Functional modu, örnek uygulama v1); sırada §7 "Hemen sıradaki": diğer mod kontrolleri ve ground-truth değerlendirmesi. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.

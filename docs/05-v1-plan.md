@@ -366,3 +366,20 @@ Tamamlanan:
 | Tahmini model maliyeti | $0,0028 | $0,0028 |
 
 Örnek uygulamanın v0'daki bütün ekranları iki platformda da keşfedildi. Keşif bittikten sonra planner edit → save döngüsünde bütçe harcadı; bunun için "10 eylemdir yeni durum yok ve ekrandaki her kontrol denendi" kuralıyla `goals_exhausted` eklendi. iOS'ta etkisiz kalan "Go back" fallback'i, geri gitmenin aynı ekranda bıraktığı durumda artık tekrarlanmıyor. Çağrı başına ortalama ~950 girdi token'ı, `03` §9'daki planner payının (3.000) altında.
+
+## 15. F2 Functional modu ve örnek uygulama v1 (10–11 Ekim 2026)
+
+Tamamlanan:
+
+- [x] **Örnek uygulama v1:** not listesi (ekle/aç/sil), ayarlar (privacy policy linki, hesap silme), profil ikon butonu; web'de herkese açık `/privacy`. `seeded` 6 kasıtlı hata içerir (liste yalnız `quality/ground-truth/fieldnotes-seeded-v1.json`); `changed_flow` etiket ve sıra değiştirir.
+- [x] **Functional modu:** `flow_transitions`, `form_feedback`, `return_paths`, `persistence`. Kalıcılık kontrolü kayıttan hemen sonra yapılır (yeniden başlat → gözlenen yolla ekrana dön → değeri ara); kayıpta yeni değerlerle 2 replay ve `n/m`. Kontrol ve bulgular `finish_session` ile aynı transaction'da yazılır; rapor ve run sayfası gösterir.
+- [x] **Cihaz sağlamlığı:** Android emülatörde launcher kapatılır (ANR diyaloğu her eylemden sonra uygulamayı örtüyordu); sistem diyaloğunun böldüğü eylem `uncertain` sayılır. iOS'ta klavye altındaki kontroller işaretlenir ve klavye dönüş tuşuyla kapatılabilir.
+
+| Run | Varyant | Android | iOS |
+|---|---|---|---|
+| `3a257421` | fixed | 7 ekran, kalıcılık **geçti** (Name, Title, Note), bulgu yok, 5,0 dk, $0,0028 | 7 ekran, kalıcılık **geçti** (Name, Title), bulgu yok, 10,3 dk, $0,0029 |
+| `33277262` | seeded | 6 ekran, kalıcılık **kaldı**: About you kayboldu, **Reproduced 2/2**, 6,4 dk, $0,0029 | Klavye Continue'yu örttü, kayıt geçilemedi (sonraki düzeltmelerle çözüldü) |
+| `026837ac` | seeded | — | 8 ekran, kalıcılık **kaldı**: About you, **Reproduced 2/2**, 12,2 dk |
+
+`fixed` build'de yanlış pozitif bulgu çıkmadı; `seeded` kalıcılık hatası iki platformda da tekrar üretildi. G3 (en az 3 ekran, geçersiz eylem uygulanmaması) v1 üzerinde de karşılandı: reddedilen planner önerileri uygulanmadı, yerine repair veya deterministik fallback çalıştı. Diğer seeded hatalar (label'sız ikon, hesap silme eksikliği, klavye altında Continue, clipping, crash) ilgili modların kontrolleri yazılınca ölçülecek.
+
