@@ -303,6 +303,33 @@ describe("runAgent", () => {
     });
   });
 
+  it("never asks for the page source while the app is in the background", async () => {
+    const device = fakeDevice();
+    let background = false;
+    const source = device.pageSource;
+    device.pageSource = async () => {
+      if (background) throw new Error("XCTPerformOnMainRunLoop work timed out after 60.0s");
+      return source();
+    };
+    device.appState = async () => (background ? 3 : 4);
+    device.tap = async () => {
+      background = true; // e.g. a link opened the browser
+    };
+    device.relaunch = async () => {
+      background = false;
+    };
+    const h = harness(device, scriptedPlanner(), 3);
+    const out = await runAgent(h.ports, h.config);
+    expect(out.phase).toBe("completed");
+    expect(
+      h.events.some(
+        (e) =>
+          e.type === "action_executed" &&
+          (e.payload as { summary: string }).summary === "Relaunch app",
+      ),
+    ).toBe(true);
+  });
+
   it("dismisses a system ANR dialog with Wait before exploring", async () => {
     const device = fakeDevice({ anrFirst: true });
     const h = harness(device, scriptedPlanner(), 1);

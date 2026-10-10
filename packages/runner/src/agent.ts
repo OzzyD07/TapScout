@@ -182,8 +182,14 @@ function keyOf(action: ProposedAction, target?: UiElement): string {
   return actionKey(action.type, target, action.type === "scroll" ? action.direction : "");
 }
 
-const APP_NOT_RUNNING =
-  /is not running, possibly crashed|application under test .* is not running/i;
+/** The app under test died or is not in front: an observation, not a broken device. */
+const APP_UNAVAILABLE =
+  /is not running, possibly crashed|application under test .* is not running|is not present in the current view anymore/i;
+/** 1×1 transparent PNG, only used when the very first screenshot of a session is refused. */
+const PLACEHOLDER_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
 
 /** Driver errors that end the session but must not discard the results collected so far. */
 function isDeviceError(error: unknown): boolean {
@@ -206,6 +212,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const graph = new StateGraph(budget.loopDetectionRepeats);
   const goals: ProposedGoal[] = [];
   let appId = device.appIdFromCapabilities();
+  let lastShot: string | undefined;
   let window: { width: number; height: number } | null = null;
 
   const tracker = new FunctionalTracker();
@@ -270,32 +277,56 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   async function observe(): Promise<Snapshot> {
-    // When the app under test has died, XCUITest refuses screenshots and page sources ("is not
-    // running, possibly crashed"): that is an observation (app state 1), not a broken device.
+    // The screenshot is a device image and usually still works when the app is gone.
     let png: Buffer;
-    let xml: string;
     try {
       png = await device.screenshotPng();
-      xml = await device.pageSource();
     } catch (error) {
-      if (!APP_NOT_RUNNING.test((error as Error).message ?? "")) throw error;
-      return {
-        png: Buffer.alloc(0),
-        xml: "",
-        screen: normalizeHierarchy(platform, "", { scale: 1 }),
-        appForeground: false,
-        appState: 1,
-        scale: 1,
-      };
+      if (!APP_UNAVAILABLE.test((error as Error).message ?? "")) throw error;
+      png = Buffer.alloc(0);
+    }
+    // Ask for the state first: the page source of an app that is not in front can hang WDA
+    // (iOS, after a link opened Safari) or fail ("is not running, possibly crashed").
+    let appState = appId ? await device.appState(appId) : 4;
+    let xml = "";
+    if (appState === 4) {
+      try {
+        xml = await device.pageSource();
+      } catch (error) {
+        if (!APP_UNAVAILABLE.test((error as Error).message ?? "")) throw error;
+        appState = appId ? await device.appState(appId) : 1;
+        if (appState === 4) appState = 3;
+      }
     }
     window ??= await device.windowSize();
     const size = pngSize(png);
     const scale = platform === "ios" && size && window.width > 0 ? size.width / window.width : 1;
     const screen = normalizeHierarchy(platform, xml, { scale });
-    if (platform === "android") screen.keyboardVisible = await device.keyboardShown();
-    if (!appId && platform === "ios" && screen.topPackage) appId = screen.topPackage;
-    const appState = appId ? await device.appState(appId) : 4;
+    if (platform === "android" && xml) screen.keyboardVisible = await device.keyboardShown();
+    if (!appId && platform === "ios" && screen.topPackage) {
+      appId = screen.topPackage;
+      appState = await device.appState(appId);
+    }
     return { png, xml, screen, appForeground: appState === 4, appState, scale };
+  }
+
+  /**
+   * Stores the screenshot and hierarchy of an observation. Without an image (the device refused
+   * it) the last stored screenshot stands in, and an empty hierarchy is not uploaded.
+   */
+  async function record(name: string, snap: Snapshot, at: number): Promise<string> {
+    let shot = lastShot;
+    if (snap.png.length > 0 || !shot) {
+      shot = await ports.saveEvidence(
+        name,
+        "screenshot",
+        snap.png.length > 0 ? snap.png : PLACEHOLDER_PNG,
+        at,
+      );
+    }
+    if (snap.xml) await ports.saveEvidence(name, "hierarchy", snap.xml, at);
+    lastShot = shot;
+    return shot;
   }
 
   async function dismissInterruption(snap: Snapshot): Promise<void> {
@@ -335,8 +366,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
   if (!first) {
     if (last) {
-      await ports.saveEvidence("launch-timeout", "screenshot", last.png, 0);
-      await ports.saveEvidence("launch-timeout", "hierarchy", last.xml, 0);
+      await record("launch-timeout", last, 0);
     }
     return finalize(
       {
@@ -607,8 +637,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       consecutiveInterruptions = 0;
 
       const observationId = `obs-${step}`;
-      const shot = await ports.saveEvidence(`step-${step}`, "screenshot", snap.png, step);
-      await ports.saveEvidence(`step-${step}`, "hierarchy", snap.xml, step);
+      const shot = await record(`step-${step}`, snap, step);
       const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
@@ -1008,8 +1037,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       else await ports.sleep(2_000);
       snap = await observe();
     }
-    const shot = await ports.saveEvidence(`step-${step}`, "screenshot", snap.png, step);
-    await ports.saveEvidence(`step-${step}`, "hierarchy", snap.xml, step);
+    const shot = await record(`step-${step}`, snap, step);
     const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
     const label =
       graph.get(fp)?.label ?? (snap.appForeground ? (snap.screen.title ?? "") : "Outside the app");
