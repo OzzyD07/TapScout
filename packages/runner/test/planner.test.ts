@@ -56,6 +56,21 @@ describe("buildPlannerMessages", () => {
     // Far below the per-call share of the planner budget (90k tokens / 30 calls).
     expect((system?.content.length ?? 0) + (user?.content.length ?? 0)).toBeLessThan(6_000);
   });
+
+  it("marks untried controls and lists untried controls on other screens", () => {
+    const ctx = context();
+    const continueRef = ref(ctx, "register-continue");
+    const [, user] = buildPlannerMessages({
+      ...ctx,
+      untriedRefs: new Set([continueRef]),
+      frontier: ['"Profile": icon button id=profile-settings'],
+    });
+    expect(user?.content).toMatch(new RegExp(`${continueRef} button .*\\[untried\\]`));
+    expect(user?.content).not.toMatch(/register-name.*\[untried\]/);
+    expect(user?.content).toContain(
+      'Untried controls on other screens: "Profile": icon button id=profile-settings',
+    );
+  });
 });
 
 describe("validatePlannerAnswer", () => {

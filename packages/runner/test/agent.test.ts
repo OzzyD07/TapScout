@@ -163,8 +163,13 @@ describe("runAgent", () => {
       outcome: "ok",
       resultSummary: expect.stringContaining('opened "Create profile"'),
     });
-    const planned = h.events.filter((e) => e.type === "action_planned");
-    expect(planned.every((e) => (e.payload as { source: string }).source === "planner")).toBe(true);
+    // After the planner budget, untried controls are still tapped, without model calls.
+    const sources = h.events
+      .filter((e) => e.type === "action_planned")
+      .map((e) => (e.payload as { source: string }).source);
+    expect(sources.filter((s) => s === "planner")).toHaveLength(4);
+    expect(sources.lastIndexOf("planner")).toBeLessThan(sources.indexOf("deterministic"));
+    expect(out.detail).toContain("Every reachable control was tried afterwards");
     const newStates = h.events.filter(
       (e) => e.type === "observation" && (e.payload as { isNewState: boolean }).isNewState,
     );
@@ -366,6 +371,65 @@ describe("runAgent", () => {
     const out = await runAgent(h.ports, h.config);
     expect(out.stopReason).toBe("goals_exhausted");
     expect(h.counters.plannerCalls).toBeLessThan(30);
+  });
+
+  it("after the planner budget, tours to an untried icon button on another screen", async () => {
+    // Welcome gains an icon-only settings button and a Delete account button.
+    const extra = (id: string, desc: string) =>
+      `<android.widget.Button class="android.widget.Button" text="" content-desc="${desc}" resource-id="${id}" clickable="true" enabled="true" focusable="true" password="false" bounds="[53,800][200,900]" displayed="true" />`;
+    const welcome = xml("android-welcome").replace(
+      "</android.widget.Button>",
+      `</android.widget.Button>${extra("welcome-settings", "")}${extra("welcome-delete", "Delete account")}`,
+    );
+    const settings = xml("android-welcome")
+      .replace('text="FieldNotes"', 'text="Settings"')
+      .replace(
+        /content-desc="Get started" resource-id="welcome-get-started"/,
+        'content-desc="Privacy policy" resource-id="settings-privacy"',
+      );
+    let screen = "welcome";
+    const device = fakeDevice();
+    const tapped: string[] = [];
+    device.pageSource = async () =>
+      screen === "welcome" ? welcome : screen === "settings" ? settings : xml("android-register");
+    device.tap = async (t) => {
+      tapped.push(String(t.elementId));
+      if (t.elementId === "welcome-get-started") screen = "register";
+      if (t.elementId === "welcome-settings") screen = "settings";
+    };
+    device.back = async () => {
+      screen = "welcome";
+    };
+    // The planner opens the form, comes back, opens it again; then its budget is gone.
+    const answers = ["welcome-get-started", "back", "welcome-get-started"];
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      const next = answers.shift();
+      const ref = new RegExp(`(el-\\d+) [a-z_]+ (?:"[^"]*" )?id=${next}`).exec(prompt)?.[1];
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "explore",
+          observationId: obs,
+          nextAction: ref ? { type: "tap", targetRef: ref } : { type: "back" },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Next step.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 3);
+    const out = await runAgent(h.ports, { ...h.config, modes: ["store_readiness"] });
+
+    expect(h.counters.plannerCalls).toBe(3);
+    expect(tapped).toContain("welcome-settings");
+    expect(tapped).not.toContain("welcome-delete");
+    expect(h.events.some((e) => message(e).startsWith("Coverage: heading for"))).toBe(true);
+    expect(out.screens).toBeGreaterThanOrEqual(3);
   });
 
   it("reports access_blocked when the app never shows a usable screen", async () => {

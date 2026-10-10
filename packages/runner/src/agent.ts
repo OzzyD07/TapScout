@@ -21,6 +21,7 @@ import {
 } from "@tapscout/shared";
 import { RunnerApiError } from "./api.js";
 import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
+import { ControlLedger, type FrontierControl, safeToTry } from "./coverage.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
@@ -490,9 +491,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return screen.elements.filter((e) => e.enabled && e.visible && CONTROL_ROLES.has(e.role));
   }
 
+  /** Controls never tapped on this state that the agent may try on its own (see safeToTry). */
   function untriedControls(screen: NormalizedScreen, fp: string): UiElement[] {
     const tried = graph.get(fp)?.tried;
-    return controlsOf(screen).filter((e) => !tried?.has(actionKey("tap", e)));
+    return controlsOf(screen).filter((e) => safeToTry(e) && !tried?.has(actionKey("tap", e)));
   }
 
   /** Untried controls the open keyboard covers: still part of this screen, just not reachable yet. */
@@ -526,11 +528,13 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (untried) return { action: { type: "tap", targetRef: untried.ref }, target: untried };
     const back = tried?.get(actionKey("back"));
     if (back?.results.at(-1) !== "same screen") return { action: { type: "back" } };
-    const least = controlsOf(screen).sort(
-      (a, b) =>
-        (tried?.get(actionKey("tap", a))?.count ?? 0) -
-        (tried?.get(actionKey("tap", b))?.count ?? 0),
-    )[0];
+    const least = controlsOf(screen)
+      .filter(safeToTry)
+      .sort(
+        (a, b) =>
+          (tried?.get(actionKey("tap", a))?.count ?? 0) -
+          (tried?.get(actionKey("tap", b))?.count ?? 0),
+      )[0];
     if (least) return { action: { type: "tap", targetRef: least.ref }, target: least };
     return { action: { type: "back" } };
   }
@@ -643,6 +647,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let relaunches = 0;
   let stuckWarnings = 0;
   let lastNewStateStep = 0;
+  const ledger = new ControlLedger();
+  /** The frontier control being headed for; the loop taps it once its screen is reached. */
+  let tour: FrontierControl | null = null;
+  const toured = new Set<string>();
+  /** Why the planner can no longer be asked; exploration then continues without model calls. */
+  let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
   const findings: Finding[] = [];
   const probes: PersistenceProbe[] = [];
@@ -695,7 +705,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         const dpi = platform === "android" ? await device.displayDensity?.() : undefined;
         modeTracker.setUnitScale(platform === "ios" ? snap.scale : dpi ? dpi / 160 : 2.625);
       }
-      if (snap.appForeground) modeTracker.observe(state.label, snap.screen, shot, step);
+      if (snap.appForeground) {
+        modeTracker.observe(state.label, snap.screen, shot, step);
+        ledger.note(state.label, controlsOf(snap.screen));
+      }
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
 
@@ -907,75 +920,132 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         action = { type: "relaunch", clearData: false };
         decisionSummary = "The app is no longer in the foreground; relaunch it.";
       } else {
-        if (
-          step - lastNewStateStep >= NO_PROGRESS_STEPS &&
-          untriedControls(snap.screen, fp).length === 0 &&
-          (coveredControls(snap.screen, fp).length === 0 || keyboardCloseFailed(fp))
-        ) {
-          return {
-            phase: "completed",
-            stopReason: "goals_exhausted",
-            detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every control here was tried.`,
-            blockers: [],
-          };
-        }
-        let warning: string | undefined;
-        if (graph.stuckFor(4)) {
-          stuckWarnings += 1;
-          if (stuckWarnings > 3) {
+        // A coverage tour reached its screen: tap the untried control without asking the planner.
+        const arrived =
+          tour?.screenLabel === state.label
+            ? matchElement(controlsOf(snap.screen), tour.identity)
+            : undefined;
+        const tourTarget = tour?.description;
+        tour = null;
+        let verdict: Awaited<ReturnType<typeof decide>> = null;
+        if (arrived) {
+          action = { type: "tap", targetRef: arrived.ref };
+          target = arrived;
+          decisionSummary = `Coverage: try ${tourTarget}, which was never tapped.`;
+        } else {
+          if (
+            step - lastNewStateStep >= NO_PROGRESS_STEPS &&
+            untriedControls(snap.screen, fp).length === 0 &&
+            (coveredControls(snap.screen, fp).length === 0 || keyboardCloseFailed(fp))
+          ) {
+            if (await startTour()) continue;
             return {
               phase: "completed",
               stopReason: "goals_exhausted",
-              detail: "No further progress: recent actions kept returning to the same screen.",
+              detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every reachable control was tried.`,
               blockers: [],
             };
           }
-          warning =
-            "The last 4 actions did not change the screen. Choose a different control, scroll, or go back.";
-        }
-
-        let visionNote: string | undefined;
-        if (
-          isNew &&
-          snap.screen.elements.length < 3 &&
-          !snap.screen.secretsVisible &&
-          counters.visionCalls < budget.maxVisionRequests
-        ) {
-          counters.visionCalls += 1;
-          try {
-            visionNote = (await ports.vision(shot, VISION_PROMPT)).content.slice(0, 400);
-          } catch (error) {
-            ports.log(`vision call failed: ${(error as Error).message}`);
+          let warning: string | undefined;
+          if (graph.stuckFor(4)) {
+            stuckWarnings += 1;
+            if (stuckWarnings > 3) {
+              if (await startTour()) {
+                stuckWarnings = 0;
+                continue;
+              }
+              return {
+                phase: "completed",
+                stopReason: "goals_exhausted",
+                detail: "No further progress: recent actions kept returning to the same screen.",
+                blockers: [],
+              };
+            }
+            warning =
+              "The last 4 actions did not change the screen. Choose a different control, scroll, or go back.";
           }
-        }
 
-        const ctx: PlanningContext = {
-          platform,
-          modes: config.modes,
-          observationId,
-          step,
-          screen: snap.screen,
-          appForeground: snap.appForeground,
-          state,
-          graph,
-          goals,
-          visionNote,
-          warning,
-        };
-        const verdict = await decide(ctx);
-        if (verdict) {
-          action = verdict.output.nextAction;
-          target = verdict.target;
-          goalId = verdict.output.goalId;
-          decisionSummary = verdict.output.decisionSummary;
-          source = "planner";
-          for (const g of verdict.output.proposedGoals) {
-            if (!goals.some((x) => x.goalId === g.goalId)) goals.push(g);
+          if (!plannerDone) {
+            let visionNote: string | undefined;
+            if (
+              isNew &&
+              snap.screen.elements.length < 3 &&
+              !snap.screen.secretsVisible &&
+              counters.visionCalls < budget.maxVisionRequests
+            ) {
+              counters.visionCalls += 1;
+              try {
+                visionNote = (await ports.vision(shot, VISION_PROMPT)).content.slice(0, 400);
+              } catch (error) {
+                ports.log(`vision call failed: ${(error as Error).message}`);
+              }
+            }
+
+            const ctx: PlanningContext = {
+              platform,
+              modes: config.modes,
+              observationId,
+              step,
+              screen: snap.screen,
+              appForeground: snap.appForeground,
+              state,
+              graph,
+              goals,
+              visionNote,
+              warning,
+              untriedRefs: new Set(untriedControls(snap.screen, fp).map((e) => e.ref)),
+              frontier: ledger
+                .frontier(graph, state.label, config.modes)
+                .slice(0, 5)
+                .map((c) => c.description),
+            };
+            try {
+              verdict = await decide(ctx);
+            } catch (error) {
+              if (
+                !(error instanceof AgentStop) ||
+                error.outcome.stopReason !== "budget_exhausted"
+              ) {
+                throw error;
+              }
+              // Device actions and time remain: keep covering what was found, without the model.
+              plannerDone = error.outcome.detail;
+              ports.emit({
+                type: "note",
+                payload: {
+                  level: "info",
+                  message: `${plannerDone} Continuing with untried controls on the screens already found, without model calls.`,
+                },
+              });
+            }
           }
-          if (goals.length > 6) goals.splice(0, goals.length - 6);
-        } else {
-          ({ action, target } = fallback(snap.screen, fp));
-          decisionSummary = "No valid planner proposal; trying an untried control or going back.";
+          if (verdict) {
+            action = verdict.output.nextAction;
+            target = verdict.target;
+            goalId = verdict.output.goalId;
+            decisionSummary = verdict.output.decisionSummary;
+            source = "planner";
+            for (const g of verdict.output.proposedGoals) {
+              if (!goals.some((x) => x.goalId === g.goalId)) goals.push(g);
+            }
+            if (goals.length > 6) goals.splice(0, goals.length - 6);
+          } else if (plannerDone) {
+            const next = deterministicNext(snap.screen, fp);
+            if (!next) {
+              if (await startTour()) continue;
+              return {
+                phase: "completed",
+                stopReason: "budget_exhausted",
+                detail: `${plannerDone} Every reachable control was tried afterwards.`,
+                blockers: [],
+              };
+            }
+            ({ action, target } = next);
+            decisionSummary = "Planner budget used up; trying an untried control on this screen.";
+          } else {
+            ({ action, target } = fallback(snap.screen, fp));
+            decisionSummary = "No valid planner proposal; trying an untried control or going back.";
+          }
         }
 
         // Leaving a form while the keyboard hides controls nobody tried (often the submit button)
@@ -1339,6 +1409,65 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if ((current as { label: string } | null)?.label === before) return false;
     }
     return current?.label === toLabel;
+  }
+
+  /** Without the planner: close a keyboard that hides untried controls, else an untried control. */
+  function deterministicNext(
+    screen: NormalizedScreen,
+    fp: string,
+  ): { action: ProposedAction; target?: UiElement } | null {
+    if (
+      screen.keyboardVisible &&
+      coveredControls(screen, fp).length > 0 &&
+      !keyboardCloseFailed(fp)
+    ) {
+      return { action: { type: "hide_keyboard" } };
+    }
+    // Links usually leave the app; keep the last relaunches for real problems.
+    const noLinks = relaunches >= MAX_RELAUNCHES - 1;
+    // One list row stands for the others (docs/03 §3.2).
+    const tried = graph.get(fp)?.tried;
+    const rowOpened = controlsOf(screen).some(
+      (e) => e.role === "cell" && tried?.has(actionKey("tap", e)),
+    );
+    const next = untriedControls(screen, fp).find(
+      (e) => !(noLinks && e.role === "link") && !(rowOpened && e.role === "cell"),
+    );
+    return next ? { action: { type: "tap", targetRef: next.ref }, target: next } : null;
+  }
+
+  /**
+   * Heads for the best untried control on another screen along observed paths, without a planner
+   * call; the loop taps it on arrival. False when nothing untried is reachable from here.
+   */
+  async function startTour(): Promise<boolean> {
+    const from = current?.label;
+    if (!from) return false;
+    const noLinks = relaunches >= MAX_RELAUNCHES - 1;
+    const candidates = ledger
+      .frontier(graph, from, config.modes)
+      .filter((c) => !toured.has(c.id) && !(noLinks && c.role === "link"))
+      .slice(0, 3);
+    for (const c of candidates) {
+      toured.add(c.id);
+      ports.emit({
+        type: "note",
+        payload: { level: "info", message: `Coverage: heading for ${c.description}.` },
+      });
+      let reached = false;
+      try {
+        reached = await navigateTo(c.screenLabel);
+      } catch (error) {
+        if (!(error instanceof ProbeBlocked)) throw error;
+        return current?.label !== from;
+      }
+      if (reached) {
+        tour = c;
+        return true;
+      }
+      if (current?.label !== from) return true;
+    }
+    return false;
   }
 
   function freshValue(value: string, n: number): string {
