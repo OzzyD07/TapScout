@@ -12,8 +12,10 @@ export const serverEnv = {
   runnerTokenSigningKey: () => required("RUNNER_TOKEN_SIGNING_KEY"),
   runnerOidcAudience: () => process.env.RUNNER_OIDC_AUDIENCE || "tapscout",
   githubRepository: () => required("GITHUB_REPOSITORY"),
+  githubDispatchToken: () => required("GITHUB_DISPATCH_TOKEN"),
   githubWorkflowFile: () => process.env.GITHUB_WORKFLOW_ID || "qa-run.yml",
   githubWorkflowRef: () => `refs/heads/${process.env.GITHUB_WORKFLOW_REF || "main"}`,
+  githubDispatchRef: () => process.env.GITHUB_WORKFLOW_REF || "main",
   storageBuildsBucket: () => process.env.STORAGE_BUILDS_BUCKET || "builds",
   storageEvidenceBucket: () => process.env.STORAGE_EVIDENCE_BUCKET || "evidence",
 };

@@ -133,3 +133,26 @@ jobs:
             ${{ env.OUT }}
             !${{ env.OUT }}/ios/build
           retention-days: 14
+
+  report:
+    # Runs after the device jobs whatever their result, but not after a user/GitHub cancellation;
+    # the API also refuses a report lease for runs cancelled in TapScout (docs/02 §7).
+    needs: [validate, android, ios]
+    if: always() && !cancelled() && needs.validate.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Build the run report
+        run: |
+          token=$(curl -fsS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$TAPSCOUT_OIDC_AUDIENCE" | jq -r .value)
+          body=$(jq -nc --arg runId "$RUN_ID" '{runId: $runId}')
+          for attempt in 1 2 3; do
+            status=$(curl -sS -o report.json -w '%{http_code}' -X POST "$TAPSCOUT_API_URL/api/report" \
+              -H "Authorization: Bearer $token" -H 'content-type: application/json' -d "$body")
+            if [ "$status" -lt 500 ]; then break; fi
+            sleep $((attempt * 5))
+          done
+          cat report.json; echo
+          echo "Report: $(jq -c . report.json)" >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = "200" ]
