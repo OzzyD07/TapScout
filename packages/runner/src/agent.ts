@@ -435,7 +435,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         await device.back();
         return;
       case "hide_keyboard":
-        await device.hideKeyboard();
+        try {
+          await device.hideKeyboard();
+        } catch (error) {
+          // Most apps close the keyboard on a tap outside the field: use a plain text above it.
+          const neutral = snap.screen.elements.find(
+            (e) => e.role === "text" && e.visible && !e.clickable,
+          );
+          if (!neutral) throw error;
+          const p = center(neutral);
+          await device.tapAt(p.x, p.y);
+        }
         return;
       case "wait":
         await ports.sleep(action.milliseconds);

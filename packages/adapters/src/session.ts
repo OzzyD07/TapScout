@@ -176,8 +176,20 @@ export class DeviceSession {
     await this.driver.back();
   }
 
+  /**
+   * Closes the software keyboard. iOS has no generic dismiss: after the driver's own attempt the
+   * keyboard's return-type keys are tried. Throws when the keyboard could not be closed this way.
+   */
   async hideKeyboard(): Promise<void> {
-    await this.driver.hideKeyboard();
+    try {
+      await this.driver.hideKeyboard();
+      return;
+    } catch (error) {
+      if (this.platform !== "ios") throw error;
+    }
+    await this.driver.execute("mobile: hideKeyboard", {
+      keys: ["done", "Done", "return", "Return", "go", "Go", "search", "Search"],
+    });
   }
 
   async relaunch(appId: string, clearData: boolean): Promise<void> {

@@ -225,6 +225,45 @@ describe("runAgent", () => {
     expect(out.blockers[0]).toContain("System dialog");
   });
 
+  it("closes the keyboard by tapping plain text when the driver cannot dismiss it", async () => {
+    const device = fakeDevice();
+    let keyboard = true;
+    device.keyboardShown = async () => keyboard;
+    device.hideKeyboard = async () => {
+      throw new Error("Did not know how to dismiss the keyboard");
+    };
+    device.tapAt = vi.fn(async () => {
+      keyboard = false;
+    });
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "explore",
+          observationId: obs,
+          nextAction: prompt.includes("Keyboard: visible")
+            ? { type: "hide_keyboard" }
+            : { type: "back" },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Close the keyboard.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 2);
+    await runAgent(h.ports, h.config);
+    expect(device.tapAt).toHaveBeenCalledTimes(1);
+    expect(h.events.find((e) => e.type === "action_executed")?.payload).toMatchObject({
+      summary: "Hide keyboard",
+      outcome: "ok",
+    });
+  });
+
   it("dismisses a system ANR dialog with Wait before exploring", async () => {
     const device = fakeDevice({ anrFirst: true });
     const h = harness(device, scriptedPlanner(), 1);
