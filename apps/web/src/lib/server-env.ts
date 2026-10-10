@@ -18,4 +18,9 @@ export const serverEnv = {
   githubDispatchRef: () => process.env.GITHUB_WORKFLOW_REF || "main",
   storageBuildsBucket: () => process.env.STORAGE_BUILDS_BUCKET || "builds",
   storageEvidenceBucket: () => process.env.STORAGE_EVIDENCE_BUCKET || "evidence",
+  tokenFactoryApiKey: () => required("TOKEN_FACTORY_API_KEY"),
+  tokenFactoryBaseUrl: () =>
+    process.env.TOKEN_FACTORY_BASE_URL || "https://api.tokenfactory.nebius.com/v1/",
+  plannerModel: () => process.env.NEMOTRON_MODEL_ID || "nvidia/Nemotron-3_5-Lightning",
+  visionModel: () => process.env.VISION_MODEL_ID || "openbmb/MiniCPM-V-4_5",
 };

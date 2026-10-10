@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { PlatformBudget } from "./budget.js";
-import { DeviceProfile, Id, Sha256, Timestamp } from "./common.js";
+import { DeviceProfile, Id, Sha256, Timestamp, Uuid } from "./common.js";
 import { ArtifactKind, Platform, StopReason, TestMode } from "./enums.js";
 import { RUN_EVENT_BATCH_MAX, RunEventInput } from "./events.js";
 import { PlatformResult } from "./report.js";
@@ -176,7 +176,7 @@ export type RelayPlanRequest = z.infer<typeof RelayPlanRequest>;
 
 export const RelayVisionRequest = z.object({
   /** Only an authorised artifact of the caller's session; no arbitrary URLs (docs/02 §8). */
-  artifactId: Id,
+  artifactId: Uuid,
   prompt: z.string().max(8_000),
   maxOutputTokens: z.number().int().positive().max(2_000),
 });
