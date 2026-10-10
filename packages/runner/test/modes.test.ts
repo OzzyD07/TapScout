@@ -125,6 +125,22 @@ describe("ui/ux keyboard occlusion", () => {
   });
 });
 
+describe("android keyboard occlusion", () => {
+  it("reports a control that disappears from the hierarchy while the keyboard is open", () => {
+    const t = new ModeTracker("android", 2.625);
+    const field = el({ role: "text_field", label: "Name", stableId: "register-name" });
+    const cont = el({ stableId: "register-continue", label: "Continue" });
+    t.observe("Create profile", screen([field, cont]), "closed", 1);
+    t.observe("Create profile", screen([field], true), "open", 2);
+    const r = buildModeChecks(t, ctx(["ui_ux"]));
+    valid(r);
+    expect(r.findings.map((f) => f.title)).toEqual([
+      '"Continue" is hidden by the keyboard on "Create profile"',
+    ]);
+    expect(r.findings[0]?.evidence[0]?.artifactId).toBe("open");
+  });
+});
+
 describe("store readiness", () => {
   const form = [el({ role: "text_field", label: "Name", stableId: "register-name" })];
 
@@ -439,6 +455,124 @@ describe("stress long-text probe", () => {
     expect(
       events.some((e) => e.type === "note" && (e.payload as { level: string }).level === "error"),
     ).toBe(true);
+  });
+
+  it("treats an 'app is not running' driver error as a crash, not a broken device", async () => {
+    const device = notesApp(true);
+    const source = device.pageSource;
+    const state = device.appState;
+    device.pageSource = async () => {
+      if ((await state("dev.sample")) === 1) {
+        const error = new Error(
+          "The application under test with bundle id 'dev.sample' is not running, possibly crashed",
+        );
+        error.name = "WebDriverError";
+        throw error;
+      }
+      return source();
+    };
+    const { out } = await (async () => {
+      const events: unknown[] = [];
+      let clock = 0;
+      let n = 0;
+      const o = await runAgent(
+        {
+          device,
+          emit: (e) => events.push(e),
+          flush: async () => {},
+          saveEvidence: async () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
+          plan: notesPlanner(),
+          vision: vi.fn(),
+          checkpoint: () => {},
+          now: () => clock,
+          sleep: async (ms) => {
+            clock += ms;
+          },
+          log: () => {},
+        },
+        {
+          platform: "android",
+          modes: ["stress"],
+          budget: { ...DEFAULT_PLATFORM_BUDGET, maxPlannerRequests: 5 },
+          softDeadline: 10 * 60_000,
+          counters: {
+            screensObserved: 0,
+            transitionsObserved: 0,
+            actionsExecuted: 0,
+            checksRun: 0,
+            plannerCalls: 0,
+            visionCalls: 0,
+          },
+          settleMs: 10,
+          run: { runId: "r", sessionId: "s" },
+          versions: runVersionStamp("test"),
+          newId: () => `dddddddd-dddd-4ddd-8ddd-${String(++n).padStart(12, "0")}`,
+        },
+      );
+      return { out: o };
+    })();
+    expect(out.phase).toBe("completed");
+    expect(out.findings.find((f) => f.checkId === "stress.long_text")?.verification).toBe(
+      "reproduced",
+    );
+  });
+
+  it("keeps collected results when the device session fails", async () => {
+    const device = notesApp(false);
+    let calls = 0;
+    const source = device.pageSource;
+    device.pageSource = async () => {
+      calls += 1;
+      if (calls > 6) {
+        const error = new Error("WebDriverError: instrumentation process is not running");
+        error.name = "WebDriverError";
+        throw error;
+      }
+      return source();
+    };
+    let clock = 0;
+    let n = 0;
+    const out = await runAgent(
+      {
+        device,
+        emit: () => {},
+        flush: async () => {},
+        saveEvidence: async () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
+        plan: notesPlanner(),
+        vision: vi.fn(),
+        checkpoint: () => {},
+        now: () => clock,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        log: () => {},
+      },
+      {
+        platform: "android",
+        modes: ["accessibility"],
+        budget: { ...DEFAULT_PLATFORM_BUDGET, maxPlannerRequests: 20 },
+        softDeadline: 10 * 60_000,
+        counters: {
+          screensObserved: 0,
+          transitionsObserved: 0,
+          actionsExecuted: 0,
+          checksRun: 0,
+          plannerCalls: 0,
+          visionCalls: 0,
+        },
+        settleMs: 10,
+        run: { runId: "r", sessionId: "s" },
+        versions: runVersionStamp("test"),
+        newId: () => `eeeeeeee-eeee-4eee-8eee-${String(++n).padStart(12, "0")}`,
+      },
+    );
+    expect(out).toMatchObject({
+      phase: "infrastructure_failed",
+      stopReason: "infrastructure_failed",
+    });
+    expect(out.checks.find((c) => c.checkId === "a11y.control_labels")?.status).toBe(
+      "passed_within_scope",
+    );
   });
 
   it("does not run stress probes when Stress is not selected", async () => {

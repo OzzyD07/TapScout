@@ -40,11 +40,11 @@
     {
       "id": "keyboard-covers-continue",
       "mode": "ui_ux",
-      "platforms": ["ios"],
+      "platforms": ["android", "ios"],
       "title": "Continue button is covered by the keyboard on registration",
       "where": "Create profile, with the keyboard open",
       "expected": "The primary action stays reachable while typing.",
-      "actual": "Continue is pinned to the bottom of the window; the software keyboard covers it. Android may resize the window and not show the symptom.",
+      "actual": "Continue is pinned to the bottom of the window; the software keyboard covers it. Android leaves it out of the accessibility hierarchy while the keyboard is open (run 77c0273f).",
       "detection": "UI/UX occluded-action candidate (element bounds under the keyboard).",
       "checkIds": ["ui.keyboard_occlusion"]
     },

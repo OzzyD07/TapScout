@@ -107,7 +107,7 @@ export interface AgentConfig {
 }
 
 export interface AgentOutcome {
-  phase: "completed" | "blocked";
+  phase: "completed" | "blocked" | "infrastructure_failed";
   stopReason: StopReason;
   detail: string;
   blockers: string[];
@@ -180,6 +180,17 @@ const VISION_PROMPT =
 
 function keyOf(action: ProposedAction, target?: UiElement): string {
   return actionKey(action.type, target, action.type === "scroll" ? action.direction : "");
+}
+
+const APP_NOT_RUNNING =
+  /is not running, possibly crashed|application under test .* is not running/i;
+
+/** Driver errors that end the session but must not discard the results collected so far. */
+function isDeviceError(error: unknown): boolean {
+  const e = error as Error;
+  return (
+    isSessionDead(e) || e?.name === "WebDriverError" || /WebDriverError/.test(e?.message ?? "")
+  );
 }
 
 /** Appium errors after which the device session is gone; these end the session as infrastructure. */
@@ -259,8 +270,24 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   async function observe(): Promise<Snapshot> {
-    const png = await device.screenshotPng();
-    const xml = await device.pageSource();
+    // When the app under test has died, XCUITest refuses screenshots and page sources ("is not
+    // running, possibly crashed"): that is an observation (app state 1), not a broken device.
+    let png: Buffer;
+    let xml: string;
+    try {
+      png = await device.screenshotPng();
+      xml = await device.pageSource();
+    } catch (error) {
+      if (!APP_NOT_RUNNING.test((error as Error).message ?? "")) throw error;
+      return {
+        png: Buffer.alloc(0),
+        xml: "",
+        screen: normalizeHierarchy(platform, "", { scale: 1 }),
+        appForeground: false,
+        appState: 1,
+        scale: 1,
+      };
+    }
     window ??= await device.windowSize();
     const size = pngSize(png);
     const scale = platform === "ios" && size && window.width > 0 ? size.width / window.width : 1;
@@ -843,7 +870,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         if (
           snap.screen.keyboardVisible &&
           (action.type === "back" || isBackControl(target)) &&
-          coveredControls(snap.screen, fp).length > 0 &&
+          (coveredControls(snap.screen, fp).length > 0 || platform === "android") &&
           !keyboardCloseFailed(fp)
         ) {
           action = { type: "hide_keyboard" };
@@ -1031,6 +1058,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (visible.length < 6) continue;
       // Grounding: some element must hold a longer text that starts with the visible part.
       const full = screen.elements
+        .filter((e) => e.role !== "text_field")
         .map((e) => e.text ?? e.label ?? "")
         .find(
           (t) => t.toLowerCase().includes(visible.toLowerCase()) && t.length > visible.length + 3,
@@ -1431,8 +1459,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   try {
     ending = await explore();
   } catch (error) {
-    if (!(error instanceof AgentStop)) throw error;
-    ending = error.outcome;
+    if (error instanceof AgentStop) ending = error.outcome;
+    else if (isDeviceError(error)) {
+      const message =
+        ((error as Error).message ?? "device error").split("\n")[0]?.slice(0, 300) ?? "";
+      ending = {
+        phase: "infrastructure_failed",
+        stopReason: "infrastructure_failed",
+        detail: `The device session failed: ${message}`,
+        blockers: [message],
+      };
+    } else throw error;
   }
 
   return finalize(

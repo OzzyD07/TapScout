@@ -105,6 +105,8 @@ export class ModeTracker {
   /** App controls covered by the open keyboard, and controls seen without the keyboard. */
   readonly covered = new Map<string, ScreenSighting>();
   private readonly seenUncovered = new Set<string>();
+  /** Android: controls per screen seen while the keyboard was closed (the IME hides the rest). */
+  private readonly withoutKeyboard = new Map<string, Map<string, ScreenSighting>>();
   keyboardSeenOpen = false;
   readonly clipping: ClippingCandidate[] = [];
   visionScreens = 0;
@@ -155,6 +157,22 @@ export class ModeTracker {
       const text = `${e.label ?? ""} ${e.text ?? ""}`;
       if (CONTROL.has(e.role) && ACCOUNT_DELETION.test(text)) this.deletionEntry ??= sighting;
       if (CONTROL.has(e.role) && PRIVACY.test(text)) this.privacyEntry ??= sighting;
+    }
+    if (this.platform === "android") {
+      const present = new Set(screen.elements.map((e) => key(e, screenLabel)));
+      const known = this.withoutKeyboard.get(screenLabel) ?? new Map<string, ScreenSighting>();
+      if (!screen.keyboardVisible) {
+        for (const e of screen.elements) {
+          if (CONTROL.has(e.role) && e.enabled) {
+            known.set(key(e, screenLabel), { screenLabel, element: e, artifactId, step });
+          }
+        }
+        this.withoutKeyboard.set(screenLabel, known);
+      } else if (screen.elements.some((e) => e.role === "text_field")) {
+        for (const [k, sighting] of known) {
+          if (!present.has(k)) this.covered.set(k, { ...sighting, artifactId, step });
+        }
+      }
     }
     const hasFields = screen.elements.some((e) => e.role === "text_field" && !e.masked);
     if (
@@ -390,24 +408,17 @@ export function buildModeChecks(
     check({
       checkId: "ui.keyboard_occlusion",
       mode: "ui_ux",
-      status:
-        ctx.platform === "android"
-          ? covered.length > 0
-            ? "failed"
-            : "unsupported"
-          : !t.keyboardSeenOpen
-            ? "not_tested"
-            : covered.length > 0
-              ? "failed"
-              : "passed_within_scope",
+      status: !t.keyboardSeenOpen
+        ? "not_tested"
+        : covered.length > 0
+          ? "failed"
+          : "passed_within_scope",
       summary:
         covered.length > 0
           ? `Covered by the keyboard: ${list(covered.map((c) => `${name(c.element)} on ${c.screenLabel}`))}.`
-          : ctx.platform === "android"
-            ? "The Android hierarchy does not expose the keyboard frame; occlusion is not measured."
-            : t.keyboardSeenOpen
-              ? "No app control was covered while the keyboard was open."
-              : "The keyboard was never open during the run.",
+          : t.keyboardSeenOpen
+            ? "No app control was covered while the keyboard was open."
+            : "The keyboard was never open during the run.",
       scope: screensScope,
       findingIds: ids,
     });
