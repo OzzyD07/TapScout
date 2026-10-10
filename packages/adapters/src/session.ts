@@ -126,11 +126,6 @@ export class DeviceSession {
 
   /** A single touch tap at a point in driver units. Only for verified, current bounds. */
   async tapAt(x: number, y: number): Promise<void> {
-    if (this.platform === "ios") {
-      // XCUITest's coordinate tap is much cheaper than synthesising W3C pointer actions.
-      await this.driver.execute("mobile: tap", { x: Math.round(x), y: Math.round(y) });
-      return;
-    }
     await this.driver.performActions([
       {
         type: "pointer",

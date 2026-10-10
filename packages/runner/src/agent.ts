@@ -337,6 +337,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       appId = screen.topPackage;
       appState = await device.appState(appId);
     }
+    // iOS returns the page source of whichever app is in front (Safari after a link): another
+    // bundle at the root means the app under test is not what we see.
+    const foreign = platform === "ios" && appId && screen.topPackage && screen.topPackage !== appId;
+    if (foreign && appState === 4) appState = 3;
     return { png, xml, screen, appForeground: appState === 4, appState, scale };
   }
 
@@ -584,6 +588,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         return;
       case "hide_keyboard":
         try {
+          // XCUITest's generic dismiss fails slowly (~8 s, run c0d42c0b) for React Native fields.
+          if (platform === "ios") throw new Error("no generic keyboard dismiss on iOS");
           await device.hideKeyboard();
         } catch (error) {
           // A tap on plain content text (not the navigation bar) ends editing in most apps.
