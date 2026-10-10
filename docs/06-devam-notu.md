@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an:** F1 (8–13 Ekim) büyük ölçüde bitti. Sıradaki faz **F2: agent çekirdeği ve Nemotron**.
+- **Şu an:** F1 bitti. F2'nin ilk üç işi (model relay, observer, agent döngüsü) 10 Ekim'de tamamlandı ve iki platformda gerçek Nemotron koşusuyla doğrulandı. Sırada Functional modu ve örnek uygulama v1.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -32,7 +32,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
 | Kullanıcı | `tester@tapscout.com` (admin rolü; şifreyi yalnız proje sahibi bilir) |
 | Örnek build'ler (`fixed`) | Android `21dabfb2-3c1a-44d9-9f8c-7b71afe404b2` (39,5 MB), iOS `6a169527-b725-480b-95b8-f4e45e99fdeb` (11,1 MB) |
 
-Yerel `.env` (git'e girmez) şunları içerir: Supabase URL + publishable + secret key, `GITHUB_DISPATCH_TOKEN` (fine-grained, 7 Ocak 2027'ye kadar), `TOKEN_FACTORY_API_KEY` (geçerli; şu an yalnız **$1 deneme kredisi**), `RUNNER_TOKEN_SIGNING_KEY`, `APP_BASE_URL`. Vercel'e eklenen değişkenler: Supabase anahtarları, runner imzalama anahtarı, OIDC audience, GitHub değişkenleri. **Henüz eklenmeyenler:** `TOKEN_FACTORY_*`, `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID` (model relay yazılınca eklenecek).
+Yerel `.env` (git'e girmez) şunları içerir: Supabase URL + publishable + secret key, `GITHUB_DISPATCH_TOKEN` (fine-grained, 7 Ocak 2027'ye kadar), `TOKEN_FACTORY_API_KEY` (geçerli; şu an yalnız **$1 deneme kredisi**), `RUNNER_TOKEN_SIGNING_KEY`, `APP_BASE_URL`. Vercel'e eklenen değişkenler: Supabase anahtarları, runner imzalama anahtarı, OIDC audience, GitHub değişkenleri. 10 Ekim'de `TOKEN_FACTORY_*`, `NEMOTRON_MODEL_ID` ve `VISION_MODEL_ID` de eklendi (relay geçersiz token'a 401 dönüyor; değişken eksikse 500 döner).
 
 ## 3. Repo yapısı
 
@@ -67,12 +67,13 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 |---|---|---|
 | `dae8c768` | İlk uçtan uca koşu; rapor job'u henüz yoktu, durum elle `completed` yapıldı | — |
 | `2f3b8028` | Rapor job'u dahil tam zincir: iki oturum `completed`, 16 olay, 8 kanıt, rapor ve run `completed` | Android 3,3 dk, iOS 12,1 dk, rapor 6 sn |
+| `cdf5265f` | Web'den Start Test (proje sahibi). iOS `completed`; Android `blocked`: uygulamanın üstünde sistemin "Pixel Launcher isn't responding" ANR diyaloğu vardı, eski sabit adım bunu erişim engeli sandı. Observer artık bu diyaloğu tanıyıp "Wait"e basıyor | — |
+| `202c4d49` | **İlk Nemotron agent koşusu.** İki platformda örnek uygulamanın bütün ekranları (Welcome, Create profile, Profile, Edit profile) ve Sign out dönüşü keşfedildi; reddedilen öneri 0, başarısız eylem 0; 30'ar planner çağrısı | Android oturumu 4,0 dk, iOS 7,1 dk; model ≈ $0,0056 (28–30 bin girdi / ~4,4 bin çıktı token'ı, ortalama 0,8 sn/çağrı) |
 
 **Henüz doğrulanmayanlar:**
-- Web'deki Start Test butonu ve run sayfası gerçek tarayıcıda denenmedi; proje sahibi deneyecek.
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 60 birim testi (shared 9, adapters 5, runner 5, web 41) ve veritabanı smoke testi. CI son commit'te yeşil.
+**Testler:** 98 birim testi (shared 9, adapters 5, runner 28, web 56) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -93,29 +94,23 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 ## 6. Proje sahibinde bekleyenler
 
 - [ ] Supabase Pro'ya geçiş. Ardından `builds` bucket sınırı 300 MB'a çıkarılacak.
-- [ ] Siteye `tester@tapscout.com` ile girip Start Test'i denemek. Sorun veya tasarım yorumlarını iletmek.
+- [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
 - [ ] Token Factory kredisi: şu an $1 deneme kredisi var (yaklaşık 7–10 koşu). Gerçek agent koşuları için hackathon'un $25 kredisi en geç 16 Ekim'e kadar gerekli.
-- [ ] Model relay hazır olunca Vercel'e şunları eklemek: `TOKEN_FACTORY_API_KEY`, `TOKEN_FACTORY_BASE_URL`, `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID`.
+- [x] Vercel'e `TOKEN_FACTORY_*`, `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID` (10 Ekim).
 
 ## 7. Sıradaki işler (F2 ve açık borçlar)
 
 ### F2 (13–19 Ekim)
 
-1. **Model relay:** `/api/relay/plan` ve `/api/relay/vision`.
-   - Runner token'ıyla çağrılır; çağrıdan önce bütçe ayrılır, sonra gerçek kullanıma göre kesinleşir (`reserve_model_budget` / `settle_model_budget`).
-   - `usage_records` tablosuna yazılır.
-   - Planner için `enable_thinking=false` + `json_schema`.
-   - Görsel istek yalnız yetkili artifact kimliğiyle yapılır, keyfi URL alınmaz.
-2. **Observer:** Hierarchy XML'i `Observation`'a normalize etmek (öğe referansı, rol, label, bounds); secret maskeleme.
-3. **State graph ve agent döngüsü:** Ekran parmak izi, ziyaret ve döngü tespiti, Observe → Plan (Nemotron) → Validate → Act → Evaluate.
-   - Bütçe kuralları `03` §9'da.
-   - `packages/runner/src/main.ts`'teki sabit "Get started" adımı bu döngüyle değiştirilecek.
+1. ~~Model relay~~ **bitti** (`apps/web/src/lib/relay`): runner token + lease → `reserve_model_budget` → tek Token Factory çağrısı → `settle_model_budget` → `usage_records`. Planner `json_schema` + `enable_thinking=false`; görsel yalnız aynı oturum denemesinin hazır screenshot'ı, düşünme kapalı. Usage gelmeyen timeout/5xx'te rezerv tam sayılır.
+2. ~~Observer~~ **bitti** (`packages/runner/src/observer.ts`): Android/iOS page source → ortak öğe sözlüğü (bounds screenshot pikselinde), secret maskeleme, Android ANR/crash diyaloğu tespiti.
+3. ~~State graph ve agent döngüsü~~ **bitti** (`state.ts`, `planner.ts`, `agent.ts`): yapısal parmak izi, döngü tespiti, karar başına 1 repair, deterministik fallback; 10 eylemdir yeni durum yoksa ve ekrandaki her kontrol denendiyse `goals_exhausted`. Prompt sürümü `planner-2026-10-10.v1`.
 4. **Functional modu:** Akış hedefleri ve kalıcılık kontrolü (kaydet → yeniden aç).
 5. **Örnek uygulama v1:**
    - Not listesi; ayarlar (privacy policy linki, hesap silme).
    - `seeded` / `fixed` / `changed_flow` varyantları; kasıtlı hatalar `05` §8'de.
    - Ground-truth manifest'i yalnız `quality/` altında.
-6. **G3 (16 Ekim):** Planner'ın en az 3 ekranı keşfetmesi ve geçersiz eylem uygulamaması.
+6. **G3 (16 Ekim):** Planner'ın en az 3 ekranı keşfetmesi ve geçersiz eylem uygulamaması. v0 örnek uygulamada `202c4d49` ile karşılandı; v1 (daha çok ekran ve kasıtlı hatalar) üzerinde yeniden ölçülecek.
 
 ### Açık borçlar
 
@@ -124,7 +119,8 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - **Kullanıcı build yükleme arayüzü (P1):** İmzalı / resumable yükleme ve runner'da kabul doğrulaması.
 - **Rapor:** Nemotron özeti (referans doğrulamalı) ve sayfada ayrıntılı bulgu kartları.
 - **Kalite pilotu ve teslim (F3–F5):** `05` §6.
+- **Agent ayrıntıları (`202c4d49`'dan):** Profil başlığı kullanıcı verisini içeriyor ("Hi, Alex Doe") ve parmak izine giriyor; ad değişince yeni durum sayılabilir. Görsel model hiç çağrılmadı (yalnız 3'ten az öğeli yeni ekranda çağrılıyor); UI/UX modunda kullanılacak. Rapor henüz agent sayaçlarını ve geçişleri özetlemiyor.
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–13'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F1 bitti; F2'ye başla: önce model relay (`/api/relay/plan` ve `/api/relay/vision`), sonra observer ve agent döngüsünü runner'a bağla. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–14'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2'nin relay, observer ve agent döngüsü bitti ve doğrulandı; sırada Functional modu (akış hedefleri, kaydet → yeniden aç kalıcılık kontrolü) ve örnek uygulama v1 var. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.

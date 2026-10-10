@@ -344,3 +344,25 @@ Tamamlanan F1 kodu:
 Web tarafı (10 Ekim): `POST /api/runs` (Start Test, koşu başına claim + tek dispatch, kullanıcı başına en çok 2 aktif koşu), iptal, RLS kontrollü kanıt görüntüleme, Realtime + geçmiş backfill ile canlı run sayfası, panelde test başlatma formu, `/api/report` + qa-run rapor job'u.
 
 Kalan F1 işleri: web'den başlatılan koşunun proje sahibi tarafından tarayıcıda denenmesi, model relay ve ilk Nemotron çağrısı (F2 başı). Bunların bir kısmı proje sahibinden `SUPABASE_SECRET_KEY`, `GITHUB_DISPATCH_TOKEN`, Supabase Pro ve Token Factory anahtarını bekler.
+
+## 14. F2 durumu (10 Ekim 2026)
+
+Tamamlanan:
+
+- [x] **Model relay** (`/api/relay/plan`, `/api/relay/vision`): runner token ve geçerli lease, bütçe rezervi/kesinleştirme, `usage_records`. Planner `json_schema` + `enable_thinking=false`; MiniCPM görsel isteği de düşünme kapalı çalışıyor (ölçüm: ANR ekran görüntüsü, 646 girdi / 28 çıktı token'ı, 1,2 sn; diyaloğu doğru tarif etti).
+- [x] **Observer:** Android ve iOS hierarchy'si aynı öğe sözlüğüne normalize ediliyor; secret maskeleme; Android ANR/crash diyaloğu tanınıp "Wait" ile kapatılıyor.
+- [x] **State graph ve agent döngüsü:** sabit "Get started" adımının yerini aldı.
+
+**İlk Nemotron agent koşusu:** run `202c4d49`, workflow `38053683214`, `functional` modu, `fixed` varyant.
+
+| Ölçüm | Android | iOS |
+|---|---|---|
+| Oturum süresi | 4,0 dk | 7,1 dk |
+| Planner çağrısı / cihaz eylemi | 30 / 30 | 30 / 30 |
+| Keşfedilen durum (klavye halleri dahil) | 7 | 8 |
+| Reddedilen öneri / başarısız eylem | 0 / 0 | 0 / 0 |
+| Deterministik müdahale (döngü) | 1 | 4 |
+| Planner token (girdi / çıktı) | 28.099 / 4.480 | 29.559 / 4.262 |
+| Tahmini model maliyeti | $0,0028 | $0,0028 |
+
+Örnek uygulamanın v0'daki bütün ekranları iki platformda da keşfedildi. Keşif bittikten sonra planner edit → save döngüsünde bütçe harcadı; bunun için "10 eylemdir yeni durum yok ve ekrandaki her kontrol denendi" kuralıyla `goals_exhausted` eklendi. iOS'ta etkisiz kalan "Go back" fallback'i, geri gitmenin aynı ekranda bıraktığı durumda artık tekrarlanmıyor. Çağrı başına ortalama ~950 girdi token'ı, `03` §9'daki planner payının (3.000) altında.
