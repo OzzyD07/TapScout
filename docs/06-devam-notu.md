@@ -93,6 +93,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 6. Proje sahibinde bekleyenler
 
+- [ ] **Vercel'e `APP_CREDENTIALS_ENCRYPTION_KEY` eklemek:** değer yerel `.env`'de (11 Ekim'de üretildi, 32 bayt base64). Eklenmeden test hesabıyla yükleme "Test accounts are not enabled on this server" hatası verir. Anahtar değişirse kayıtlı hesaplar çözülemez.
 - [ ] Supabase Pro'ya geçiş. Ardından `builds` bucket sınırı 300 MB'a çıkarılacak.
 - [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
 - [ ] Token Factory kredisi: şu an $1 deneme kredisi var (yaklaşık 7–10 koşu). Gerçek agent koşuları için hackathon'un $25 kredisi en geç 16 Ekim'e kadar gerekli.
@@ -120,10 +121,12 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - **Kapsam:** `packages/runner/src/coverage.ts`: denenmemiş kontrollere planner'sız "tur"; planner bütçesi bitince de devam; liste satırı ailesinden tek temsilci; yıkıcı kontroller (delete/sign out/reset) planner'sız denenmez.
 - **Build yükleme:** `POST /api/builds` + tarayıcıdan doğrudan Storage'a PUT + `POST /api/builds/[id]/complete`; Start Test'te platform başına build seçimi. Runner kurulamayan build'i `blocked/unsupported` ve açıklamayla raporlar.
 - **Küçükler:** iOS cihaz adı `simctl`'den; crash bulgusundaki tekrar eden cümle.
+- **Giriş duvarı ve test hesabı** (`05` §19): aşılamayan giriş/kod/CAPTCHA ekranı rapora açık engel olarak yazılır; yüklemede şifreli test hesabı, planner yalnız `credential_ref` görür, Appium logu hesaplı oturumda yüklenmez.
 
 ### Hemen sıradaki
 
 - **Kapsam ölçümü:** turlu ve satır-aileli runner ile beş modlu `seeded` + `fixed` koşuları; `quality/evaluate-run.mjs` ile 6/6 kararlılığı ve yanlış pozitif kontrolü (özellikle iOS). G3 (16 Ekim) ölçümü bu koşularla yazılır.
+- **Giriş isteyen gerçek bir uygulamayla koşu:** hesapsız (rapor "Sign-in required" demeli) ve hesaplı (giriş geçilmeli). Örnek uygulamada giriş yok; gerekirse FieldNotes'a basit bir giriş varyantı eklenebilir.
 - **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli).
 - **Özet kalitesi:** küçük model ara sıra anlamsal kaymalar yapıyor (crash'i "data-loss" diye anmak gibi); doğrulayıcı etiket/platform/severity/oran/pass iddialarını yakalıyor, anlamı yakalamıyor. Gerekirse daha sıkı şablon.
 - actionlint yerelde çalıştırılamadı (Docker kapalı).
@@ -139,4 +142,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §16–18'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2, beş modun kontrolleri, ground-truth değerlendirmesi, iOS hızlandırması, Nemotron rapor özeti, rapor UI'ı, kapsam turları ve build yükleme bitti. Sırada §7 "Hemen sıradaki": kapsam ölçümü ve G3. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §16–19'u oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2, beş modun kontrolleri, ground-truth değerlendirmesi, iOS hızlandırması, Nemotron rapor özeti, rapor UI'ı, kapsam turları, build yükleme, giriş duvarı raporlama ve şifreli test hesabı bitti. Sırada §7 "Hemen sıradaki": kapsam ölçümü ve G3. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
