@@ -20,7 +20,7 @@ import {
   type VersionStamp,
 } from "@tapscout/shared";
 import { RunnerApiError } from "./api.js";
-import { buildModeChecks, ModeTracker, type StressProbe } from "./checks.js";
+import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
@@ -168,8 +168,9 @@ const MAX_STRESS_PROBES = 2;
 const MAX_VISION_SCREENS = 6;
 /** Texts at least this long make a screen worth a visual clipping check. */
 const LONG_TEXT = 40;
+/** Measured on runs 2ce8b240 / 4cc0a298: the model writes "..." for intentional ellipses. */
 const CLIPPING_PROMPT =
-  'Look at this mobile app screen. List every piece of text that is visibly cut off: truncated in the middle of a word without an ellipsis, or partly hidden by its container. Reply with JSON only: {"cut_off": ["<the visible part of each cut-off text>"]}, or {"cut_off": []} when none is cut off.';
+  'Look at this mobile app screen. Is any line of text cut off horizontally, so that only the top part of its letters is visible (the bottom of the letters is hidden by the edge of a box or card)? A line that ends with an ellipsis (...) is NOT cut off. Reply with JSON only: {"cut_off": ["<the readable part of each such line>"]}, or {"cut_off": []}.';
 /** Persistence checks per session (one per saved field). */
 const MAX_PERSISTENCE_PROBES = 3;
 /** System dialogs within this many recent actions mean the device is not usable. */
@@ -1092,23 +1093,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       return;
     }
     const parsed = extractJson(content) as { cut_off?: unknown } | null;
-    const snippets = Array.isArray(parsed?.cut_off) ? parsed.cut_off : [];
-    for (const raw of snippets.slice(0, 5)) {
-      if (typeof raw !== "string") continue;
-      const visible = raw.replace(/[….]+$/, "").trim();
-      if (visible.length < 12) continue;
-      // Grounding: some element must hold a longer text that starts with the visible part.
-      const full = screen.elements
-        .filter((e) => e.role !== "text_field")
-        .map((e) => e.text ?? e.label ?? "")
-        // A clipped container shows the start of its text; a snippet from the middle is more
-        // likely an intentional ellipsis (e.g. one-line subtitles).
-        .find(
-          (t) =>
-            t.trim().toLowerCase().startsWith(visible.toLowerCase()) &&
-            t.length > visible.length + 3,
-        );
-      if (full) modeTracker.clipping.push({ screenLabel, text: visible, artifactId: shot });
+    for (const text of groundClipping(parsed?.cut_off, screen.elements)) {
+      modeTracker.clipping.push({ screenLabel, text, artifactId: shot });
     }
   }
 

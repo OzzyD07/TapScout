@@ -12,7 +12,7 @@ import {
 } from "@tapscout/shared";
 import { describe, expect, it, vi } from "vitest";
 import { type AgentDevice, runAgent } from "../src/agent.js";
-import { buildModeChecks, ModeTracker } from "../src/checks.js";
+import { buildModeChecks, groundClipping, ModeTracker } from "../src/checks.js";
 import type { NormalizedScreen } from "../src/observer.js";
 
 const el = (over: Partial<UiElement>): UiElement => ({
@@ -138,6 +138,26 @@ describe("android keyboard occlusion", () => {
       '"Continue" is hidden by the keyboard on "Create profile"',
     ]);
     expect(r.findings[0]?.evidence[0]?.artifactId).toBe("open");
+  });
+});
+
+describe("clipping grounding (real model answers)", () => {
+  const row = el({
+    role: "button",
+    label:
+      "Welcome to FieldNotes: tap a note to read it, or add your own from this list, Notes stay on this device. Delete this one from its detail screen.",
+  });
+
+  it("keeps a half-hidden line even when its last word is misread (seeded, run 2ce8b240)", () => {
+    expect(
+      groundClipping(["Notes stay on this device. Delete this one from its do"], [row]),
+    ).toEqual(["Notes stay on this device. Delete this one from its do"]);
+  });
+
+  it("drops an intentional ellipsis (fixed, run 4cc0a298) and unsupported text", () => {
+    expect(groundClipping(["Delete this one from its de..."], [row])).toEqual([]);
+    expect(groundClipping(["Something that is not on screen at all"], [row])).toEqual([]);
+    expect(groundClipping("nope", [row])).toEqual([]);
   });
 });
 

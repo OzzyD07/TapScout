@@ -213,6 +213,29 @@ export class ModeTracker {
   }
 }
 
+/**
+ * Keeps the vision model's clipped-text reports that the hierarchy supports: not an intentional
+ * ellipsis, and part of a longer text of a non-input element. The last word may be misread
+ * (only the top of its letters is visible), so it is not required to match.
+ */
+export function groundClipping(reported: unknown, elements: UiElement[]): string[] {
+  if (!Array.isArray(reported)) return [];
+  const texts = elements
+    .filter((e) => e.role !== "text_field")
+    .map((e) => (e.text ?? e.label ?? "").toLowerCase());
+  const kept: string[] = [];
+  for (const raw of reported.slice(0, 5)) {
+    if (typeof raw !== "string") continue;
+    const visible = raw.trim();
+    if (/(\.\.\.|…)$/.test(visible)) continue;
+    const words = visible.split(/\s+/);
+    const stem = (words.length > 3 ? words.slice(0, -1).join(" ") : visible).toLowerCase();
+    if (stem.length < 12) continue;
+    if (texts.some((t) => t.includes(stem) && t.length > stem.length + 3)) kept.push(visible);
+  }
+  return kept;
+}
+
 // ---- Results ----------------------------------------------------------------------------------
 
 export interface CheckContext {
