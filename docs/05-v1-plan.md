@@ -423,3 +423,24 @@ Sağlamlık: uygulama arka plandayken page source istenmez (Safari açıkken WDA
 
 Son seeded koşu `bcd6a32e`: iki platformda 5/6, yanlış pozitif yok; uzun metin crash'i iki platformda yakalandı (iOS 2/2, Android 1/2). Koşudan koşuya kaçan bulgular kapsamdan (o koşuda Settings'e girilmemesi, About you'nun düzenlenmemesi) ve dürüstçe `not_tested` / `needs_additional_information` olarak raporlanıyor.
 
+
+## 18. Rapor özeti, rapor UI'ı, kapsam turları ve build yükleme (11 Ekim 2026)
+
+**Rapor özeti (Nemotron).** `/api/report`, deterministik raporu kurduktan sonra rapor lease'i altında `relayReportSummary` ile özet ister (rapor bütçesi, `usage_records`, `json_schema`, düşünme kapalı). Model bulguları sorunlara gruplanmış ve `F1…Fn` etiketli görür; geçen kontroller girdiye konmaz (verildiğinde tek platformdaki geçişi "iki platformda geçti" diye yazıyordu). Metin şu kontrollerden geçmeden kaydedilmez, geçmezse sebebiyle en çok 3 istek: etiketler gerçek bulgu; birlikte yazılan etiketler tek sorun; etiket bir kez; etiketin önündeki platform ve sayı ("two …") etiketlerle uyumlu; severity kelimesi kendisinden sonraki etiketlerin severity'si; `n/m` oranları bulgulardan; id/URL, "passed" ve "bug-free" yok. Başarısızsa `summary: null`, rapor yine tam.
+
+| Ölçüm | Sonuç |
+|---|---|
+| Kayıtlı 5 rapor (`3a257421`, `105335e8`, `bcd6a32e`, `cce22f6d`, `4a2c863d`), son kurallarla 2 tur | 10/10 doğrulandı; 1–1,6 sn, ~2,1 bin girdi token'ı |
+| Canlı koşu `75c696bc` | Özet kaydedildi, 1,2 sn, 1.457 / 259 token, $0,00015. Yakalanmayan bir sayı hatası ("two … incidents [F3]") sonraki kuralı getirdi |
+
+Kalan risk anlamsal: küçük model crash'i "data-loss" diye adlandırabiliyor. Sayfa özeti "kartlar esas" notuyla gösterir.
+
+**Rapor UI'ı.** `runs/[id]/report-section.tsx`: özet bloğu (etiketler kartlara bağlı, tıklayınca filtreler sıfırlanır), platform/mod filtreleri (bulgu ve kontrollere uygulanır), F etiketli kartlarda kanıt türü/güven, severity gerekçesi ve açılır "Steps to reproduce" (başlangıç, adımlar, girdi, kontrol). Kontroller moda göre gruplanır ve kapsamlarını gösterir. Yerelde gerçek `bcd6a32e` verisiyle masaüstü ve 375 px genişlikte kontrol edildi.
+
+**Kapsam turları** (`packages/runner/src/coverage.ts`). Bir kontrol defteri her adlandırılmış ekranın dokunulabilir kontrollerini tutar. Ekran tükendiğinde (eskiden `goals_exhausted`), ilerleme durduğunda ve planner bütçesi bittiğinde (eskiden oturum biterdi) agent gözlenen yollarla en iyi denenmemiş kontrole gider ve planner'sız dokunur: Store/Accessibility seçiliyse ayar/hesap girişleri, sonra yalnız-ikon butonlar, sonra en yakın. Yıkıcı kontroller (delete, sign out, reset) ve geri butonları planner'sız denenmez; kimliği yalnız sondaki indeksle değişen kontroller (`note-row-0`, `note-row-1`) tek aile sayılır. Planner prompt'u `[untried]` işaretini ve diğer ekranlardaki denenmemiş kontrolleri görür.
+
+| Run | Varyant, modlar | Android | iOS |
+|---|---|---|---|
+| `75c696bc` | seeded, beş mod | **5/6**, 0 yanlış pozitif; 20 ekran, 62 eylem, 30 planner çağrısı; 7,5 dk job. Turlar not satırlarına gitti (aile kuralı bu koşudan sonra eklendi); About you düzenlenmediği için kalıcılık kaçtı | **6/6**, 0 yanlış pozitif; 16 ekran, 65 eylem |
+
+**Build yükleme.** `POST /api/builds` kaydı açar ve `staging/{id}/app.{apk,zip}` için imzalı yükleme URL'si verir; tarayıcı dosyayı ilerleme çubuğuyla doğrudan private `builds` bucket'ına PUT eder (Vercel'den geçmez). `POST /api/builds/{id}/complete` nesnenin varlığını, beyan edilen boyutu ve ZIP imzasını (`PK\x03\x04`) kontrol eder, `final/` yoluna taşır ve build'i `uploaded` yapar. Kullanıcı başına en çok 3 yarım yükleme; sınır bucket'ı izler (Free'de 50 MB, sonra `STORAGE_BUILDS_MAX_BYTES`). Storage mekaniği gerçek bucket'ta deneme dosyasıyla doğrulandı (imzalı PUT 200, liste boyutu, Range 206, taşıma, silme). Runner, `.ipa` veya yalnız cihaz için derlenmiş `.app`'i (Info.plist) kurulumdan önce, Android `INSTALL_FAILED_*` kodlarını kurulum hatasında `blocked / unsupported` ve açıklamayla raporlar. Web'den gerçek bir kullanıcı build'iyle uçtan uca deneme proje sahibinin tarayıcısında yapılacak (giriş gerekli).

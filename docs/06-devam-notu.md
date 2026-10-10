@@ -1,6 +1,6 @@
 # TapScout — Devam Notu (yeni oturum için)
 
-Tarih: 10 Ekim 2026  
+Tarih: 11 Ekim 2026  
 Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir. Bu not durum özeti ve çalışma kurallarıdır.
 
 ## 1. Proje ve takvim
@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (11 Ekim):** F2 ve beş modun ilk kontrol paketi bitti; iOS hızlandırıldı (oturum açılışı 222 → 90–160 sn, eylem/oturum 34 → 41–54). Beş modlu koşularda `fixed` temiz; `seeded` genelde 5–6/6 (kaçanlar kapsam). Plan takviminin ~9 gün önündeyiz (F3'ün çoğu bitti). Ayrıntı `05` §16–17.
+- **Şu an (11 Ekim, akşam):** F2, beş modun kontrolleri ve iOS hızlandırmasına ek olarak Nemotron rapor özeti (kayda karşı doğrulanmış), rapor UI'ı (filtreler, replay adımları), kapsam turları ve kullanıcı build yükleme bitti. Son beş modlu `seeded` koşu `75c696bc`: iOS 6/6, Android 5/6, yanlış pozitif yok. Ayrıntı `05` §16–18.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -113,13 +113,19 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
    - Ground-truth manifest'i yalnız `quality/` altında.
 6. **G3 (16 Ekim):** Planner'ın en az 3 ekranı keşfetmesi ve geçersiz eylem uygulamaması. v0 örnek uygulamada `202c4d49` ile karşılandı; v1 (daha çok ekran ve kasıtlı hatalar) üzerinde yeniden ölçülecek.
 
+### 11 Ekim oturumunda biten (ayrıntı `05` §18)
+
+- **Rapor özeti (Nemotron):** `/api/report` rapor lease'i altında özet ister (`relayReportSummary`, rapor bütçesi, en çok 3 istek). Metin kayda karşı doğrulanmadan kaydedilmez; başarısızsa `summary: null`, rapor yine tam.
+- **Rapor UI:** `runs/[id]/report-section.tsx`: F1… etiketli bulgu kartları, platform/mod filtreleri, "Steps to reproduce", özet etiketleri kartlara bağlı.
+- **Kapsam:** `packages/runner/src/coverage.ts`: denenmemiş kontrollere planner'sız "tur"; planner bütçesi bitince de devam; liste satırı ailesinden tek temsilci; yıkıcı kontroller (delete/sign out/reset) planner'sız denenmez.
+- **Build yükleme:** `POST /api/builds` + tarayıcıdan doğrudan Storage'a PUT + `POST /api/builds/[id]/complete`; Start Test'te platform başına build seçimi. Runner kurulamayan build'i `blocked/unsupported` ve açıklamayla raporlar.
+- **Küçükler:** iOS cihaz adı `simctl`'den; crash bulgusundaki tekrar eden cümle.
+
 ### Hemen sıradaki
 
-- **Kapsam (yanlış değil, eksik):** 30 planner çağrısında Settings'e girmek ve tüm formları düzenlemek garanti değil. Seçenekler: Store/Accessibility seçiliyken ayarlar ve ikon butonlara öncelik, keşfedilmemiş kontrolleri prompt'ta daha görünür yapmak.
-- **Rapor özeti (Nemotron):** relay'de `report_summary` hazır; rapor job'una bağlanmadı (F3 P1).
-- **Rapor UI cilası:** platform/mod filtreleri, replay adımları (F3 P0).
-- **Kullanıcı build yükleme UI'ı** (F3 P1).
-- **Run sayfası:** yeni bulgu/kontrol bölümleri gerçek tarayıcıda kontrol edilmedi (proje sahibi).
+- **Kapsam ölçümü:** turlu ve satır-aileli runner ile beş modlu `seeded` + `fixed` koşuları; `quality/evaluate-run.mjs` ile 6/6 kararlılığı ve yanlış pozitif kontrolü (özellikle iOS). G3 (16 Ekim) ölçümü bu koşularla yazılır.
+- **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli).
+- **Özet kalitesi:** küçük model ara sıra anlamsal kaymalar yapıyor (crash'i "data-loss" diye anmak gibi); doğrulayıcı etiket/platform/severity/oran/pass iddialarını yakalıyor, anlamı yakalamıyor. Gerekirse daha sıkı şablon.
 - actionlint yerelde çalıştırılamadı (Docker kapalı).
 
 ### Açık borçlar
@@ -133,4 +139,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §12–17'yi oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2, beş modun kontrolleri, ground-truth değerlendirmesi (`quality/evaluate-run.mjs`) ve iOS hızlandırması bitti. Sırada §7 "Hemen sıradaki": rapor özeti, rapor UI, kapsam. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §16–18'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2, beş modun kontrolleri, ground-truth değerlendirmesi, iOS hızlandırması, Nemotron rapor özeti, rapor UI'ı, kapsam turları ve build yükleme bitti. Sırada §7 "Hemen sıradaki": kapsam ölçümü ve G3. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.

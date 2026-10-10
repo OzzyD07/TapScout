@@ -115,6 +115,7 @@ describe("validateSummary", () => {
     ["a label pinned to two claims", "A crash [F1]. Data loss on both platforms [F1].", []],
     ["a one-platform finding claimed on both", "Data loss on both platforms [F1].", []],
     ["a finding on the wrong platform", "A label is missing on Android [F2].", []],
+    ["a count that does not match the labels", "Two data loss incidents on Android [F1].", []],
     ["a pass claim", "Persistence passed on both platforms. One issue [F1].", []],
     ["a bug-free claim", "Apart from [F1] the app is bug-free.", []],
     ["a raw id", `See ${lost.findingId}.`, []],

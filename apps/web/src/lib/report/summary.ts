@@ -124,6 +124,8 @@ export function summaryInput(report: Report): { labels: Map<string, Finding>; da
   return { labels, data };
 }
 
+const COUNT_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
 const SEVERITY_WORD = /\bcritical\b|\b(critical|high|medium|low)[- ]severity\b/gi;
 
 /**
@@ -172,6 +174,15 @@ export function validateSummary(
       (claimed.length !== actual.size || claimed.some((p) => !actual.has(p as Finding["platform"])))
     ) {
       return { ok: false, reason: `${name} was seen on ${[...actual].join(" and ")} only` };
+    }
+    // "two … incidents [F3]" (run 75c696bc): a counted claim must match the labels it cites.
+    const counted = /\b(two|three|four|five|six|seven|eight|nine|ten)\b/i.exec(clause)?.[1];
+    const n = counted ? COUNT_WORDS.indexOf(counted.toLowerCase()) + 2 : 0;
+    if (n > 0 && n !== found.length) {
+      return {
+        ok: false,
+        reason: `"${counted}" does not match the ${found.length} label(s) of ${name}`,
+      };
     }
   }
   // A label written twice was, in every measured case, pinned to two different claims.
