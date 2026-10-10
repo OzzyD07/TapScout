@@ -2,6 +2,7 @@ import "server-only";
 import { HttpError } from "@/lib/api/errors";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseKey, sealTestAccount } from "./secrets";
 import type { BuildRecord, BuildsDeps } from "./service";
 
 /** Supabase Free plan file limit; set STORAGE_BUILDS_MAX_BYTES after raising the bucket limit. */
@@ -9,6 +10,7 @@ const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
 export function createBuildsDeps(): BuildsDeps {
   const admin = createAdminClient();
+  const secretKey = parseKey(process.env.APP_CREDENTIALS_ENCRYPTION_KEY);
   const bucket = () => admin.storage.from(serverEnv.storageBuildsBucket());
   const fail = (what: string) => new HttpError(500, "internal", `could not ${what}`);
   return {
@@ -36,9 +38,19 @@ export function createBuildsDeps(): BuildsDeps {
         content_type: row.contentType,
         size_bytes: row.sizeBytes,
         staging_key: row.stagingKey,
+        has_test_account: row.hasTestAccount,
       });
       if (error) throw fail("record the build");
     },
+    saveTestAccount: secretKey
+      ? async (buildId, account) => {
+          const { error } = await admin.from("build_test_accounts").insert({
+            build_id: buildId,
+            ciphertext: sealTestAccount(account, secretKey, buildId),
+          });
+          if (error) throw fail("store the test account");
+        }
+      : null,
     async signUpload(key) {
       const { data, error } = await bucket().createSignedUploadUrl(key);
       if (error || !data?.signedUrl) throw fail("create the upload URL");

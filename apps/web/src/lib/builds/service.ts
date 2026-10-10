@@ -1,6 +1,7 @@
 import {
   CreateBuildUploadRequest,
   type CreateBuildUploadResponse,
+  type TestAccount,
   UPLOAD_LIMITS,
 } from "@tapscout/shared";
 import { fromZodError, HttpError } from "@/lib/api/errors";
@@ -38,7 +39,13 @@ export interface BuildsDeps {
     contentType: string;
     sizeBytes: number;
     stagingKey: string;
+    hasTestAccount: boolean;
   }): Promise<void>;
+  /**
+   * Encrypts and stores a test account for the build; null when the server has no
+   * APP_CREDENTIALS_ENCRYPTION_KEY, so test accounts cannot be accepted.
+   */
+  saveTestAccount: ((buildId: string, account: TestAccount) => Promise<void>) | null;
   /** Signed upload URL for exactly this object path; the browser PUTs the file there. */
   signUpload(key: string): Promise<string>;
   loadBuild(id: string): Promise<BuildRecord | null>;
@@ -82,6 +89,9 @@ export async function createBuildUpload(
     const mb = Math.floor(deps.maxBytes / (1024 * 1024));
     throw new HttpError(400, "invalid_request", `The file is larger than the ${mb} MB limit.`);
   }
+  if (req.testAccount && !deps.saveTestAccount) {
+    throw new HttpError(400, "invalid_request", "Test accounts are not enabled on this server.");
+  }
   if ((await deps.countPending(ownerId)) >= MAX_PENDING_UPLOADS) {
     throw new HttpError(409, "conflict", "Finish or abandon your other uploads first.");
   }
@@ -97,7 +107,9 @@ export async function createBuildUpload(
     contentType: format.contentType,
     sizeBytes: req.sizeBytes,
     stagingKey,
+    hasTestAccount: Boolean(req.testAccount),
   });
+  if (req.testAccount && deps.saveTestAccount) await deps.saveTestAccount(id, req.testAccount);
   const uploadUrl = await deps.signUpload(stagingKey);
   return {
     buildId: id,

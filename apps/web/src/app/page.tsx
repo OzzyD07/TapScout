@@ -14,6 +14,7 @@ interface BuildRow {
   sample_variant: string | null;
   is_sample: boolean;
   created_at: string;
+  has_test_account: boolean;
 }
 
 interface RunRow {
@@ -35,7 +36,9 @@ export default async function Dashboard() {
   const [builds, runs] = await Promise.all([
     supabase
       .from("app_builds")
-      .select("id, platform, app_name, file_name, sample_variant, is_sample, created_at")
+      .select(
+        "id, platform, app_name, file_name, sample_variant, is_sample, created_at, has_test_account",
+      )
       .in("validation_status", ["uploaded", "accepted"])
       .order("created_at", { ascending: false })
       .limit(20)
@@ -56,7 +59,7 @@ export default async function Dashboard() {
     platform: b.platform,
     label: b.is_sample
       ? `${b.app_name} (sample${b.sample_variant ? `: ${b.sample_variant}` : ""})`
-      : `${b.app_name} · ${b.file_name} · ${new Date(b.created_at).toLocaleDateString("en")}`,
+      : `${b.app_name} · ${b.file_name} · ${new Date(b.created_at).toLocaleDateString("en")}${b.has_test_account ? " · test account" : ""}`,
   }));
   const maxMb = Math.floor(
     (Number(process.env.STORAGE_BUILDS_MAX_BYTES) || 50 * 1024 * 1024) / (1024 * 1024),

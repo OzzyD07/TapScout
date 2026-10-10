@@ -49,6 +49,8 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [appName, setAppName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const platform = file ? platformOf(file) : null;
   const busy = phase.kind === "uploading" || phase.kind === "checking";
@@ -77,6 +79,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
           contentType:
             platform === "android" ? "application/vnd.android.package-archive" : "application/zip",
           appName: appName.trim() || file.name,
+          ...(username.trim() && password ? { testAccount: { username, password } } : {}),
         }),
       });
       if (!res.ok) throw new Error(await apiError(res, "Could not start the upload."));
@@ -88,6 +91,8 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
       setPhase({ kind: "done", name: appName.trim() || file.name });
       setFile(null);
       setAppName("");
+      setUsername("");
+      setPassword("");
       router.refresh();
     } catch (error) {
       setPhase({ kind: "error", message: (error as Error).message });
@@ -128,7 +133,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
           <button
             type="button"
             onClick={upload}
-            disabled={!file || !platform || busy}
+            disabled={!file || !platform || busy || Boolean(username.trim()) !== Boolean(password)}
             className="h-9 rounded-lg bg-accent px-4 font-semibold text-white hover:bg-accent-strong disabled:opacity-50"
           >
             {phase.kind === "uploading"
@@ -138,6 +143,45 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
                 : "Upload"}
           </button>
         </div>
+        <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <legend className="px-1 text-xs font-medium">Test account (optional)</legend>
+          <p className="text-xs text-muted">
+            For apps behind a sign-in. Stored encrypted and handed only to the device that runs
+            tests on this build; the AI planner never sees it. SMS codes, e-mail codes and CAPTCHAs
+            still stop the test and are reported as such.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-xs font-medium">Username or e-mail</span>
+              <input
+                type="text"
+                value={username}
+                maxLength={200}
+                disabled={busy}
+                autoComplete="off"
+                onChange={(e) => setUsername(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-bg px-3"
+              />
+            </label>
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="text-xs font-medium">Password</span>
+              <input
+                type="password"
+                value={password}
+                maxLength={200}
+                disabled={busy}
+                autoComplete="new-password"
+                onChange={(e) => setPassword(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-bg px-3"
+              />
+            </label>
+          </div>
+          {Boolean(username.trim()) !== Boolean(password) ? (
+            <p className="text-xs text-warn">
+              Enter both the username and the password, or neither.
+            </p>
+          ) : null}
+        </fieldset>
         {file && !platform ? (
           <p className="text-xs text-danger">Choose an .apk (Android) or .zip (iOS Simulator).</p>
         ) : file ? (

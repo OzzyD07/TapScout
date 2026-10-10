@@ -6,6 +6,7 @@ import {
   type PlatformBudget,
   RunnerBootstrapRequest,
   RunnerBootstrapResponse,
+  type TestAccount,
   type TestMode,
 } from "@tapscout/shared";
 import { fromDbError, fromZodError, HttpError, type PostgrestLikeError } from "@/lib/api/errors";
@@ -22,6 +23,8 @@ export interface BootstrapContext {
   modes: TestMode[];
   budget: PlatformBudget;
   build: { buildId: string; objectKey: string; fileName: string; sizeBytes: number };
+  /** Decrypted only here, for the device runner that holds this session's lease. */
+  testAccount?: TestAccount;
 }
 
 /** Everything the runner endpoints need from the outside world; injected so it can be tested. */
@@ -111,6 +114,7 @@ export async function bootstrap(deps: RunnerDeps, oidcToken: string, body: unkno
     modes: context.modes,
     budget: context.budget,
     heartbeatIntervalSeconds: HEARTBEAT_INTERVAL_SECONDS,
+    testAccount: context.testAccount,
   });
 }
 

@@ -10,6 +10,7 @@ export interface ReportSnapshot {
   overallStatus: string;
   createdAt: string;
   limitations: string[];
+  blockers: { platform: "android" | "ios"; text: string }[];
   checks: CheckView[];
   findings: FindingView[];
   summary: SummaryView | null;
@@ -275,6 +276,27 @@ export function ReportSection(props: {
             .join(" · ")}
         </span>
       </div>
+
+      {report.blockers.length > 0 ? (
+        <div
+          role="note"
+          className="flex flex-col gap-1.5 rounded-xl border border-warn/40 bg-warn/10 p-3 text-sm"
+        >
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-warn">
+            What limited this run
+          </h3>
+          <ul className="flex flex-col gap-1">
+            {report.blockers.map((b) => (
+              <li key={`${b.platform}-${b.text}`}>
+                <span className="font-medium">{platformShort(b.platform)}:</span> {b.text}
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-muted">
+            Checks below apply only to the screens reached; nothing behind these walls was tested.
+          </p>
+        </div>
+      ) : null}
 
       {report.summary ? (
         <div className="flex flex-col gap-1.5 rounded-xl border border-accent/30 bg-accent/5 p-3">

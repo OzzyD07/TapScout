@@ -15,10 +15,12 @@ import {
   type RunEventInput,
   type SessionCounters,
   type StopReason,
+  type TestAccount,
   type TestMode,
   type UiElement,
   type VersionStamp,
 } from "@tapscout/shared";
+import { AccessTracker, gateOf } from "./access.js";
 import { RunnerApiError } from "./api.js";
 import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
 import { ControlLedger, type FrontierControl, familyOf, safeToTry } from "./coverage.js";
@@ -107,6 +109,8 @@ export interface AgentConfig {
   /** How long to wait for the first usable app screen. */
   launchTimeoutMs?: number;
   settleMs?: number;
+  /** Test account of the build, resolved only here for `credential_ref` inputs. */
+  testAccount?: TestAccount;
 }
 
 export interface AgentOutcome {
@@ -139,6 +143,8 @@ interface Pending {
   fromElements: UiElement[];
   actionType: ProposedAction["type"];
   target?: UiElement;
+  /** The test account had been typed on this screen when the action ran. */
+  usedAccount?: boolean;
   /** A system dialog appeared before the result was observed: the outcome is unknown. */
   interrupted?: boolean;
   /** Title of a crash dialog shown right after the action. */
@@ -233,6 +239,22 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
   const tracker = new FunctionalTracker();
   const modeTracker = new ModeTracker(platform, 1);
+  const access = new AccessTracker();
+  const account = config.testAccount;
+  /** Account values are replaced in everything stored or sent to a model (docs/03 §3.1). */
+  const secrets = account ? [account.username, account.password].filter((v) => v.length >= 3) : [];
+  const xmlEscape = (v: string) =>
+    v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  function scrub(text: string): string;
+  function scrub(text: string | undefined): string | undefined;
+  function scrub(text: string | undefined): string | undefined {
+    if (text === undefined) return text;
+    let out = text;
+    for (const v of secrets) {
+      out = out.split(v).join("[test account]").split(xmlEscape(v)).join("[test account]");
+    }
+    return out;
+  }
   let unitScaleKnown = false;
   let failedActions = 0;
 
@@ -302,7 +324,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         },
       });
     }
-    return { ...end, screens: graph.size, checks, findings };
+    // A wall that was never passed limits everything after it; say so before anything else.
+    const walls = access.blockers(Boolean(account));
+    const limited = walls.length > 0 && end.stopReason === "goals_exhausted";
+    return {
+      ...end,
+      stopReason: limited ? "access_blocked" : end.stopReason,
+      detail: limited ? (walls[0] as string).slice(0, 300) : end.detail,
+      blockers: [...walls, ...end.blockers],
+      screens: graph.size,
+      checks,
+      findings,
+    };
   }
 
   async function observe(): Promise<Snapshot> {
@@ -330,7 +363,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     window ??= await device.windowSize();
     const size = pngSize(png);
     const scale = platform === "ios" && size && window.width > 0 ? size.width / window.width : 1;
-    const screen = normalizeHierarchy(platform, xml, { scale });
+    const screen = normalizeHierarchy(platform, secrets.length ? scrub(xml) : xml, { scale });
     if (platform === "android" && xml) {
       screen.keyboardVisible = await timed("keyboard", () => device.keyboardShown());
     }
@@ -342,7 +375,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     // bundle at the root means the app under test is not what we see.
     const foreign = platform === "ios" && appId && screen.topPackage && screen.topPackage !== appId;
     if (foreign && appState === 4) appState = 3;
-    return { png, xml, screen, appForeground: appState === 4, appState, scale };
+    return {
+      png,
+      xml: secrets.length ? scrub(xml) : xml,
+      screen,
+      appForeground: appState === 4,
+      appState,
+      scale,
+    };
   }
 
   /**
@@ -539,6 +579,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return { action: { type: "back" } };
   }
 
+  /** The only place an account value exists in the agent; messages never contain it. */
+  function credential(key: string): string {
+    if (!account) throw new Error("no test account is available");
+    if (key === "username") return account.username;
+    if (key === "password") return account.password;
+    throw new Error("unknown test account key");
+  }
+
   async function resolve(target: UiElement) {
     if (!target.stableId && !target.label && !target.text) return null;
     return device.find({ testId: target.stableId, label: target.label ?? target.text }, 2_500);
@@ -571,7 +619,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         const found = await resolve(target);
         if (!found) throw new Error("the text field could not be resolved on the current screen");
         // Clearing is only needed when the observation showed text in the field.
-        await device.typeInto(found, generatedText(action.input), Boolean(target.text));
+        const text =
+          action.input.kind === "credential_ref"
+            ? credential(action.input.key)
+            : generatedText(action.input);
+        await device.typeInto(found, text, Boolean(target.text));
         if (action.submit) await device.pressEnter();
         return;
       }
@@ -708,6 +760,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (snap.appForeground) {
         modeTracker.observe(state.label, snap.screen, shot, step);
         ledger.note(state.label, controlsOf(snap.screen));
+        access.observe(state.label, snap.screen, shot);
       }
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
@@ -765,12 +818,31 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             type: pending.actionType,
             target: pending.target,
             fromLabel: pending.fromLabel,
-            fromHadFields: pending.fromElements.some((e) => e.role === "text_field"),
+            // A sign-in form is not stress-tested: long text there only locks test accounts.
+            fromHadFields:
+              pending.fromElements.some((e) => e.role === "text_field") &&
+              !pending.fromElements.some((e) => e.masked),
             toLabel: snap.appForeground ? state.label : null,
             leftApp: !snap.appForeground,
             artifactId: shot,
           });
           if (submitted) stressQueue.push(submitted);
+          const through = access.noteTransition({
+            fromLabel: pending.fromLabel,
+            toLabel: snap.appForeground ? state.label : null,
+            toIsGate: gateOf(snap.screen) !== null,
+            type: pending.actionType,
+            target: pending.target,
+          });
+          if (through) {
+            ports.emit({
+              type: "note",
+              payload: {
+                level: "info",
+                message: `Got past the sign-in on ${JSON.stringify(pending.fromLabel)}${pending.usedAccount ? " with the test account" : ""}.`,
+              },
+            });
+          }
           created = tracker.noteOutcome({
             type: pending.actionType,
             target: pending.target,
@@ -994,6 +1066,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               visionNote,
               warning,
               untriedRefs: new Set(untriedControls(snap.screen, fp).map((e) => e.ref)),
+              testAccount: Boolean(account),
               frontier: ledger
                 .frontier(graph, state.label, config.modes)
                 .slice(0, 5)
@@ -1102,6 +1175,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         await timed(`execute ${action.type}`, () => execute(action, target, snap));
         if (action.type === "type" && target) {
           tracker.noteTyped(generatedText(action.input), target, state.label, step);
+          if (action.input.kind === "credential_ref") access.noteAccountTyped(state.label);
         }
       } catch (e) {
         if (isSessionDead(e)) throw e;
@@ -1119,6 +1193,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         summary,
         outcome: error ? "failed" : "ok",
         durationMs: Math.max(0, ports.now() - t0),
+        usedAccount: access.gates.get(state.label)?.accountUsed ?? false,
         error,
       };
       if (error) failedActions += 1;

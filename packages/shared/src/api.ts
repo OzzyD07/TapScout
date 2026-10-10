@@ -27,6 +27,19 @@ export const STORAGE_BUCKETS = {
 
 // ---------- Browser → API ----------
 
+/**
+ * A test account for an app behind a sign-in. Stored encrypted on the server and given only to
+ * the device runner of a run on that build; the planner only ever names it (`credential_ref`).
+ */
+export const TestAccount = z.object({
+  username: z.string().trim().min(1).max(200),
+  password: z.string().min(1).max(200),
+});
+export type TestAccount = z.infer<typeof TestAccount>;
+
+/** Keys the planner may use in a `credential_ref` input. */
+export const TEST_ACCOUNT_KEYS = ["username", "password"] as const;
+
 export const CreateBuildUploadRequest = z.object({
   platform: Platform,
   fileName: z.string().min(1).max(200),
@@ -34,6 +47,7 @@ export const CreateBuildUploadRequest = z.object({
   contentType: z.enum(["application/vnd.android.package-archive", "application/zip"]),
   /** The user states which builds belong to the same logical app (docs/01 §2). */
   appName: z.string().min(1).max(100),
+  testAccount: TestAccount.optional(),
 });
 export type CreateBuildUploadRequest = z.infer<typeof CreateBuildUploadRequest>;
 
@@ -88,6 +102,8 @@ export const RunnerBootstrapResponse = z.object({
   modes: z.array(TestMode),
   budget: PlatformBudget,
   heartbeatIntervalSeconds: z.number().int().positive(),
+  /** Only for builds with a test account; never logged or sent to a model. */
+  testAccount: TestAccount.optional(),
 });
 export type RunnerBootstrapResponse = z.infer<typeof RunnerBootstrapResponse>;
 

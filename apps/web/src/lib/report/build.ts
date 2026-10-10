@@ -84,6 +84,10 @@ export function buildReport(input: {
     "No coverage percentage is reported because the total size of the app is unknown.",
   ];
   for (const p of platforms) {
+    const name = p.platform === "ios" ? "iOS" : "Android";
+    for (const b of p.blockers) {
+      if (/^(Sign-in|Access blocked)/.test(b)) limitations.push(`${name}: ${b}`.slice(0, 400));
+    }
     if (p.phase !== "completed") {
       limitations.push(
         `${p.platform === "ios" ? "iOS" : "Android"} did not complete (${p.phase.replace(/_/g, " ")}); its checks are incomplete.`,

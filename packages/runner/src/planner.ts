@@ -32,7 +32,7 @@ export const SYSTEM_PROMPT = [
   "- Allowed action types: tap, type, scroll, back, hide_keyboard, wait, relaunch.",
   "- Prefer controls marked [untried]. Do not repeat an action that kept you on the same screen unless you changed something first.",
   '- In a form, type into each empty text field (input kind "literal", realistic but fake values such as "Alex Doe" or "alex.doe@example.com") before tapping the submit button.',
-  "- Never type into a masked field; never use real personal data.",
+  "- Type into a masked (password) field only with a credential_ref, and only when the observation says a test account is available; never use real personal data.",
   '- If everything on this screen was tried, head for a screen listed under "Untried controls on other screens".',
   "- An open keyboard can hide controls below the fields (on Android they are left out of the list): hide the keyboard to see the whole form.",
   '- Controls marked [under keyboard] cannot be tapped: use hide_keyboard first, or type the last field with "submit": true.',
@@ -88,6 +88,8 @@ export interface PlanningContext {
   untriedRefs?: Set<string>;
   /** Untried controls elsewhere that an observed path reaches, best first. */
   frontier?: string[];
+  /** A test account exists for this build; the model only ever names it, never sees it. */
+  testAccount?: boolean;
 }
 
 export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
@@ -144,6 +146,13 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
   if (ctx.modes.includes("functional")) {
     lines.push(
       "Functional mode: the first time you meet a form, submit it once with a required field left empty to see its validation feedback, then fill it in and save. Open saved items again to see that they were kept.",
+    );
+  }
+  if (screen.elements.some((e) => e.masked)) {
+    lines.push(
+      ctx.testAccount
+        ? 'Sign-in: a test account is available. Type into the username or e-mail field with input {"kind":"credential_ref","key":"username"} and into the password field with {"kind":"credential_ref","key":"password"}, then submit. Never type anything else into a password field.'
+        : "Sign-in: no test account was provided. Do not type into password fields; look for a way in without an account (guest mode, skip) or explore other reachable areas.",
     );
   }
   if (ctx.warning) lines.push(`WARNING: ${ctx.warning}`);
@@ -211,8 +220,27 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
       if (target?.role !== "text_field") {
         return { ok: false, reason: `${action.targetRef} is not a text field` };
       }
-      if (target.masked || action.input.kind === "credential_ref") {
-        return { ok: false, reason: "no test credentials are configured for masked fields" };
+      if (action.input.kind === "credential_ref") {
+        if (!ctx.testAccount) return { ok: false, reason: "no test account was provided" };
+        if (action.input.key !== "username" && action.input.key !== "password") {
+          return { ok: false, reason: 'credential_ref key must be "username" or "password"' };
+        }
+        // The password only ever goes into a masked field, where it is not shown or stored.
+        if ((action.input.key === "password") !== Boolean(target.masked)) {
+          return {
+            ok: false,
+            reason: target.masked
+              ? 'a password field takes {"kind":"credential_ref","key":"password"}'
+              : "the password goes only into a masked password field",
+          };
+        }
+      } else if (target.masked) {
+        return {
+          ok: false,
+          reason: ctx.testAccount
+            ? 'a password field takes {"kind":"credential_ref","key":"password"}'
+            : "no test account was provided; do not type into password fields",
+        };
       }
       break;
     case "hide_keyboard":

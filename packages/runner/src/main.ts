@@ -55,6 +55,8 @@ class Stop extends Error {
 const PLANNER_MAX_OUTPUT_TOKENS = 500;
 /** A device failure within this many actions gets one retry with a new Appium session. */
 const EARLY_FAILURE_ACTIONS = 5;
+/** Marker file name the qa-run workflow checks before uploading the Appium log. */
+const TEST_ACCOUNT_MARKER = "test-account-used";
 
 /** XCUITest reports no device name for an existing simulator chosen by UDID; simctl knows it. */
 function simulatorName(udid: string | undefined): string | undefined {
@@ -92,6 +94,12 @@ const boot = await api.bootstrap(
 );
 api.setToken(boot.sessionToken);
 console.log(`runner: lease acquired (attempt ${boot.attemptId}, lease v${boot.leaseVersion})`);
+if (boot.testAccount) {
+  // Appium logs typed text in several encodings; the workflow drops its log when this marker
+  // exists, so a test account never reaches the public run artifacts.
+  await writeFile(join(values.out ?? ".artifacts/run", TEST_ACCOUNT_MARKER), "1\n");
+  console.log("runner: a test account is available for this build (value not shown)");
+}
 
 const sink = new EventSink(api, { runId, sessionId: boot.sessionId, attemptId: boot.attemptId });
 let stopSignal: Stop | null = null;
@@ -249,6 +257,7 @@ try {
         run: { runId, sessionId: boot.sessionId },
         versions: runVersionStamp(boot.budget.budgetVersion),
         newId: randomUUID,
+        testAccount: boot.testAccount,
       },
     );
   let agent = await runOnce(device);

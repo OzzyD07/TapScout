@@ -46,13 +46,23 @@ export interface SummaryView {
 }
 
 export interface ReportView {
+  /** What limited each platform (sign-in walls, infrastructure), shown before everything else. */
+  blockers: { platform: "android" | "ios"; text: string }[];
   checks: CheckView[];
   findings: FindingView[];
   summary: SummaryView | null;
 }
 
 const Stored = z.object({
-  platforms: z.array(z.object({ checks: z.array(z.unknown()).default([]) })).default([]),
+  platforms: z
+    .array(
+      z.object({
+        platform: z.enum(["android", "ios"]).optional(),
+        checks: z.array(z.unknown()).default([]),
+        blockers: z.array(z.string()).default([]),
+      }),
+    )
+    .default([]),
   findings: z.array(z.unknown()).default([]),
   summary: z.unknown().optional(),
 });
@@ -64,7 +74,7 @@ const Stored = z.object({
  */
 export function reportView(data: unknown): ReportView {
   const stored = Stored.safeParse(data);
-  if (!stored.success) return { checks: [], findings: [], summary: null };
+  if (!stored.success) return { blockers: [], checks: [], findings: [], summary: null };
   const checks = stored.data.platforms.flatMap((p) =>
     p.checks.flatMap((c) => {
       const r = CheckResult.safeParse(c);
@@ -117,7 +127,13 @@ export function reportView(data: unknown): ReportView {
   }));
   const summary = ReportSummary.safeParse(stored.data.summary);
   const known = new Set(findings.map((f) => f.findingId));
+  const blockers = stored.data.platforms.flatMap((p) =>
+    p.platform
+      ? p.blockers.map((text) => ({ platform: p.platform as "android" | "ios", text }))
+      : [],
+  );
   return {
+    blockers,
     checks,
     findings,
     summary:

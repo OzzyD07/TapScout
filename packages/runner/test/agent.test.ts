@@ -440,3 +440,131 @@ describe("runAgent", () => {
     expect(out).toMatchObject({ phase: "blocked", stopReason: "access_blocked" });
   });
 });
+
+/** A sign-in screen made from the register fixture: Username + masked Password + "Sign in". */
+function loginXml(typedUser = ""): string {
+  return xml("android-register")
+    .replace(
+      /(<android\.widget\.EditText[^>]*resource-id="register-email"[^>]*?)password="false"/,
+      '$1password="true"',
+    )
+    .replace(/text="" content-desc="Name"/, `text="${typedUser}" content-desc="Username"`)
+    .replace(/content-desc="Email"/g, 'content-desc="Password"')
+    .replace(/text="(Name|Email)"/g, (_, w) => `text="${w === "Name" ? "Username" : "Password"}"`)
+    .replace(/text="Create profile"/g, 'text="Log in"')
+    .replace(/text="Create your profile"/g, 'text="Sign in to FieldNotes"')
+    .replace(/content-desc="Continue"/g, 'content-desc="Sign in"')
+    .replace(/text="Continue"/g, 'text="Sign in"');
+}
+
+/** Planner that types the test account by reference, then signs in; `back` otherwise. */
+function signInPlanner(useAccount: boolean) {
+  const prompts: string[] = [];
+  let passwordTyped = false;
+  const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+    const prompt = messages.map((m) => m.content).join("\n");
+    prompts.push(prompt);
+    const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+    const ref = (id: string) =>
+      new RegExp(String.raw`(el-\d+) [a-z_]+ (?:"[^"]*" )?id=${id}`).exec(prompt)?.[1];
+    let nextAction: unknown = { type: "back" };
+    if (useAccount && ref("register-name") && /register-name value=""/.test(prompt)) {
+      nextAction = {
+        type: "type",
+        targetRef: ref("register-name"),
+        input: { kind: "credential_ref", key: "username" },
+      };
+    } else if (useAccount && ref("register-email") && !passwordTyped) {
+      passwordTyped = true;
+      nextAction = {
+        type: "type",
+        targetRef: ref("register-email"),
+        input: { kind: "credential_ref", key: "password" },
+      };
+    } else if (ref("register-continue")) {
+      nextAction = { type: "tap", targetRef: ref("register-continue") };
+    }
+    return {
+      model: "m",
+      content: JSON.stringify({
+        schemaVersion: "1",
+        goalId: "sign-in",
+        observationId: obs,
+        nextAction,
+        expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+        decisionSummary: "Sign in.",
+      }),
+      usage: { inputTokens: 1, outputTokens: 1, reported: true },
+      latencyMs: 1,
+      budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+    };
+  });
+  return { plan, prompts };
+}
+
+function loginDevice(account?: { username: string; password: string }) {
+  let screen = "login";
+  let user = "";
+  let pass = "";
+  const device = fakeDevice();
+  device.pageSource = async () => (screen === "login" ? loginXml(user) : xml("android-welcome"));
+  device.typeInto = async (t, text) => {
+    if (t.elementId === "register-name") user = text;
+    if (t.elementId === "register-email") pass = text;
+  };
+  device.tap = async (t) => {
+    if (
+      t.elementId === "register-continue" &&
+      account &&
+      user === account.username &&
+      pass === account.password
+    ) {
+      screen = "home";
+    }
+  };
+  device.back = async () => {};
+  return { device, typed: () => ({ user, pass }) };
+}
+
+describe("sign-in walls", () => {
+  it("reports a sign-in it could not pass, and never types into the password field", async () => {
+    const { device, typed } = loginDevice();
+    const { plan } = signInPlanner(false);
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 30);
+    const out = await runAgent(h.ports, h.config);
+
+    expect(out.stopReason).toBe("access_blocked");
+    expect(out.blockers[0]).toMatch(
+      /^Sign-in required: "Log in" asks for a password and no test account was provided/,
+    );
+    expect(out.detail).toContain("screens behind sign-in were not tested");
+    expect(typed().pass).toBe("");
+  });
+
+  it("signs in with the test account by reference and keeps its values out of prompts and evidence", async () => {
+    const account = { username: "qa.tester@example.com", password: "Pa55word!" };
+    const { device, typed } = loginDevice(account);
+    const { plan, prompts } = signInPlanner(true);
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 6);
+    const evidence: string[] = [];
+    const save = h.ports.saveEvidence;
+    h.ports.saveEvidence = async (name, kind, data, at) => {
+      evidence.push(String(data));
+      return save(name, kind, data, at);
+    };
+    const out = await runAgent(h.ports, { ...h.config, testAccount: account });
+
+    expect(typed()).toEqual({ user: account.username, pass: account.password });
+    expect(
+      h.events.some((e) =>
+        message(e).includes('Got past the sign-in on "Log in" with the test account'),
+      ),
+    ).toBe(true);
+    expect(out.blockers.filter((b) => /sign-in/i.test(b))).toEqual([]);
+    for (const text of [...prompts, ...evidence, JSON.stringify(h.events)]) {
+      expect(text).not.toContain(account.username);
+      expect(text).not.toContain(account.password);
+    }
+    expect(prompts.some((p) => p.includes("a test account is available"))).toBe(true);
+  });
+});

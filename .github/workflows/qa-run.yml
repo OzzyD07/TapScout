@@ -83,6 +83,13 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bash scripts/ci/android-run.sh
+      - name: Drop logs that may contain a test account
+        if: always()
+        run: |
+          if [ -f "$OUT/test-account-used" ]; then
+            rm -f "$OUT/appium.log"
+            echo "The Appium log is not uploaded: this session typed a test account." > "$OUT/appium.log.removed"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -130,6 +137,13 @@ jobs:
           node packages/runner/dist/main.js --platform ios --run-id "$RUN_ID" --udid "$UDID" --out "$OUT" "${wda_args[@]}" || status=$?
           kill "$(cat "$OUT/appium.pid")" 2>/dev/null || true
           exit "$status"
+      - name: Drop logs that may contain a test account
+        if: always()
+        run: |
+          if [ -f "$OUT/test-account-used" ]; then
+            rm -f "$OUT/appium.log"
+            echo "The Appium log is not uploaded: this session typed a test account." > "$OUT/appium.log.removed"
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:

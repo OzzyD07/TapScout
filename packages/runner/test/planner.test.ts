@@ -136,6 +136,36 @@ describe("validatePlannerAnswer", () => {
     expect(buildPlannerMessages(ctx)[1]?.content).toContain("[under keyboard]");
   });
 
+  it("lets only a test-account reference into a password field", () => {
+    const ctx = context();
+    const pw = {
+      ...ctx.screen.elements.find((e) => e.stableId === "register-email"),
+      masked: true,
+    };
+    const screen = {
+      ...ctx.screen,
+      elements: ctx.screen.elements.map((e) => (e.stableId === "register-email" ? pw : e)),
+    } as typeof ctx.screen;
+    const typed = (input: unknown, id: string, testAccount: boolean) =>
+      validatePlannerAnswer(answer({ type: "type", targetRef: ref(ctx, id), input }), {
+        ...ctx,
+        screen,
+        testAccount,
+      });
+    const passwordRef = { kind: "credential_ref", key: "password" };
+    const usernameRef = { kind: "credential_ref", key: "username" };
+    expect(typed(passwordRef, "register-email", true).ok).toBe(true);
+    expect(typed(usernameRef, "register-name", true).ok).toBe(true);
+    expect(typed(passwordRef, "register-email", false)).toMatchObject({ ok: false });
+    expect(typed({ kind: "literal", value: "guess" }, "register-email", true)).toMatchObject({
+      ok: false,
+    });
+    expect(typed(passwordRef, "register-name", true)).toMatchObject({ ok: false });
+    expect(typed({ kind: "credential_ref", key: "token" }, "register-name", true)).toMatchObject({
+      ok: false,
+    });
+  });
+
   it("builds a repair turn with the reason", () => {
     const ctx = context();
     const messages = repairMessages(buildPlannerMessages(ctx), "{}", "bad ref");

@@ -2,6 +2,7 @@ import "server-only";
 import { PlatformBudget, TestMode, UPLOAD_LIMITS } from "@tapscout/shared";
 import { z } from "zod";
 import { HttpError } from "@/lib/api/errors";
+import { openTestAccount, parseKey } from "@/lib/builds/secrets";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -15,6 +16,7 @@ const BuildRow = z.object({
   object_key: z.string(),
   file_name: z.string(),
   size_bytes: z.coerce.number(),
+  has_test_account: z.boolean().default(false),
 });
 
 export function createArtifactDeps(): ArtifactDeps {
@@ -113,7 +115,7 @@ export function createRunnerDeps(): RunnerDeps {
         admin.from("test_runs").select("modes, config").eq("id", runId).single(),
         admin
           .from("app_builds")
-          .select("id, object_key, file_name, size_bytes")
+          .select("id, object_key, file_name, size_bytes, has_test_account")
           .eq("id", buildId)
           .single(),
       ]);
@@ -122,7 +124,24 @@ export function createRunnerDeps(): RunnerDeps {
       if (!runRow.success || !buildRow.success) {
         throw new HttpError(500, "internal", "run or build record is incomplete");
       }
+      let testAccount: BootstrapContext["testAccount"];
+      if (buildRow.data.has_test_account) {
+        // Without the key or with a damaged secret the run goes on and reports the sign-in wall.
+        const key = parseKey(process.env.APP_CREDENTIALS_ENCRYPTION_KEY);
+        const { data } = await admin
+          .from("build_test_accounts")
+          .select("ciphertext")
+          .eq("build_id", buildId)
+          .maybeSingle();
+        try {
+          if (!key || !data) throw new Error(key ? "no stored test account" : "no encryption key");
+          testAccount = openTestAccount(data.ciphertext, key, buildId);
+        } catch (error) {
+          console.error(`bootstrap: test account unavailable: ${(error as Error).message}`);
+        }
+      }
       return {
+        testAccount,
         modes: runRow.data.modes,
         budget: runRow.data.config.budget,
         build: {

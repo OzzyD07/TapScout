@@ -61,7 +61,7 @@ describe("reportView", () => {
   });
 
   it("returns empty lists for reports from before checks existed", () => {
-    const empty = { checks: [], findings: [], summary: null };
+    const empty = { blockers: [], checks: [], findings: [], summary: null };
     expect(reportView({ limitations: [] })).toEqual(empty);
     expect(reportView(null)).toEqual(empty);
   });
@@ -108,5 +108,21 @@ describe("reportView", () => {
       reportView({ ...data, summary: { ...summary, referencesValidated: false } }).summary,
     ).toBeNull();
     expect(reportView({ ...data, summary: null }).summary).toBeNull();
+  });
+
+  it("lists each platform's blockers", () => {
+    const view = reportView({
+      platforms: [
+        {
+          platform: "android",
+          checks: [],
+          blockers: ['Sign-in required: "Log in" asks for a password'],
+        },
+        { platform: "ios", checks: [], blockers: [] },
+      ],
+    });
+    expect(view.blockers).toEqual([
+      { platform: "android", text: 'Sign-in required: "Log in" asks for a password' },
+    ]);
   });
 });

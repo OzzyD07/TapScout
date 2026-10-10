@@ -18,6 +18,7 @@ function deps(over: Partial<BuildsDeps> = {}, record?: Partial<BuildRecord>): Bu
     now: () => new Date("2026-10-11T10:00:00.000Z"),
     countPending: vi.fn(async () => 0),
     insertBuild: vi.fn(async () => {}),
+    saveTestAccount: vi.fn(async () => {}),
     signUpload: vi.fn(
       async (key: string) => `https://storage.example/upload/sign/builds/${key}?token=t`,
     ),
@@ -72,6 +73,20 @@ describe("createBuildUpload", () => {
     const d = deps();
     await expect(createBuildUpload(d, USER, body)).rejects.toMatchObject({ status: 400 });
     expect(d.insertBuild).not.toHaveBeenCalled();
+  });
+
+  it("stores a test account encrypted, or refuses it without a server key", async () => {
+    const d = deps();
+    const testAccount = { username: "qa@example.com", password: "s3cret!" };
+    await createBuildUpload(d, USER, { ...apk, testAccount });
+    expect(d.insertBuild).toHaveBeenCalledWith(expect.objectContaining({ hasTestAccount: true }));
+    expect(d.saveTestAccount).toHaveBeenCalledWith(BUILD, testAccount);
+
+    const noKey = deps({ saveTestAccount: null });
+    await expect(createBuildUpload(noKey, USER, { ...apk, testAccount })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(noKey.insertBuild).not.toHaveBeenCalled();
   });
 
   it("limits unfinished uploads per user", async () => {
