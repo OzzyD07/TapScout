@@ -191,9 +191,22 @@ try {
   try {
     device = await openDevice();
   } catch (error) {
-    const rejection = installRejection(platform, (error as Error).message ?? "");
+    const message = (error as Error).message ?? "";
+    const rejection = installRejection(platform, message);
     if (rejection) throw new Stop("unsupported", "blocked", rejection);
-    throw error;
+    // The emulator sometimes drops off adb right as the session starts (benchmark runs b16e11b2,
+    // 20f5b4b6: "adb: device offline"); reconnect, wait for it and try once more.
+    if (platform !== "android" || !/device offline|device not found|adbExec/i.test(message)) {
+      throw error;
+    }
+    console.warn("runner: the emulator went offline while the session started; retrying once");
+    try {
+      execFileSync("adb", ["reconnect", "offline"], { stdio: "ignore", timeout: 30_000 });
+      execFileSync("adb", ["wait-for-device"], { stdio: "ignore", timeout: 120_000 });
+    } catch {
+      // The retry below reports the real state.
+    }
+    device = await openDevice();
   }
   const caps = device.driver.capabilities as Record<string, unknown>;
   deviceProfile = {
