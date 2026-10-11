@@ -341,6 +341,29 @@ describe("runAgent", () => {
     ).toBe(true);
   });
 
+  it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
+    const device = fakeDevice();
+    let sheet = false;
+    const source = device.pageSource;
+    device.pageSource = async () => (sheet ? '<hierarchy width="1080" height="2400"/>' : source());
+    device.appState = async () => (sheet ? 3 : 4);
+    device.tap = async () => {
+      sheet = true;
+    };
+    device.back = async () => {
+      sheet = false;
+    };
+    const relaunch = vi.fn(async () => {});
+    device.relaunch = relaunch;
+    const h = harness(device, scriptedPlanner(), 2);
+    await runAgent(h.ports, h.config);
+    const summaries = h.events
+      .filter((e) => e.type === "action_executed")
+      .map((e) => (e.payload as { summary: string }).summary);
+    expect(summaries).toContain("Go back");
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
   it("dismisses a system ANR dialog with Wait before exploring", async () => {
     const device = fakeDevice({ anrFirst: true });
     const h = harness(device, scriptedPlanner(), 1);

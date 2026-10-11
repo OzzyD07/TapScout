@@ -764,6 +764,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let fresh: Snapshot | null = first;
   let consecutiveInterruptions = 0;
   let relaunches = 0;
+  /** Android: Back was already tried to leave the window that covers the app. */
+  let backTried = false;
   let stuckWarnings = 0;
   let lastNewStateStep = 0;
   const ledger = new ControlLedger();
@@ -1050,7 +1052,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       let decisionSummary: string;
       let source: "planner" | "deterministic" = "deterministic";
 
-      if (!snap.appForeground) {
+      if (!snap.appForeground && platform === "android" && snap.appState === 3 && !backTried) {
+        // A share sheet, chooser or browser opened from the app sits in the app's task; a
+        // relaunch brings that task back with the sheet still on top (benchmark run 5a5a1b40).
+        backTried = true;
+        action = { type: "back" };
+        decisionSummary = "The app is behind another window; press Back to return to it.";
+      } else if (!snap.appForeground) {
+        backTried = false;
         relaunches += 1;
         if (relaunches > MAX_RELAUNCHES) {
           return {
@@ -1066,6 +1075,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         decisionSummary = "The app is no longer in the foreground; relaunch it.";
         launchStep = step;
       } else {
+        backTried = false;
         // A coverage tour reached its screen: tap the untried control without asking the planner.
         const arrived =
           tour?.screenLabel === state.label
