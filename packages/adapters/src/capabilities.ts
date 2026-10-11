@@ -31,6 +31,11 @@ export function buildCapabilities(options: SessionOptions): Record<string, unkno
       "appium:uiautomator2ServerLaunchTimeout": 120_000,
       "appium:adbExecTimeout": 120_000,
       "appium:androidInstallTimeout": 180_000,
+      // Real apps often launch a splash or router activity that finishes at once (AntennaPod's
+      // SplashActivity → MainActivity); waiting for the launcher activity itself then fails the
+      // session. Any activity of the app's package in front counts as started.
+      "appium:appWaitActivity": "*",
+      "appium:appWaitDuration": 30_000,
       ...common,
     };
   }

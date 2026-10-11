@@ -34,6 +34,11 @@ describe("buildCapabilities", () => {
     expect(ios["appium:usePreinstalledWDA"]).toBeUndefined();
   });
 
+  it("accepts any activity of the app on Android (splash activities finish at once)", () => {
+    const android = buildCapabilities({ platform: "android", appPath: "a.apk" });
+    expect(android["appium:appWaitActivity"]).toBe("*");
+  });
+
   it("uses a prebuilt WebDriverAgent when one is given", () => {
     const ios = buildCapabilities({
       platform: "ios",
