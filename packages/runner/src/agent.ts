@@ -23,13 +23,7 @@ import {
 } from "@tapscout/shared";
 import { AccessTracker, gateOf } from "./access.js";
 import { RunnerApiError } from "./api.js";
-import {
-  buildModeChecks,
-  type CrashRecord,
-  groundClipping,
-  ModeTracker,
-  type StressProbe,
-} from "./checks.js";
+import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
 import {
   ControlLedger,
   type FrontierControl,
