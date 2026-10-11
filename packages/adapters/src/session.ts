@@ -159,6 +159,22 @@ export class DeviceSession {
     if (text) await this.driver.elementSendKeys(target.elementId, text);
   }
 
+  /**
+   * The element that has input focus, after a tap on a field the locators could not find
+   * (Flutter fields carry only a hint, no id or label: benchmark run aa5045dc).
+   */
+  async focusedField(): Promise<ResolvedTarget | null> {
+    try {
+      const active = (await this.driver.getActiveElement()) as unknown as Record<string, string>;
+      const elementId = active?.["element-6066-11e4-a52e-4f735466cecf"] ?? active?.ELEMENT;
+      return elementId
+        ? { candidate: { strategy: "focused", selector: "active" }, elementId }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Current text of a field (iOS `value`, Android `text`). */
   async readValue(target: ResolvedTarget): Promise<string | undefined> {
     const value = await this.driver.getElementAttribute(

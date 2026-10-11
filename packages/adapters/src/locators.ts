@@ -10,7 +10,7 @@ export interface TargetHint {
 
 export interface LocatorCandidate {
   /** Strategy name, recorded so the pilot can measure which strategies actually work. */
-  strategy: "stable_id" | "accessibility_label" | "text";
+  strategy: "stable_id" | "accessibility_label" | "text" | "focused";
   selector: string;
 }
 

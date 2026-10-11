@@ -341,6 +341,23 @@ describe("runAgent", () => {
     ).toBe(true);
   });
 
+  it("types into a field no locator finds by focusing it where it was seen (aa5045dc, Flutter)", async () => {
+    const device = fakeDevice();
+    const find = device.find;
+    // Flutter fields have only a hint: the locators find nothing for them.
+    device.find = async (hint) => (hint.testId === "register-name" ? null : find(hint));
+    let focused: string | null = null;
+    const tapAt = device.tapAt;
+    device.tapAt = vi.fn(async (x: number, y: number) => {
+      focused = "register-name";
+      await tapAt(x, y);
+    });
+    device.focusedField = async () => (focused ? { elementId: focused } : null);
+    const h = harness(device, scriptedPlanner(), 4);
+    await runAgent(h.ports, h.config);
+    expect(device.typed).toContain("register-name=Alex Doe");
+  });
+
   it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
     const device = fakeDevice();
     let sheet = false;

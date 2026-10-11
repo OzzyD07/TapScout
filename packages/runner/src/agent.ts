@@ -63,6 +63,8 @@ export interface AgentDevice {
   tap(target: { elementId: string }): Promise<void>;
   tapAt(x: number, y: number): Promise<void>;
   typeInto(target: { elementId: string }, text: string, clear?: boolean): Promise<void>;
+  /** The focused element, for fields no locator finds; optional. */
+  focusedField?(): Promise<{ elementId: string } | null>;
   /** Current text of a field, to check that typing arrived in full; optional. */
   readValue?(target: { elementId: string }): Promise<string | undefined>;
   pressEnter(): Promise<void>;
@@ -175,6 +177,8 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** Screens a coverage tour may try to reach before it gives up. */
+const MAX_TOUR_ATTEMPTS = 6;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
 const INTRO_WINDOW_STEPS = 10;
 /** … and at most this often per session. */
@@ -698,7 +702,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       }
       case "type": {
         if (!target) throw new Error("type without target");
-        const found = await resolve(target);
+        let found = await resolve(target);
+        if (!found && device.focusedField) {
+          // No locator matches (a Flutter field has only a hint): focus it where it was seen.
+          const p = center(target);
+          await device.tapAt(p.x, p.y);
+          await ports.sleep(300);
+          found = await device.focusedField();
+        }
         if (!found) throw new Error("the text field could not be resolved on the current screen");
         // Clearing is only needed when the observation showed text in the field.
         const text =
@@ -1649,9 +1660,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       .filter(
         (c) =>
           !toured.has(c.id) && !unreachable.has(c.screenLabel) && !(noLinks && c.role === "link"),
-      )
-      .slice(0, 3);
+      );
+    // Several candidates can sit on one unreachable screen (benchmark run aa5045dc gave up after
+    // two buttons of a dialog while the main screen still had untried controls): keep going until
+    // a screen is reached, within a few navigation attempts.
+    let attempts = 0;
     for (const c of candidates) {
+      if (unreachable.has(c.screenLabel)) continue;
+      if (++attempts > MAX_TOUR_ATTEMPTS) break;
       toured.add(c.id);
       ports.emit({
         type: "note",
