@@ -4,9 +4,7 @@
   "stack": "Kotlin, Jetpack Compose",
   "source": "https://github.com/LemmyNet/jerboa (F-Droid 0.0.88)",
   "license": "AGPL-3.0-only",
-  "platforms": [
-    "android"
-  ],
+  "platforms": ["android"],
   "android": {
     "package": "com.jerboa"
   },
@@ -22,57 +20,50 @@
     {
       "id": "home",
       "name": "Home feed",
-      "all": [
-        "Upvote"
-      ],
-      "any": [
-        "Local",
-        "All",
-        "Subscribed"
-      ],
+      "all": ["Upvote"],
+      "any": ["Local", "All", "Subscribed"],
       "markerNote": "Comment counts are plain numbers in 0.0.88 (run 0b8ca5e6); the feed is recognised by its vote buttons and the listing type."
     },
     {
       "id": "search",
       "name": "Search / communities",
-      "any": [
-        "Search…"
-      ]
+      "any": ["Search…"]
     },
     {
       "id": "community",
       "name": "Community page",
-      "any": [
-        "~users / month"
-      ]
+      "any": ["~users / month"]
     },
     {
       "id": "login",
       "name": "Login",
-      "all": [
-        "Instance",
-        "Password"
-      ]
+      "all": ["Instance", "Password"]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": [
-        "Look and feel"
-      ]
+      "all": ["Look and feel"]
     },
     {
       "id": "about",
       "name": "About",
-      "any": [
-        "~source code",
-        "~Donate",
-        "~Matrix"
-      ]
+      "any": ["~source code", "~Donate", "~Matrix"]
     }
   ],
-  "knownIssues": [],
+  "knownIssues": [
+    {
+      "id": "crash-on-network-timeout",
+      "title": "App crashes when the instance does not answer within 20 s",
+      "evidence": "HttpRequestTimeoutException from SiteViewModel.getSite, run 64bd5873"
+    }
+  ],
   "verdicts": [
+    {
+      "check": "stress.crash",
+      "verdict": "true_positive",
+      "reason": "Real crash: an uncaught io.ktor HttpRequestTimeoutException when lemmy.ml answers slowly (stack trace in the crash-log evidence). Repeats of the same crash are grouped since run 64bd5873.",
+      "firstSeen": "64bd5873"
+    },
     {
       "check": "a11y.control_labels",
       "region": {

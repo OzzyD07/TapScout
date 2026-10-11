@@ -11,7 +11,7 @@ import {
   type UiElement,
 } from "@tapscout/shared";
 import { describe, expect, it, vi } from "vitest";
-import { type AgentDevice, capFindings, runAgent } from "../src/agent.js";
+import { type AgentDevice, capFindings, crashSignature, runAgent } from "../src/agent.js";
 import { buildModeChecks, groundClipping, ModeTracker } from "../src/checks.js";
 import type { NormalizedScreen } from "../src/observer.js";
 
@@ -812,5 +812,20 @@ describe("finding cap (benchmark run 0b8ca5e6: 400 on more than 50 findings)", (
     expect(capped.findings.some((f) => f.findingId === crash.findingId)).toBe(true);
     const cited = r.checks.flatMap((c) => c.findingIds);
     expect(cited.every((id) => capped.findings.some((f) => f.findingId === id))).toBe(true);
+  });
+});
+
+describe("crash signature (B10, Jerboa run 64bd5873)", () => {
+  it("takes the exception line of an Android crash log, numbers masked", () => {
+    const log = [
+      "10-11 14:49:20.162  3798  3798 E AndroidRuntime: FATAL EXCEPTION: main",
+      "10-11 14:49:20.162  3798  3798 E AndroidRuntime: Process: com.jerboa, PID: 3798",
+      "10-11 14:49:20.162  3798  3798 E AndroidRuntime: io.ktor.client.plugins.HttpRequestTimeoutException: Request timeout has expired [request_timeout=20000 ms]",
+      "10-11 14:49:20.162  3798  3798 E AndroidRuntime: \tat com.jerboa.model.SiteViewModel.getSite(SiteViewModel.kt:229)",
+    ].join("\n");
+    expect(crashSignature(log)).toBe(
+      "io.ktor.client.plugins.HttpRequestTimeoutException: Request timeout has expired [request_timeout=# ms]",
+    );
+    expect(crashSignature("no crash here")).toBeUndefined();
   });
 });

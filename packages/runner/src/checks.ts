@@ -72,6 +72,10 @@ export interface CrashRecord {
   artifactId?: string;
   /** Android crash log (logcat crash buffer) stored as evidence. */
   logArtifactId?: string;
+  /** Exception line of the crash log, to group repeats of the same crash. */
+  signature?: string;
+  /** How often this crash was seen (1 when absent). */
+  occurrences?: number;
   step: number;
 }
 
@@ -811,7 +815,7 @@ export function buildModeChecks(
           checkId: "stress.crash",
           title: `App stopped after ${c.afterAction}`.slice(0, 160),
           expected: "The app keeps running after ordinary interaction.",
-          observed: `After "${c.afterAction}" on "${c.screenLabel}" the app process was no longer running. ${c.detail}`,
+          observed: `After "${c.afterAction}" on "${c.screenLabel}" the app process was no longer running. ${c.detail}${c.signature ? ` Crash log: ${c.signature}.` : ""}${(c.occurrences ?? 1) > 1 ? ` The same crash happened ${c.occurrences} times in this session.` : ""}`,
           basis: "runtime_signal",
           kind: "runtime_signal",
           verification: "observed",

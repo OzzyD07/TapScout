@@ -258,10 +258,14 @@ try {
         evidenceReady: (artifactId) => uploads.ready(artifactId),
         crashLog:
           platform === "android"
-            ? async () =>
-                execFileSync("adb", ["logcat", "-b", "crash", "-d", "-t", "300"], {
+            ? async () => {
+                const log = execFileSync("adb", ["logcat", "-b", "crash", "-d", "-t", "300"], {
                   timeout: 15_000,
-                }).toString("utf8")
+                }).toString("utf8");
+                // The next crash should bring its own log, not this one again (64bd5873).
+                execFileSync("adb", ["logcat", "-b", "crash", "-c"], { timeout: 15_000 });
+                return log;
+              }
             : undefined,
         plan: (messages, purpose) =>
           api.relayPlan({

@@ -194,6 +194,15 @@ const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
 /** "No new screen" stops overridden once while enough planner budget remains. */
 const MAX_ESCAPES = 1;
 const MIN_PLANNER_CALLS_FOR_ESCAPE = 6;
+/** The exception line of a crash log ("java.lang.IllegalStateException: …"), for grouping. */
+export function crashSignature(log: string): string | undefined {
+  const line = log
+    .split("\n")
+    .map((l) => l.replace(/^.*?AndroidRuntime:\s*/, "").trim())
+    .find((l) => /^[\w$.]+(Exception|Error)\b/.test(l));
+  return line?.replace(/\d+/g, "#").slice(0, 200);
+}
+
 /** A control's visible name (label, else text), trimmed; empty for an unnamed icon. */
 function displayName(e: UiElement): string {
   return (e.label ?? e.text ?? "").trim();
@@ -1541,8 +1550,6 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     detail: string,
     artifactId: string,
   ) {
-    const record: CrashRecord = { afterAction, screenLabel, detail, artifactId, step };
-    modeTracker.crashes.push(record);
     ports.emit({
       type: "note",
       payload: {
@@ -1550,19 +1557,41 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         message: `The app stopped after ${afterAction}. ${detail}`.slice(0, 500),
       },
     });
-    record.logArtifactId = await captureCrashLog();
+    const log = await captureCrashLog();
+    // The same exception again (Jerboa run 64bd5873: one network timeout, four findings) is one
+    // crash seen several times, not a new one.
+    if (log?.signature) {
+      const same = modeTracker.crashes.find((c) => c.signature === log.signature);
+      if (same) {
+        same.occurrences = (same.occurrences ?? 1) + 1;
+        return;
+      }
+    }
+    modeTracker.crashes.push({
+      afterAction,
+      screenLabel,
+      detail,
+      artifactId,
+      step,
+      logArtifactId: log?.artifactId,
+      signature: log?.signature,
+    });
   }
 
   /**
-   * B10: the stack trace is what a developer needs first (Android logcat crash buffer).
-   * Test-account values and e-mail addresses are masked before it is stored.
+   * B10: the stack trace is what a developer needs first (Android logcat crash buffer, which the
+   * port clears after reading so the next crash brings its own). Test-account values and e-mail
+   * addresses are masked before it is stored.
    */
-  async function captureCrashLog(): Promise<string | undefined> {
+  async function captureCrashLog(): Promise<
+    { artifactId: string; signature?: string } | undefined
+  > {
     try {
       const log = await ports.crashLog?.();
       if (!log?.trim()) return undefined;
       const masked = scrub(log).replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]");
-      return await ports.saveEvidence(`crash-${step}`, "log", masked, step);
+      const artifactId = await ports.saveEvidence(`crash-${step}`, "log", masked, step);
+      return { artifactId, signature: crashSignature(masked) };
     } catch (error) {
       ports.log(`crash log not captured: ${(error as Error).message}`);
       return undefined;
@@ -1632,7 +1661,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       evidence.push({ artifactId: current.shot, role: r.crashed ? "symptom" : "after" });
       if (r.crashed && !evidence.some((e) => e.role === "log")) {
         const log = await captureCrashLog();
-        if (log) evidence.push({ artifactId: log, role: "log" });
+        if (log) evidence.push({ artifactId: log.artifactId, role: "log" });
       }
       return r.crashed ? "crash" : "survived";
     };
