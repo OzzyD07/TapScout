@@ -58,6 +58,31 @@ const EARLY_FAILURE_ACTIONS = 5;
 /** Marker file name the qa-run workflow checks before uploading the Appium log. */
 const TEST_ACCOUNT_MARKER = "test-account-used";
 
+/**
+ * The emulator sometimes drops off adb for a few seconds (runs 20f5b4b6, 4021bb0b: "device
+ * offline", `dumpsys` exiting 255, the UiAutomator2 instrumentation dying with it). Before a new
+ * Appium session, reconnect and wait until the device answers and reports a finished boot.
+ */
+async function recoverEmulator(): Promise<void> {
+  try {
+    execFileSync("adb", ["reconnect", "offline"], { stdio: "ignore", timeout: 30_000 });
+    execFileSync("adb", ["wait-for-device"], { stdio: "ignore", timeout: 120_000 });
+  } catch {
+    // The polling below and the new session report the real state.
+  }
+  for (let i = 0; i < 30; i += 1) {
+    try {
+      const booted = execFileSync("adb", ["shell", "getprop", "sys.boot_completed"], {
+        timeout: 10_000,
+      });
+      if (booted.toString("utf8").trim() === "1") return;
+    } catch {
+      // Still offline; keep waiting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+}
+
 /** XCUITest reports no device name for an existing simulator chosen by UDID; simctl knows it. */
 function simulatorName(udid: string | undefined): string | undefined {
   if (!udid) return undefined;
@@ -200,12 +225,7 @@ try {
       throw error;
     }
     console.warn("runner: the emulator went offline while the session started; retrying once");
-    try {
-      execFileSync("adb", ["reconnect", "offline"], { stdio: "ignore", timeout: 30_000 });
-      execFileSync("adb", ["wait-for-device"], { stdio: "ignore", timeout: 120_000 });
-    } catch {
-      // The retry below reports the real state.
-    }
+    await recoverEmulator();
     device = await openDevice();
   }
   if (platform === "android") {
@@ -295,7 +315,9 @@ try {
     );
   let agent = await runOnce(device);
   // An early device failure (e.g. the UiAutomator2 instrumentation crashing on a cold emulator,
-  // run 2fc4f938) is retried once with a fresh Appium session while there is time left.
+  // run 2fc4f938) is retried once with a fresh Appium session while there is time left. On
+  // Android the emulator is brought back on adb first: in 4021bb0b the instrumentation died
+  // because adb lost the device, and a session opened right away failed on its first screenshot.
   if (
     agent.phase === "infrastructure_failed" &&
     counters.actionsExecuted < EARLY_FAILURE_ACTIONS &&
@@ -310,6 +332,7 @@ try {
     });
     await sink.flush();
     await device.close().catch(() => undefined);
+    if (platform === "android") await recoverEmulator();
     device = await openDevice();
     agent = await runOnce(device);
   }
