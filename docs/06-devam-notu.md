@@ -78,7 +78,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 ## 5. Çalışma kuralları (önemli)
 
 - **Atıf yok:** Commit ve PR'lara Claude/Anthropic atfı (`Co-Authored-By`, "Generated with Claude Code") **eklenmez**. `CLAUDE.md` dosyaları repoya girmez. Proje sahibinin açık isteği.
-- **Commit kontrolü:** Commit'ten önce `pnpm check` (lint + typecheck + test) **geçmeli**. Komut zincirini `set -e` ile kur; hata grep'le yutulmasın. Ayrıca `bash scripts/check-ground-truth.sh` ve workflow değişikliğinde actionlint çalıştır.
+- **Commit kontrolü:** Commit'ten önce `pnpm check` (lint + typecheck + test) **geçmeli**. Komut zincirini `set -e` ile kur; hata grep'le yutulmasın. Ayrıca `bash scripts/check-ground-truth.sh` çalıştır. Workflow'ları CI'daki `workflows` job'u actionlint (`rhysd/actionlint:1.7.7` imajı, shellcheck dahil) ile denetler; push sonrası sonucuna bak. Yerelde: Docker açıkken `docker run --rm -v "$(pwd):/repo" -w /repo rhysd/actionlint:1.7.7`. Yeni runner etiketleri `.github/actionlint.yaml`'a eklenir.
 - **Push:** Proje sahibinin onayı var; başka onay gerekmiyorsa push edilebilir.
 - **Migration'lar:** Supabase MCP `apply_migration` ile uygulanır. Ardından yerel dosya adı, `list_migrations`'ın verdiği sürümle değiştirilir; yerel ve uzak geçmiş aynı kalmalı.
 - **GitHub API:** `.env`'deki `GITHUB_DISPATCH_TOKEN` ile çağrılır. Kimliksiz kota saatte 60 istek ve hemen bitiyor. Makinede `gh` CLI yok.
@@ -129,7 +129,6 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - **Giriş isteyen gerçek bir uygulamayla koşu:** hesapsız (rapor "Sign-in required" demeli) ve hesaplı (giriş geçilmeli). Örnek uygulamada giriş yok; gerekirse FieldNotes'a basit bir giriş varyantı eklenebilir.
 - **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli).
 - **Özet kalitesi:** küçük model ara sıra anlamsal kaymalar yapıyor (crash'i "data-loss" diye anmak gibi); doğrulayıcı etiket/platform/severity/oran/pass iddialarını yakalıyor, anlamı yakalamıyor. Gerekirse daha sıkı şablon.
-- actionlint yerelde çalıştırılamadı (Docker kapalı).
 
 ### Açık borçlar
 
