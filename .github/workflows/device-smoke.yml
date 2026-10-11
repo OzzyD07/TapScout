@@ -94,7 +94,7 @@ jobs:
           npm install -g "appium@${APPIUM_VERSION}"
           appium driver install "uiautomator2@${UIAUTOMATOR2_VERSION}"
       - name: Resolve APK path
-        run: echo "APP=$(ls "$PWD"/build-in/*.apk | head -1)" >> "$GITHUB_ENV"
+        run: echo "APP=$(find "$PWD/build-in" -maxdepth 1 -name '*.apk' | head -1)" >> "$GITHUB_ENV"
       - name: Boot emulator and run smoke
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
@@ -141,8 +141,8 @@ jobs:
       - name: Unpack Simulator app
         run: |
           mkdir -p build-in/unpacked
-          ditto -x -k "$(ls build-in/*.app.zip | head -1)" build-in/unpacked
-          app=$(ls -d "$PWD"/build-in/unpacked/*.app | head -1)
+          ditto -x -k "$(find build-in -maxdepth 1 -name '*.app.zip' | head -1)" build-in/unpacked
+          app=$(find "$PWD/build-in/unpacked" -maxdepth 1 -name '*.app' | head -1)
           plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|MinimumOSVersion|DTPlatformName' || true
           echo "APP=$app" >> "$GITHUB_ENV"
       - name: Install Appium and XCUITest

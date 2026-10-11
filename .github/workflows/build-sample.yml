@@ -90,7 +90,7 @@ jobs:
       - name: Build for iOS Simulator (arm64)
         working-directory: apps/sample-app/ios
         run: |
-          workspace=$(ls -d *.xcworkspace | head -1)
+          workspace=$(basename "$(find . -maxdepth 1 -name '*.xcworkspace' | head -1)")
           scheme="${workspace%.xcworkspace}"
           echo "SCHEME=$scheme" >> "$GITHUB_ENV"
           set -o pipefail
