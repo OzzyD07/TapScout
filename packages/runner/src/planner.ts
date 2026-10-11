@@ -181,6 +181,24 @@ export type Validation =
   | { ok: true; output: PlannerOutput; target?: UiElement }
   | { ok: false; reason: string };
 
+/** Username, e-mail or phone fields of a sign-in form. */
+const ACCOUNT_FIELD = /e-?mail|user|login|account|phone|kullanıcı|e-posta/i;
+/** Forms that create an account want new data, not the test account. */
+const SIGN_UP = /\b(sign ?up|register|create (?:an )?account|join now)\b/i;
+
+function fieldName(e: UiElement): string {
+  return [e.label, e.stableId, e.text].filter(Boolean).join(" ");
+}
+
+/** A sign-in form: a masked field on a screen that does not create an account. */
+function signInForm(screen: NormalizedScreen): boolean {
+  const text = [
+    screen.title,
+    ...screen.elements.map((e) => `${e.label ?? ""} ${e.text ?? ""}`),
+  ].join(" ");
+  return screen.elements.some((e) => e.role === "text_field" && e.masked) && !SIGN_UP.test(text);
+}
+
 /** Schema, grounding and capability checks (docs/03 §5.1). Never trusts the model. */
 export function validatePlannerAnswer(content: string, ctx: PlanningContext): Validation {
   const json = extractJson(content);
@@ -248,6 +266,18 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
           reason: ctx.testAccount
             ? 'a password field takes {"kind":"credential_ref","key":"password"}'
             : "no test account was provided; do not type into password fields",
+        };
+      } else if (
+        ctx.testAccount &&
+        signInForm(ctx.screen) &&
+        ACCOUNT_FIELD.test(fieldName(target))
+      ) {
+        // FieldNotes login run 648ec2ae: the model typed an invented e-mail next to the test
+        // account's password and the sign-in failed.
+        return {
+          ok: false,
+          reason:
+            'a test account is available: its username or e-mail field takes {"kind":"credential_ref","key":"username"}',
         };
       }
       break;

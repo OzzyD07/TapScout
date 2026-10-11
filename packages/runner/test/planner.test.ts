@@ -183,6 +183,31 @@ describe("validatePlannerAnswer", () => {
     });
   });
 
+  it("keeps invented e-mails out of a sign-in form when a test account exists (648ec2ae)", () => {
+    const ctx = context();
+    const name = ctx.screen.elements.find((e) => e.stableId === "register-name");
+    const email = { ...name, label: "Email", stableId: "signin-email" } as typeof name;
+    const pw = {
+      ...name,
+      ref: "el-98",
+      label: "Password",
+      stableId: "signin-password",
+      masked: true,
+    };
+    const screen = { ...ctx.screen, title: "Sign in", elements: [email, pw] } as typeof ctx.screen;
+    const literal = { kind: "literal", value: "alex@example.com" };
+    const at = (testAccount: boolean) =>
+      validatePlannerAnswer(
+        answer({ type: "type", targetRef: email?.ref as string, input: literal }),
+        { ...ctx, screen, testAccount },
+      );
+    expect(at(true)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("credential_ref"),
+    });
+    expect(at(false).ok).toBe(true);
+  });
+
   it("builds a repair turn with the reason", () => {
     const ctx = context();
     const messages = repairMessages(buildPlannerMessages(ctx), "{}", "bad ref");
