@@ -132,6 +132,9 @@ jobs:
           cp .env.rb .env
           flutter pub get
           dart run flutter_iconpicker:generate_packs --packs fontAwesomeIcons
+          # rive_native links a prebuilt static library its setup command downloads (the Xcode
+          # build expects it under the plugin's native/build directory).
+          if grep -q '^  rive_native:' pubspec.lock; then dart run rive_native:setup --verbose --platform ios; fi
           flutter build ios --simulator --debug --no-codesign
       - name: Collect .app zip and manifest
         run: |

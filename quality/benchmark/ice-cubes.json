@@ -1,0 +1,52 @@
+{
+  "key": "ice-cubes",
+  "app": "Ice Cubes",
+  "stack": "SwiftUI",
+  "source": "https://github.com/Dimillian/IceCubesApp (main at 2ad6e689, built from source)",
+  "license": "AGPL-3.0",
+  "platforms": ["ios"],
+  "access": "optional_sign_in",
+  "traits": [
+    "backend timeline (mastodon.social, changes every visit)",
+    "browsing without an account",
+    "tab bar",
+    "add-account sheet"
+  ],
+  "screensSource": "IceCubesApp/Resources/Localization/Localizable.xcstrings at 2ad6e689 (tab.*, explore.*, settings.*, account.add.*).",
+  "screens": [
+    {
+      "id": "timeline",
+      "name": "Timeline",
+      "any": ["Trending", "Local", "Federated"],
+      "all": ["~boost"]
+    },
+    {
+      "id": "explore",
+      "name": "Explore",
+      "any": ["Search users, posts and tags", "Trending Tags", "Suggested Users", "Trending Posts"]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "any": ["Display Settings", "Content Settings"],
+      "all": ["Settings"]
+    },
+    {
+      "id": "display",
+      "name": "Display settings",
+      "all": ["Display Settings"],
+      "any": ["~font", "~theme"]
+    },
+    {
+      "id": "add_account",
+      "name": "Add account",
+      "all": ["Add Account"],
+      "any": ["Instance URL", "Suggestions", "Sign in"]
+    },
+    { "id": "instance", "name": "Instance info", "any": ["Instance rules", "Instance info"] },
+    { "id": "profile", "name": "A user's profile", "all": ["~Followers", "~Following"] }
+  ],
+  "knownIssues": [],
+  "verdicts": [],
+  "notes": "Timeline and display-settings markers are tentative until checked against the first run's hierarchies."
+}

@@ -1,0 +1,33 @@
+{
+  "key": "read-you",
+  "app": "Read You",
+  "stack": "Kotlin, Jetpack Compose",
+  "source": "https://github.com/ReadYouApp/ReadYou (F-Droid 0.16.2)",
+  "license": "GPL-3.0-only",
+  "platforms": ["android"],
+  "android": { "package": "me.ash.reader" },
+  "access": "open",
+  "traits": [
+    "first-run terms screen (Agree)",
+    "local RSS account",
+    "Compose UI",
+    "dialogs (subscribe)"
+  ],
+  "screensSource": "app/src/main/res/values/strings.xml at 0.16.2 and the app's navigation (startup → feeds → flow → reading; settings subpages).",
+  "screens": [
+    { "id": "welcome", "name": "Welcome / terms", "all": ["Agree"] },
+    { "id": "feeds", "name": "Feeds", "all": ["Feeds"], "any": ["All", "Unread", "Starred"] },
+    {
+      "id": "subscribe",
+      "name": "Subscribe dialog",
+      "any": ["Feed or site URL", "Import from OPML"]
+    },
+    { "id": "settings", "name": "Settings", "all": ["Appearance", "Languages"] },
+    { "id": "accounts", "name": "Accounts", "any": ["Add accounts"] },
+    { "id": "appearance", "name": "Appearance", "any": ["Dark theme", "Color & style"] },
+    { "id": "tips", "name": "Tips & support", "any": ["Open source licenses", "Sponsor"] }
+  ],
+  "knownIssues": [],
+  "verdicts": [],
+  "notes": "Without a subscription the flow and reading pages have no articles; they are not counted as main screens."
+}

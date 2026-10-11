@@ -1,0 +1,36 @@
+{
+  "key": "jitsi-meet",
+  "app": "Jitsi Meet",
+  "stack": "React Native",
+  "source": "https://github.com/jitsi/jitsi-meet (F-Droid 26.0.0, x86_64)",
+  "license": "Apache-2.0",
+  "platforms": ["android"],
+  "android": { "package": "org.jitsi.meet" },
+  "access": "open",
+  "traits": [
+    "camera/microphone/notification permissions when joining",
+    "backend (meet.jit.si)",
+    "side drawer"
+  ],
+  "screensSource": "lang/main.json (welcomepage, settingsView, prejoin). Help, Terms and Privacy open the browser and are not app screens.",
+  "screens": [
+    { "id": "welcome", "name": "Welcome (room name)", "any": ["Enter room name", "Start meeting"] },
+    { "id": "recent", "name": "Recent meetings", "any": ["~Your recent list is currently empty"] },
+    { "id": "settings", "name": "Settings", "any": ["Display name", "Server URL"] },
+    { "id": "prejoin", "name": "Pre-join", "any": ["Join meeting"] },
+    {
+      "id": "conference",
+      "name": "In the meeting",
+      "any": [
+        "~only one in the meeting",
+        "~Leave the meeting",
+        "~Hang up",
+        "~waiting for",
+        "~Log-in"
+      ]
+    }
+  ],
+  "knownIssues": [],
+  "verdicts": [],
+  "notes": "Joining a room uses the public meet.jit.si service; it may ask a moderator to sign in, which is an access wall for the meeting only, not for the app."
+}

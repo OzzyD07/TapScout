@@ -1,0 +1,33 @@
+{
+  "key": "jerboa",
+  "app": "Jerboa",
+  "stack": "Kotlin, Jetpack Compose",
+  "source": "https://github.com/LemmyNet/jerboa (F-Droid 0.0.88)",
+  "license": "AGPL-3.0-only",
+  "platforms": ["android"],
+  "android": { "package": "com.jerboa" },
+  "access": "optional_sign_in",
+  "traits": [
+    "backend feed (lemmy.ml, changes every visit)",
+    "anonymous browsing",
+    "optional login screen",
+    "bottom navigation"
+  ],
+  "screensSource": "app/src/main/res/values/strings.xml at 0.0.88 and the bottom bar (Home, Search, Inbox, Saved, Profile).",
+  "screens": [
+    {
+      "id": "home",
+      "name": "Home feed",
+      "all": ["~comments"],
+      "any": ["All", "Local", "Subscribed"]
+    },
+    { "id": "search", "name": "Search / communities", "any": ["Search…"] },
+    { "id": "community", "name": "Community page", "any": ["~users / month"] },
+    { "id": "login", "name": "Login", "all": ["Instance", "Password"] },
+    { "id": "settings", "name": "Settings", "all": ["Look and feel"] },
+    { "id": "about", "name": "About", "any": ["~source code", "~Donate", "~Matrix"] }
+  ],
+  "knownIssues": [],
+  "verdicts": [],
+  "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not."
+}

@@ -3,6 +3,8 @@
 // steps the API performs for "Start Test" (atomic run + outbox → claim → dispatch → record).
 // Usage: node --env-file=.env scripts/dev-run.mjs --owner <email> [--platforms both|android|ios]
 //        [--modes functional,ui_ux] [--variant fixed]
+//        [--app <app name>]   the owner's own latest build of that app (benchmark set) instead
+//                             of a sample build
 
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,6 +22,7 @@ const { values } = parseArgs({
     variant: { type: "string", default: "fixed" },
     // login variant: use the published build without the test account (default: with it).
     "no-account": { type: "boolean", default: false },
+    app: { type: "string" },
   },
 });
 const env = (n) => {
@@ -37,7 +40,23 @@ if (usersError) throw usersError;
 const owner = users.users.find((u) => u.email === values.owner);
 if (!owner) throw new Error(`no user ${values.owner}`);
 
+async function ownBuild(platform) {
+  const { data, error } = await db
+    .from("app_builds")
+    .select("id")
+    .eq("owner_id", owner.id)
+    .eq("platform", platform)
+    .eq("app_name", values.app)
+    .eq("validation_status", "accepted")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) throw new Error(`no ${values.app} build of ${values.owner} for ${platform}`);
+  return data.id;
+}
+
 async function sampleBuild(platform) {
+  if (values.app) return ownBuild(platform);
   const { data, error } = await db
     .from("app_builds")
     .select("id")

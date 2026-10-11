@@ -7,6 +7,9 @@
 //   fixed (and changed_flow) builds expect no findings: every finding counts as a false positive.
 //   login builds also expect no findings, plus the right access outcome: with the build's test
 //   account the sign-in must be passed; without it the report must say "Sign-in required".
+//   Builds of the real-app benchmark set (docs/07 A5) are scored against
+//   quality/benchmark/<app>.json instead (benchmark.mjs): main screens reached, access outcome,
+//   where the session stopped, and the manual verdict of every finding.
 // Prints a table and writes quality/results/<run id>.json (gitignored). Never prints secrets.
 
 import { existsSync } from "node:fs";
@@ -15,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createClient } from "@supabase/supabase-js";
+import { evaluateBenchmarkSession, loadBenchmark, printBenchmark } from "./benchmark.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { values } = parseArgs({ options: { run: { type: "string" } } });
@@ -45,7 +49,7 @@ if (runError || !run) throw new Error(`run ${values.run} not found`);
 const { data: sessions } = await db
   .from("platform_sessions")
   .select(
-    "id, platform, phase, stop_reason, result, build:app_builds(sample_variant, has_test_account)",
+    "id, platform, phase, stop_reason, result, counters, started_at, finished_at, build:app_builds(is_sample, app_name, sample_variant, has_test_account)",
   )
   .eq("run_id", run.id);
 const { data: findings } = await db
@@ -55,6 +59,21 @@ const { data: findings } = await db
 
 const report = { runId: run.id, modes: run.modes, platforms: [] };
 for (const s of sessions ?? []) {
+  if (s.build && !s.build.is_sample) {
+    const spec = await loadBenchmark(join(here, "benchmark"), s.build.app_name);
+    if (!spec) throw new Error(`no quality/benchmark expectations for "${s.build.app_name}"`);
+    report.platforms.push({
+      benchmarkResult: await evaluateBenchmarkSession({
+        db,
+        run,
+        session: s,
+        findings: (findings ?? []).filter((f) => f.session_id === s.id),
+        spec,
+        cacheRoot: join(here, "results", "hierarchies"),
+      }),
+    });
+    continue;
+  }
   const variant = s.build?.sample_variant ?? "unknown";
   const manifestPath = join(here, "ground-truth", `fieldnotes-${variant}-v1.json`);
   const seeds = existsSync(manifestPath)
@@ -107,6 +126,10 @@ for (const s of sessions ?? []) {
 }
 
 for (const p of report.platforms) {
+  if (p.benchmarkResult) {
+    printBenchmark(p.benchmarkResult);
+    continue;
+  }
   console.log(
     `\n${p.platform} (${p.variant}, ${p.phase}/${p.stopReason}): detected ${p.detected}/${p.expected}, unexpected findings ${p.falsePositives.length}`,
   );
