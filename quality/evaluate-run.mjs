@@ -98,7 +98,18 @@ for (const s of sessions ?? []) {
       finding: hit?.title,
     };
   });
-  const extra = mine.filter((f) => !used.has(f));
+  // A further finding of a detected seed's checks is the same defect seen again (another field
+  // of the same broken save), not a false positive.
+  const sameSeed = mine.filter(
+    (f) =>
+      !used.has(f) &&
+      rows.some(
+        (r) =>
+          r.result === "detected" &&
+          seeds.find((x) => x.id === r.seed)?.checkIds.includes(f.check_id),
+      ),
+  );
+  const extra = mine.filter((f) => !used.has(f) && !sameSeed.includes(f));
   let access;
   if (variant === "login") {
     const blockers = s.result?.blockers ?? [];
@@ -116,6 +127,7 @@ for (const s of sessions ?? []) {
     detected: selected.filter((r) => r.result === "detected").length,
     expected: selected.length,
     access,
+    sameSeed: sameSeed.map((f) => ({ check: f.check_id, title: f.title })),
     falsePositives: extra.map((f) => ({
       check: f.check_id,
       title: f.title,
@@ -143,6 +155,7 @@ for (const p of report.platforms) {
       `  ${r.result.padEnd(17)} ${r.seed}${r.verification ? ` — ${r.verification}${r.reproduction ? ` ${r.reproduction}` : ""}` : ""}`,
     );
   }
+  for (const f of p.sameSeed) console.log(`  same seed again   ${f.check}: ${f.title}`);
   for (const f of p.falsePositives) console.log(`  unexpected        ${f.check}: ${f.title}`);
 }
 
