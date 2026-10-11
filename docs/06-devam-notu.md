@@ -96,7 +96,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - [x] **Vercel'e `APP_CREDENTIALS_ENCRYPTION_KEY` eklemek** (11 Ekim; `7ccf0723`'te bootstrap hesabı çözdü): değer yerel `.env`'de (11 Ekim'de üretildi, 32 bayt base64). Eklenmeden test hesabıyla yükleme "Test accounts are not enabled on this server" hatası verir. Anahtar değişirse kayıtlı hesaplar çözülemez.
 - [ ] Supabase Pro'ya geçiş. Ardından `builds` bucket sınırı 300 MB'a çıkarılacak.
 - [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
-- [ ] Token Factory kredisi: şu an $1 deneme kredisi var (yaklaşık 7–10 koşu). Gerçek agent koşuları için hackathon'un $25 kredisi en geç 16 Ekim'e kadar gerekli.
+- [ ] Token Factory kredisi: $1 deneme kredisinin 11 Ekim'de ~$0,24'ü kullanıldı (32 koşu, `usage_records` tahmini; beş modlu koşu ≈ $0,007–0,01). Gerçek agent koşuları için hackathon'un $25 kredisi en geç 16 Ekim'e kadar gerekli.
 - [x] Vercel'e `TOKEN_FACTORY_*`, `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID` (10 Ekim).
 
 ## 7. Sıradaki işler (F2 ve açık borçlar)
@@ -132,12 +132,10 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Açık borçlar
 
-- **Bakım/cron:** `/api/internal/reconcile` + Supabase Cron. Şunları üstlenecek: bekleyen outbox dispatch'leri, heartbeat'i kesilen oturumlar, rapor yeniden denemesi, cevap vermeyen runner için GitHub workflow iptali.
-- **iOS cihaz adı:** `deviceName` "unknown" geliyor; `simulator.json`'dan alınabilir.
-- **Kullanıcı build yükleme arayüzü (P1):** İmzalı / resumable yükleme ve runner'da kabul doğrulaması.
-- **Rapor:** Nemotron özeti (referans doğrulamalı) ve sayfada ayrıntılı bulgu kartları.
-- **Kalite pilotu ve teslim (F3–F5):** `05` §6.
-- **Agent ayrıntıları (`202c4d49`'dan):** Profil başlığı kullanıcı verisini içeriyor ("Hi, Alex Doe") ve parmak izine giriyor; ad değişince yeni durum sayılabilir. Görsel model hiç çağrılmadı (yalnız 3'ten az öğeli yeni ekranda çağrılıyor); UI/UX modunda kullanılacak. Rapor henüz agent sayaçlarını ve geçişleri özetlemiyor.
+- **Bakım/cron:** `/api/internal/reconcile` + Supabase Cron. Şunları üstlenecek: bekleyen outbox dispatch'leri, heartbeat'i kesilen oturumlar, rapor yeniden denemesi, cevap vermeyen runner için GitHub workflow iptali. Şu an koşu `queued`'da takılırsa elle müdahale gerekir.
+- **Build yükleme:** resumable (TUS) yükleme yok; 50 MB Free sınırında tek PUT yeterli. Pro'dan sonra bucket sınırı 300 MB ve Vercel'e `STORAGE_BUILDS_MAX_BYTES`.
+- **Agent ayrıntıları:** profil başlığı kullanıcı verisini içeriyor ("Hi, Alex Doe") ve parmak izine giriyor; ad değişince yeni durum sayılabilir. Rapor agent sayaçlarını ve geçişleri özetlemiyor.
+- **Kalite pilotu ve teslim (F4–F5):** `05` §6 (jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ## 8. Yeni oturumu başlatma mesajı
 
