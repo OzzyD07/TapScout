@@ -518,3 +518,16 @@ Sembol soyma, uzantıları kaldırma ve Ice Cubes'ta Release `-Onone` denendi: H
 Üçüncü tur toplamı: 21 bulgu, 1 yanlış pozitif (%4,8; o da düzeltildi), 5 "emin değilim". İlk ekranlarda takılan oturum yok; erişim sonuçları doğru. FieldNotes gerilemesi: seeded `4d53f5f4` ve `77fbdf49` iki platformda **6/6**, yanlış pozitif 0; fixed `c212fd12` iki platformda 0; login Android geçti, iOS'ta önce planner uydurma e-posta yazdı (`648ec2ae`), sonra kullanıcı adının ilk tuşları kayboldu ve planner aynı alana tekrar yazdı (`43c5c77c`). İkisi için de düzeltme var (kullanıcı adı alanı `credential_ref` ister, yazım okunup bir kez yeniden yazılır, dolu alana tekrar yazılmaz, kısmi değerler de temizlenir).
 
 **İkinci/üçüncü turdan çıkan düzeltmeler:** Android klavye örtmesi yalnız formun eylemleri (kısa adlı, alanların altında, ekranın alt yarısında, liste satırı değil); WebView içindeki satır içi linkler ölçülmez; join/search/go gibi eylem gönderimleri kalıcılık adayı değil; gezinme ikonları ("Back", "Close") başlık sayılmaz; ekran kenarında kesilen kontrol etiketsiz sayılmaz; şifresiz giriş ekranı (e-posta/sunucu + "Log in") duvardır; hesap yokken giriş formuna yazılmaz; Flutter alanlarına odaktaki öğe üzerinden yazılır; kapsam turu ulaşılamayan ekranlarda pes etmez; dönen yükleme göstergesi varken (en çok 5 sn) beklenir (A2); gezinme girişleri (sekmeler, alt çubuk, app-bar ikonları) önce açılır (B7). A3 (şablon kimliği) kayıtlı oturumlarda ölçüldü: durumların çoğu gerçekten farklı görünümler (ör. profil sekmeleri), kazanç küçük (AntennaPod 36 → 32); ertelendi.
+
+**Dördüncü ve beşinci tur (11 Ekim gecesi).** Değişiklikler: A2 yükleme beklemesi, B7 gezinme taraması (ana bölümler planner'sız bir kez açılır), B10 çökme logu, Flutter alanlarına odak üzerinden yazım, "Geri uygulamadan çıkardıysa tekrar Geri yok", planner bütçesi varken bir kez "başka yere git" uyarısı.
+
+| Uygulama | 4. tur | 5. tur |
+|---|---|---|
+| AntennaPod | `f9ba4aeb` 7/10, `access_blocked` (ana ekranda Geri → uygulama dışı → yeniden başlatma döngüsü; düzeltildi) | `9df9a0d4` **8/10**, 2 bulgu, %0 |
+| Jitsi Meet | `80900a96` 3/5, 37 eylemde erken `goals_exhausted` (düzeltildi), %0 | `01a3cd46` **5/5**, 6 bulgu, %0 |
+| Habo | `59785198` / `009092b5` **6/8** (önceki 2/8), %0 | — |
+| Jerboa | `52ad4070` 2/6, %0 (tarama içerik satırlarını gezinme sandı; düzeltildi) | `64bd5873` 1/6: **gerçek çökme** — `HttpRequestTimeoutException` (lemmy.ml geç cevap verince uygulama düşüyor), yığın izi crash-log kanıtında; aynı çökme 4 bulgu olmuştu → artık imzaya göre tek bulgu |
+| Read You | `2df2d294` 5/7, 4 bulgu, %0 | — |
+| FieldNotes | seeded `907861d5` iki platform **6/6**; fixed `6218f5dc` iki platform 0 YP; login hesaplı `20f5b4b6` iOS geçti; hesapsız `1b23f910` iki platform "Sign-in required" | seeded `2943c592` iki platform **6/6** |
+
+Seeded arada 5/6'ya düşebiliyor (`52c6ac59`: Android'de Settings'e, iOS'ta profil düzenlemeye ulaşılmadı); rapor bunu `inconclusive`/kapsam olarak söylüyor, yanlış "geçti" demiyor.
