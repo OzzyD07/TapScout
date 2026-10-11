@@ -105,6 +105,8 @@ export interface NormalizedScreen {
   truncated: boolean;
   /** A masked (secret) field is on screen; screenshots of it must not go to the vision model. */
   secretsVisible: boolean;
+  /** A spinner or "Loading…" text is on screen: content is still arriving (docs/07 A2). */
+  loading?: boolean;
 }
 
 export interface NormalizeOptions {
@@ -519,7 +521,43 @@ export function normalizeHierarchy(
     interruption: raw.interruption,
     truncated: kept.length > chosen.length,
     secretsVisible,
+    loading: showsLoading(platform, xml, elements),
   };
+}
+
+const LOADING_TEXT = /^(loading|connecting|please wait|one moment)(\.\.\.|…)?$/i;
+
+/**
+ * A busy spinner: Android ProgressBar or iOS activity indicator drawn roughly square (a wide,
+ * thin bar shows progress of something else, such as an episode played half-way), or a plain
+ * "Loading…" text.
+ */
+function showsLoading(platform: Platform, xml: string, elements: UiElement[]): boolean {
+  if (
+    elements.some((e) => e.role === "text" && LOADING_TEXT.test((e.text ?? e.label ?? "").trim()))
+  ) {
+    return true;
+  }
+  const spinner =
+    platform === "android"
+      ? /<android\.widget\.ProgressBar\b[^>]*>/g
+      : /<XCUIElementTypeActivityIndicator\b[^>]*>/g;
+  for (const m of xml.matchAll(spinner)) {
+    const node = m[0];
+    if (/ (displayed|visible)="false"/.test(node)) continue;
+    let w = 0;
+    let h = 0;
+    const b = /bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"/.exec(node);
+    if (b) {
+      w = Number(b[3]) - Number(b[1]);
+      h = Number(b[4]) - Number(b[2]);
+    } else {
+      w = Number(/ width="([\d.]+)"/.exec(node)?.[1] ?? 0);
+      h = Number(/ height="([\d.]+)"/.exec(node)?.[1] ?? 0);
+    }
+    if (w > 0 && h > 0 && Math.max(w, h) <= 2 * Math.min(w, h)) return true;
+  }
+  return false;
 }
 
 /** Width and height of a PNG from its IHDR chunk, or null when the bytes are not a PNG. */

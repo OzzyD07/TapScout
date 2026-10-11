@@ -90,6 +90,20 @@ describe("normalizeHierarchy", () => {
     expect(normalizeHierarchy("android", icon, { scale: 1 }).title).not.toBe("Back");
   });
 
+  it("tells a busy spinner from a progress bar (docs/07 A2)", () => {
+    const page = (bounds: string) => `<hierarchy width="1080" height="2400">
+      <android.widget.ProgressBar class="android.widget.ProgressBar" package="p" text="" enabled="true" bounds="${bounds}" displayed="true"/>
+      <android.widget.TextView class="android.widget.TextView" package="p" text="Episodes" enabled="true" bounds="[42,160][400,230]" displayed="true"/>
+    </hierarchy>`;
+    expect(normalizeHierarchy("android", page("[480,1100][600,1220]"), { scale: 1 }).loading).toBe(
+      true,
+    );
+    // An episode's played-so-far bar is wide and thin: not loading.
+    expect(normalizeHierarchy("android", page("[40,900][1040,912]"), { scale: 1 }).loading).toBe(
+      false,
+    );
+  });
+
   it("masks secret fields and never forwards their value", () => {
     const xml = `<hierarchy width="1080" height="2400">
       <android.widget.EditText class="android.widget.EditText" package="p" text="••••" content-desc="Password" password="true" enabled="true" clickable="true" bounds="[0,100][500,200]" displayed="true"/>

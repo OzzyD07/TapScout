@@ -358,6 +358,31 @@ describe("runAgent", () => {
     expect(device.typed).toContain("register-name=Alex Doe");
   });
 
+  it("waits for a spinner to go away before judging the screen (docs/07 A2)", async () => {
+    const device = fakeDevice();
+    let polls = 0;
+    const source = device.pageSource;
+    device.pageSource = async () => {
+      polls += 1;
+      const page = await source();
+      // The first two looks show a spinner over the screen.
+      return polls <= 2
+        ? page.replace(
+            "</hierarchy>",
+            '<android.widget.ProgressBar class="android.widget.ProgressBar" package="dev.tapscout.fieldnotes" text="" enabled="true" bounds="[480,1100][600,1220]" displayed="true"/></hierarchy>',
+          )
+        : page;
+    };
+    const h = harness(device, scriptedPlanner(), 1);
+    await runAgent(h.ports, h.config);
+    const first = h.events.find((e) => e.type === "observation");
+    expect(polls).toBeGreaterThan(2);
+    expect(first).toBeDefined();
+    expect(h.events.some((e) => e.type === "note" && message(e).startsWith("Still loading"))).toBe(
+      false,
+    );
+  });
+
   it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
     const device = fakeDevice();
     let sheet = false;

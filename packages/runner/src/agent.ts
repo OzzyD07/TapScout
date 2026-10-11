@@ -177,6 +177,9 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** Re-observations while a spinner is shown, and the pause between them (docs/07 A2). */
+const MAX_LOADING_POLLS = 5;
+const LOADING_POLL_MS = 1_000;
 /** Screens a coverage tour may try to reach before it gives up. */
 const MAX_TOUR_ATTEMPTS = 6;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
@@ -814,6 +817,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   /** Why the planner can no longer be asked; exploration then continues without model calls. */
   let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
+  let loadingPolls = 0;
+  /** States whose spinner did not go away within the wait. */
+  const slowStates = new Set<string>();
   /** Step of the last (re)launch, and in-app interruption buttons already tapped per state. */
   let launchStep = 0;
   let introTaps = 0;
@@ -857,6 +863,28 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         continue;
       }
       consecutiveInterruptions = 0;
+
+      // A2: content still arriving (spinner, "Loading…"): look again shortly instead of judging
+      // the half-loaded screen; a state whose spinner outlasts the wait is not waited for again.
+      if (snap.appForeground && snap.screen.loading) {
+        const busy = fingerprint(snap.screen);
+        if (!slowStates.has(busy) && loadingPolls < MAX_LOADING_POLLS) {
+          loadingPolls += 1;
+          await ports.sleep(LOADING_POLL_MS);
+          continue;
+        }
+        if (!slowStates.has(busy)) {
+          slowStates.add(busy);
+          ports.emit({
+            type: "note",
+            payload: {
+              level: "info",
+              message: `Still loading after ${(MAX_LOADING_POLLS * LOADING_POLL_MS) / 1000} s; continuing with the screen as it is.`,
+            },
+          });
+        }
+      }
+      loadingPolls = 0;
 
       const observationId = `obs-${step}`;
       const shot = await record(`step-${step}`, snap, step);
