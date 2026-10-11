@@ -298,6 +298,18 @@ function isDeviceError(error: unknown): boolean {
   );
 }
 
+/** The infrastructure ending for a driver error, or null for any other error. */
+function deviceFailure(error: unknown): Ending | null {
+  if (!isDeviceError(error)) return null;
+  const message = ((error as Error).message ?? "device error").split("\n")[0]?.slice(0, 300) ?? "";
+  return {
+    phase: "infrastructure_failed",
+    stopReason: "infrastructure_failed",
+    detail: `The device session failed: ${message}`,
+    blockers: [message],
+  };
+}
+
 /** Appium errors after which the device session is gone; these end the session as infrastructure. */
 function isSessionDead(error: unknown): boolean {
   return /invalid session id|session is either terminated|ECONNREFUSED|socket hang up|instrumentation process is not running/i.test(
@@ -556,20 +568,31 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let first: Snapshot | null = null;
   let last: Snapshot | null = null;
   let interruptions = 0;
-  while (ports.now() < launchDeadline) {
-    ports.checkpoint();
-    last = await observe();
-    if (last.screen.interruption) {
-      interruptions += 1;
-      if (interruptions > MAX_CONSECUTIVE_INTERRUPTIONS * 2) break;
-      await dismissInterruption(last);
-      continue;
+  try {
+    while (ports.now() < launchDeadline) {
+      ports.checkpoint();
+      last = await observe();
+      if (last.screen.interruption) {
+        interruptions += 1;
+        if (interruptions > MAX_CONSECUTIVE_INTERRUPTIONS * 2) break;
+        await dismissInterruption(last);
+        continue;
+      }
+      if (last.appForeground && last.screen.elements.length > 0) {
+        first = last;
+        break;
+      }
+      await ports.sleep(2_000);
     }
-    if (last.appForeground && last.screen.elements.length > 0) {
-      first = last;
-      break;
-    }
-    await ports.sleep(2_000);
+  } catch (error) {
+    // A device failure while the app starts is an infrastructure ending like any later one, so
+    // the runner can retry it with a new session (Jitsi 723816ca: adb dropped on the first
+    // app-state query and the error went past the retry).
+    const failed = deviceFailure(error);
+    if (!failed) throw error;
+    return finalize(failed, {
+      skipped: "The device session failed before the app showed a screen.",
+    });
   }
   if (!first) {
     if (last) {
@@ -2115,16 +2138,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     ending = await explore();
   } catch (error) {
     if (error instanceof AgentStop) ending = error.outcome;
-    else if (isDeviceError(error)) {
-      const message =
-        ((error as Error).message ?? "device error").split("\n")[0]?.slice(0, 300) ?? "";
-      ending = {
-        phase: "infrastructure_failed",
-        stopReason: "infrastructure_failed",
-        detail: `The device session failed: ${message}`,
-        blockers: [message],
-      };
-    } else throw error;
+    else {
+      const failed = deviceFailure(error);
+      if (!failed) throw error;
+      ending = failed;
+    }
   }
 
   return finalize(

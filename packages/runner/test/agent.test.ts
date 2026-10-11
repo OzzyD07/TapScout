@@ -647,6 +647,22 @@ describe("runAgent", () => {
     expect(out.screens).toBeGreaterThanOrEqual(3);
   });
 
+  it("ends as infrastructure, without throwing, when the device fails while the app starts (723816ca)", async () => {
+    const device = fakeDevice();
+    device.appState = async () => {
+      const error = new Error(
+        "WebDriverError: Error executing adbExec. Original error: 'Command 'adb shell dumpsys activity processes' exited with code 255'",
+      );
+      error.name = "WebDriverError";
+      throw error;
+    };
+    const h = harness(device, scriptedPlanner(), 4);
+    const out = await runAgent(h.ports, h.config);
+    expect(out.phase).toBe("infrastructure_failed");
+    expect(out.stopReason).toBe("infrastructure_failed");
+    expect(out.detail).toContain("exited with code 255");
+  });
+
   it("reports access_blocked when the app never shows a usable screen", async () => {
     const device = fakeDevice();
     device.appState = async () => 1;

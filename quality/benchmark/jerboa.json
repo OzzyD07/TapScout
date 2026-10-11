@@ -149,6 +149,20 @@
       "verdict": "false_positive",
       "reason": "Name link cut by the bottom edge of the screen; the measured height is the visible part.",
       "firstSeen": "0b8ca5e6"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Lemmy Shitpost@lemmy.world",
+      "verdict": "unsure",
+      "reason": "Community link in a post's byline, 472×32 px; arguably inline text, like the other byline links.",
+      "firstSeen": "a306bbdb"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "news@hexbear.net",
+      "verdict": "unsure",
+      "reason": "Community link in a post's byline, 300×32 px; arguably inline text, like the other byline links.",
+      "firstSeen": "a306bbdb"
     }
   ],
   "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not. First launch shows two in-app dialogs (changelog 'Done'; an announcement with DETAILS / SOLUTION / OK where the first two open the browser)."
