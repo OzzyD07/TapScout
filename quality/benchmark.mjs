@@ -169,7 +169,10 @@ export async function evaluateBenchmarkSession({ db, run, session, findings, spe
         ? /^Sign-in required/.test(wall ?? "")
         : // optional_sign_in: a blocker for the screens behind sign-in is fair, an access-blocked
           // stop for the whole app is not.
-          session.stop_reason !== "access_blocked";
+          !(
+            session.stop_reason === "access_blocked" &&
+            /^(Sign-in|Access blocked)/.test(blockers[0] ?? "")
+          );
 
   const marked = findings.map((f) => ({
     check: f.check_id,
