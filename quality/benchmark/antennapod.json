@@ -4,7 +4,9 @@
   "stack": "Java/Kotlin, Android Views",
   "source": "https://github.com/AntennaPod/AntennaPod (F-Droid 3.12.2)",
   "license": "GPL-3.0-only",
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
     "package": "de.danoeh.antennapod"
   },
@@ -19,56 +21,115 @@
     {
       "id": "home",
       "name": "Home",
-      "any": ["Welcome to AntennaPod!", "Continue listening", "Get surprised"]
+      "any": [
+        "Welcome to AntennaPod!",
+        "Continue listening",
+        "Get surprised"
+      ]
     },
     {
       "id": "queue",
       "name": "Queue",
-      "any": ["No queued episodes", "~No episodes lined up"]
+      "any": [
+        "No queued episodes",
+        "~No episodes lined up"
+      ]
     },
     {
       "id": "inbox",
       "name": "Inbox",
-      "any": ["No episodes in the inbox"]
+      "any": [
+        "No episodes in the inbox"
+      ]
     },
     {
       "id": "subscriptions",
       "name": "Subscriptions",
-      "any": ["No subscriptions", "~To subscribe to a podcast"]
+      "any": [
+        "No subscriptions",
+        "~To subscribe to a podcast"
+      ]
     },
     {
       "id": "add_podcast",
       "name": "Add podcast",
-      "any": ["Search Apple Podcasts", "Add podcast by RSS address", "OPML import"]
+      "any": [
+        "Search Apple Podcasts",
+        "Add podcast by RSS address",
+        "OPML import"
+      ]
     },
     {
       "id": "podcast_preview",
       "name": "Podcast preview (from search)",
-      "all": ["Subscribe"]
+      "all": [
+        "Subscribe"
+      ]
     },
     {
       "id": "episodes",
       "name": "Episodes",
-      "any": ["~When you add a podcast, the episodes will be shown here"]
+      "any": [
+        "~When you add a podcast, the episodes will be shown here"
+      ]
     },
     {
       "id": "downloads",
       "name": "Downloads",
-      "any": ["No downloaded episodes", "No download log"]
+      "any": [
+        "No downloaded episodes",
+        "No download log"
+      ]
     },
     {
       "id": "history",
       "name": "Playback history",
-      "any": ["No history"]
+      "any": [
+        "No history"
+      ]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": ["User interface", "Backup & restore"]
+      "all": [
+        "User interface",
+        "Backup & restore"
+      ]
     }
   ],
   "knownIssues": [],
   "verdicts": [
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 84,
+        "y": 472
+      },
+      "verdict": "true_positive",
+      "reason": "Podcast cover (imgvCover) clickable without a content description.",
+      "firstSeen": "47fcde0b"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "https://",
+      "verdict": "true_positive",
+      "reason": "Standalone feed URL label, 28dp tall.",
+      "firstSeen": "47fcde0b"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Oct 2026",
+      "verdict": "true_positive",
+      "reason": "Date spinners of the statistics filter, 24dp tall.",
+      "firstSeen": "47fcde0b"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Elisabeth Vincentelli",
+      "verdict": "false_positive",
+      "reason": "Inline link inside the episode's web show notes (WCAG 2.5.8 inline exception).",
+      "firstSeen": "47fcde0b"
+    },
     {
       "check": "a11y.control_labels",
       "region": {

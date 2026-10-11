@@ -4,7 +4,9 @@
   "stack": "Kotlin, Jetpack Compose",
   "source": "https://github.com/ReadYouApp/ReadYou (F-Droid 0.16.2)",
   "license": "GPL-3.0-only",
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
     "package": "me.ash.reader"
   },
@@ -20,44 +22,113 @@
     {
       "id": "welcome",
       "name": "Welcome / terms",
-      "all": ["Agree"]
+      "all": [
+        "Agree"
+      ]
     },
     {
       "id": "feeds",
       "name": "Feeds",
-      "all": ["Feeds"],
-      "any": ["All", "Unread", "Starred"]
+      "all": [
+        "Feeds"
+      ],
+      "any": [
+        "All",
+        "Unread",
+        "Starred"
+      ]
     },
     {
       "id": "subscribe",
       "name": "Subscribe dialog",
-      "any": ["Feed or site URL", "Import from OPML"]
+      "any": [
+        "Feed or site URL",
+        "Import from OPML"
+      ]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": ["Accounts", "Languages"],
+      "all": [
+        "Accounts",
+        "Languages"
+      ],
       "markerNote": "0.16.2 names the page 'Color & style', not 'Appearance' (run f5596ba1)."
     },
     {
       "id": "accounts",
       "name": "Accounts",
-      "any": ["Add accounts"]
+      "any": [
+        "Add accounts"
+      ]
     },
     {
       "id": "appearance",
       "name": "Color & style",
-      "all": ["Dark theme", "Basic fonts"],
+      "all": [
+        "Dark theme",
+        "Basic fonts"
+      ],
       "markerNote": "'Color & style' is also a row of Settings; the page is recognised by its own rows (run f5596ba1)."
     },
     {
       "id": "tips",
       "name": "Tips & support",
-      "any": ["Open source licenses", "Sponsor"]
+      "any": [
+        "Open source licenses",
+        "Sponsor"
+      ]
     }
   ],
   "knownIssues": [],
   "verdicts": [
+    {
+      "check": "a11y.touch_targets",
+      "region": {
+        "x": 464,
+        "y": 1083
+      },
+      "verdict": "false_positive",
+      "reason": "Inline link in the in-app release notes (web content).",
+      "firstSeen": "ca26b0b3"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "0.1",
+      "verdict": "false_positive",
+      "reason": "Inline version-compare links in the release notes (web content).",
+      "firstSeen": "ca26b0b3"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "#1176",
+      "verdict": "false_positive",
+      "reason": "Inline issue link in the release notes (web content).",
+      "firstSeen": "ca26b0b3"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "@blizzardOfAce",
+      "verdict": "false_positive",
+      "reason": "Inline mention link in the release notes (web content).",
+      "firstSeen": "ca26b0b3"
+    },
+    {
+      "check": "ui.keyboard_occlusion",
+      "verdict": "false_positive",
+      "reason": "Screens merged under the label 'Back' (a navigation icon taken for the title) were compared with each other.",
+      "firstSeen": "ca26b0b3"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 63,
+        "y": 1024
+      },
+      "verdict": "unsure",
+      "reason": "Settings row whose label text sits outside its bounds in the hierarchy.",
+      "firstSeen": "ca26b0b3"
+    },
     {
       "check": "a11y.control_labels",
       "region": {
