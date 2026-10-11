@@ -53,8 +53,13 @@ class Stop extends Error {
 
 /** Planner answers measured at ~130–150 tokens; the cap leaves room without wasting reservation. */
 const PLANNER_MAX_OUTPUT_TOKENS = 500;
-/** A device failure within this many actions gets one retry with a new Appium session. */
-const EARLY_FAILURE_ACTIONS = 5;
+/**
+ * A device failure within this many actions, with at most a third of the planner budget spent,
+ * gets one retry with a new Appium session. The emulator drops off adb now and then a minute or two
+ * after boot (4021bb0b after 1 action, Habo 1840d27f after 12); the short stretch before it is
+ * worth less than a whole session.
+ */
+const EARLY_FAILURE_ACTIONS = 25;
 /** Marker file name the qa-run workflow checks before uploading the Appium log. */
 const TEST_ACCOUNT_MARKER = "test-account-used";
 
@@ -321,6 +326,7 @@ try {
   if (
     agent.phase === "infrastructure_failed" &&
     counters.actionsExecuted < EARLY_FAILURE_ACTIONS &&
+    counters.plannerCalls <= boot.budget.maxPlannerRequests / 3 &&
     Date.now() < softDeadline - 5 * 60_000
   ) {
     sink.emit({
