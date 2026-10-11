@@ -63,6 +63,8 @@ export interface AgentDevice {
   tap(target: { elementId: string }): Promise<void>;
   tapAt(x: number, y: number): Promise<void>;
   typeInto(target: { elementId: string }, text: string, clear?: boolean): Promise<void>;
+  /** Current text of a field, to check that typing arrived in full; optional. */
+  readValue?(target: { elementId: string }): Promise<string | undefined>;
   pressEnter(): Promise<void>;
   scroll(
     direction: "up" | "down" | "left" | "right",
@@ -165,6 +167,13 @@ class AgentStop extends Error {
 }
 
 const OFF_APP = "off-app";
+/** Starts and ends of a secret, longest first, down to 5 characters (scrubbed like the whole). */
+export function fragments(secret: string): string[] {
+  const out: string[] = [];
+  for (let n = secret.length - 1; n >= 5; n--) out.push(secret.slice(0, n), secret.slice(-n));
+  return out;
+}
+
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
 const INTRO_WINDOW_STEPS = 10;
@@ -291,6 +300,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     let out = text;
     for (const v of secrets) {
       out = out.split(v).join("[test account]").split(xmlEscape(v)).join("[test account]");
+      // A partly typed value (lost keystrokes, 43c5c77c) leaves its start or its end behind.
+      for (const part of fragments(v)) {
+        out = out.split(part).join("[test account]").split(xmlEscape(part)).join("[test account]");
+      }
     }
     return out;
   }
@@ -693,6 +706,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? credential(action.input.key)
             : generatedText(action.input);
         await device.typeInto(found, text, Boolean(target.text));
+        // The test account's username must arrive in full: the first keystrokes can be lost
+        // while the keyboard comes up (FieldNotes login run 43c5c77c on iOS), and a broken
+        // username fails the sign-in. Checked once, retyped once; the value is never logged.
+        if (
+          action.input.kind === "credential_ref" &&
+          action.input.key === "username" &&
+          device.readValue &&
+          (await device.readValue(found).catch(() => undefined)) !== text
+        ) {
+          await device.typeInto(found, text, true);
+        }
         if (action.submit) await device.pressEnter();
         return;
       }

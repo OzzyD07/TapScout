@@ -159,6 +159,15 @@ export class DeviceSession {
     if (text) await this.driver.elementSendKeys(target.elementId, text);
   }
 
+  /** Current text of a field (iOS `value`, Android `text`). */
+  async readValue(target: ResolvedTarget): Promise<string | undefined> {
+    const value = await this.driver.getElementAttribute(
+      target.elementId,
+      this.platform === "ios" ? "value" : "text",
+    );
+    return typeof value === "string" ? value : undefined;
+  }
+
   async pressEnter(): Promise<void> {
     if (this.platform === "android") await this.driver.pressKeyCode(66);
     else await this.driver.keys(["\n"]);

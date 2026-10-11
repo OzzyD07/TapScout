@@ -618,4 +618,26 @@ describe("sign-in walls", () => {
     }
     expect(prompts.some((p) => p.includes("a test account is available"))).toBe(true);
   });
+
+  it("retypes a username whose first keystrokes were lost, and scrubs the fragment (43c5c77c)", async () => {
+    const account = { username: "qa.tester@example.com", password: "Pa55word!" };
+    const { device, typed } = loginDevice(account);
+    const type = device.typeInto;
+    let first = true;
+    device.typeInto = async (t, text, clear) => {
+      // The keyboard was still coming up: only the end of the username arrived.
+      const arrived = first && text === account.username ? text.slice(7) : text;
+      if (text === account.username) first = false;
+      await type(t, arrived, clear);
+    };
+    device.readValue = async (t) => (t.elementId === "register-name" ? typed().user : undefined);
+    const { plan, prompts } = signInPlanner(true);
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 6);
+    await runAgent(h.ports, { ...h.config, testAccount: account });
+
+    expect(typed().user).toBe(account.username);
+    for (const text of [...prompts, JSON.stringify(h.events)]) {
+      expect(text).not.toContain(account.username.slice(7));
+    }
+  });
 });

@@ -258,6 +258,14 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
       }
       if (action.input.kind === "credential_ref") {
         if (!ctx.testAccount) return { ok: false, reason: "no test account was provided" };
+        // 43c5c77c: the model kept retyping the username into a field that already held it.
+        if (action.input.key === "username" && target.text === "[test account]") {
+          return {
+            ok: false,
+            reason:
+              'this field already holds the test account; type the password ({"kind":"credential_ref","key":"password"}) into the password field and submit',
+          };
+        }
         if (action.input.key !== "username" && action.input.key !== "password") {
           return { ok: false, reason: 'credential_ref key must be "username" or "password"' };
         }

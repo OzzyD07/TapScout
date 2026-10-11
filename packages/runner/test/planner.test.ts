@@ -172,6 +172,19 @@ describe("validatePlannerAnswer", () => {
     const passwordRef = { kind: "credential_ref", key: "password" };
     const usernameRef = { kind: "credential_ref", key: "username" };
     expect(typed(passwordRef, "register-email", true).ok).toBe(true);
+    // A username field already holding the test account is not typed into again (43c5c77c).
+    const filled = {
+      ...screen,
+      elements: screen.elements.map((e) =>
+        e.stableId === "register-name" ? { ...e, text: "[test account]" } : e,
+      ),
+    } as typeof ctx.screen;
+    expect(
+      validatePlannerAnswer(
+        answer({ type: "type", targetRef: ref(ctx, "register-name"), input: usernameRef }),
+        { ...ctx, screen: filled, testAccount: true },
+      ),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining("password") });
     expect(typed(usernameRef, "register-name", true).ok).toBe(true);
     expect(typed(passwordRef, "register-email", false)).toMatchObject({ ok: false });
     expect(typed({ kind: "literal", value: "guess" }, "register-email", true)).toMatchObject({
