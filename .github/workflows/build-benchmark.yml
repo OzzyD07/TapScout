@@ -172,12 +172,14 @@ jobs:
         with:
           node-version-file: .nvmrc
       # The upstream README requires a local xcconfig; signing is off for a Simulator build.
+      # Debug configuration: the Xcode 26.6 optimizer crashes (swift-frontend segfault) on the
+      # MediaUI and DesignSystem packages in Release.
       - name: Build for iOS Simulator (arm64)
         working-directory: upstream
         run: |
           printf 'DEVELOPMENT_TEAM =\nBUNDLE_ID_PREFIX = dev.tapscout.bench\n' > IceCubesApp.xcconfig
           log="$RUNNER_TEMP/xcodebuild.log"
-          if ! xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Release \
+          if ! xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
             build > "$log" 2>&1; then
@@ -189,7 +191,7 @@ jobs:
       - name: Collect .app zip and manifest
         run: |
           mkdir -p out
-          app=$(find upstream/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          app=$(find upstream/build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
           echo "app: $app"
           ditto -c -k --sequesterRsrc --keepParent "$app" out/bench-ice-cubes-ios-sim-arm64.app.zip
           echo "| File | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
