@@ -56,11 +56,35 @@ function* walk(node: XmlNode): Generator<XmlNode> {
 }
 
 export interface SystemInterruption {
-  kind: "anr" | "crash";
+  kind: "anr" | "crash" | "permission";
   title: string;
-  /** Non-destructive button to dismiss it: "Wait" for an ANR, "Close app" for a crash dialog. */
+  /**
+   * Button that clears it: "Wait" for an ANR, "Close app" for a crash dialog and the allowing
+   * answer for a permission request (TapScout grants permissions so the app's normal flow is
+   * what gets tested; docs/07 A1).
+   */
   dismiss: { label: string; bounds: Bounds; stableId: string };
 }
+
+/** Android permission controller buttons, most preferred first ("While using the app"). */
+const ANDROID_ALLOW = [
+  "permission_allow_foreground_only_button",
+  "permission_allow_button",
+  "permission_allow_one_time_button",
+];
+const PERMISSION_PACKAGE = /^com\.(google\.)?android\.permissioncontroller$/;
+
+/** Title of an iOS system permission alert (an app's own alerts are app behaviour, not this). */
+const IOS_PERMISSION_TITLE =
+  /would like to (send you notifications|access|use|find and connect|add to)|wants to use|track your activity|would like to/i;
+/** Allowing answers of iOS system alerts, most preferred first. */
+const IOS_ALLOW = [
+  /^allow while using (the )?app$/i,
+  /^allow$/i,
+  /^allow full access$/i,
+  /^allow once$/i,
+  /^ok$/i,
+];
 
 export interface NormalizedScreen {
   elements: UiElement[];
@@ -226,7 +250,8 @@ function androidCandidates(root: XmlNode) {
       masked: password,
     });
   }
-  if (interruption) interruption.title = alertTitle;
+  if (!interruption) interruption = androidPermission(hierarchy);
+  else interruption.title = alertTitle;
   title ??= heading;
   const topPackage = [...packages.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
   return {
@@ -239,6 +264,56 @@ function androidCandidates(root: XmlNode) {
     keyboardVisible: false,
     dialogVisible: interruption !== null,
   };
+}
+
+/** A runtime permission request of the Android permission controller, with its allow button. */
+function androidPermission(hierarchy: XmlNode): SystemInterruption | null {
+  let message = "";
+  const buttons = new Map<string, { label: string; bounds: Bounds; stableId: string }>();
+  for (const node of walk(hierarchy)) {
+    const a = node.attrs;
+    if (!PERMISSION_PACKAGE.test(a.package ?? "")) continue;
+    const id = (a["resource-id"] ?? "").replace(/^[\w.]+:id\//, "");
+    if (id === "permission_message" && a.text) message = a.text;
+    const bounds = parseAndroidBounds(a.bounds);
+    if (bounds && ANDROID_ALLOW.includes(id)) {
+      buttons.set(id, { label: a.text || id, bounds, stableId: id });
+    }
+  }
+  const allow = ANDROID_ALLOW.map((id) => buttons.get(id)).find(Boolean);
+  return allow
+    ? { kind: "permission", title: message || "Permission request", dismiss: allow }
+    : null;
+}
+
+/** An iOS system permission alert (notifications, location, camera, tracking …). */
+function iosPermission(root: XmlNode, scale: number): SystemInterruption | null {
+  for (const alert of walk(root)) {
+    if ((alert.attrs.type ?? alert.tag) !== "XCUIElementTypeAlert") continue;
+    const title = alert.attrs.label ?? alert.attrs.name ?? "";
+    if (!IOS_PERMISSION_TITLE.test(title)) continue;
+    const buttons = [...walk(alert)].filter(
+      (n) => (n.attrs.type ?? n.tag) === "XCUIElementTypeButton" && n.attrs.visible !== "false",
+    );
+    for (const want of IOS_ALLOW) {
+      const b = buttons.find((n) => want.test((n.attrs.label ?? n.attrs.name ?? "").trim()));
+      if (!b) continue;
+      const bounds: Bounds = {
+        x: Math.round(Number(b.attrs.x) * scale),
+        y: Math.round(Number(b.attrs.y) * scale),
+        width: Math.round(Number(b.attrs.width) * scale),
+        height: Math.round(Number(b.attrs.height) * scale),
+      };
+      if (!Number.isFinite(bounds.x + bounds.y + bounds.width + bounds.height)) continue;
+      const label = (b.attrs.label ?? b.attrs.name ?? "").trim();
+      return {
+        kind: "permission",
+        title: clip(title) ?? "Permission request",
+        dismiss: { label, bounds, stableId: label },
+      };
+    }
+  }
+  return null;
 }
 
 function iosCandidates(root: XmlNode, scale: number) {
@@ -321,7 +396,7 @@ function iosCandidates(root: XmlNode, scale: number) {
     heightPx,
     topPackage: app?.attrs.bundleId,
     title,
-    interruption: null,
+    interruption: iosPermission(root, scale),
     keyboardVisible,
     dialogVisible,
   };

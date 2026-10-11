@@ -415,8 +415,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     ports.emit({
       type: "note",
       payload: {
-        level: "warn",
-        message: `System dialog "${it.title || it.kind}" covered the app; tapped "${it.dismiss.label}".`,
+        level: it.kind === "permission" ? "info" : "warn",
+        message:
+          it.kind === "permission"
+            ? `Interruption: permission request "${it.title}"; tapped "${it.dismiss.label}" so the app's normal flow is tested.`
+            : `System dialog "${it.title || it.kind}" covered the app; tapped "${it.dismiss.label}".`,
       },
     });
     await device.tapAt((b.x + b.width / 2) / snap.scale, (b.y + b.height / 2) / snap.scale);

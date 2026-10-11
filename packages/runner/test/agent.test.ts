@@ -346,6 +346,26 @@ describe("runAgent", () => {
     expect(h.counters.screensObserved).toBeGreaterThanOrEqual(1);
   });
 
+  it("allows a permission request shown at launch and records it as an interruption", async () => {
+    const device = fakeDevice();
+    let asking = true;
+    const source = device.pageSource;
+    device.pageSource = async () => (asking ? xml("android-permission") : source());
+    device.tapAt = vi.fn(async () => {
+      asking = false;
+    });
+    const h = harness(device, scriptedPlanner(), 1);
+    await runAgent(h.ports, h.config);
+
+    // Centre of "Allow" in the fixture: [105,1200][975,1326].
+    expect(device.tapAt).toHaveBeenCalledWith(540, 1263);
+    const note = h.events.find((e) => e.type === "note" && message(e).startsWith("Interruption"));
+    expect(note && message(note)).toContain(
+      'permission request "Allow Read You to send you notifications?"',
+    );
+    expect(h.counters.screensObserved).toBeGreaterThanOrEqual(1);
+  });
+
   it("stops with goals_exhausted once nothing new is reachable, before the planner budget", async () => {
     // A planner that only ever goes back and forth between the two screens.
     const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {

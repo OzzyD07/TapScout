@@ -52,6 +52,33 @@ describe("normalizeHierarchy", () => {
     expect(s.topPackage).toBe("android");
   });
 
+  it("answers an Android permission request with its allowing button (benchmark run 14966324)", () => {
+    const s = normalizeHierarchy("android", fixture("android-permission"), { scale: 1 });
+    expect(s.interruption).toMatchObject({
+      kind: "permission",
+      title: "Allow Read You to send you notifications?",
+      dismiss: { label: "Allow", stableId: "permission_allow_button" },
+    });
+    const location = normalizeHierarchy("android", fixture("android-permission-location"), {
+      scale: 1,
+    });
+    expect(location.interruption?.dismiss.stableId).toBe("permission_allow_foreground_only_button");
+  });
+
+  it("answers an iOS system permission alert, but leaves the app's own alerts alone", () => {
+    const s = normalizeHierarchy("ios", fixture("ios-permission"), { scale: 3 });
+    expect(s.interruption).toMatchObject({
+      kind: "permission",
+      title: "“Habo” Would Like to Send You Notifications",
+      dismiss: { label: "Allow", bounds: { x: 603, y: 1497, width: 405, height: 132 } },
+    });
+    const own = fixture("ios-permission").replaceAll(
+      "“Habo” Would Like to Send You Notifications",
+      "Delete this habit?",
+    );
+    expect(normalizeHierarchy("ios", own, { scale: 3 }).interruption).toBeNull();
+  });
+
   it("masks secret fields and never forwards their value", () => {
     const xml = `<hierarchy width="1080" height="2400">
       <android.widget.EditText class="android.widget.EditText" package="p" text="••••" content-desc="Password" password="true" enabled="true" clickable="true" bounds="[0,100][500,200]" displayed="true"/>
