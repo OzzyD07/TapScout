@@ -194,17 +194,31 @@ function FindingCard(props: {
       ) : null}
       {f.evidence.length > 0 ? (
         <div className="flex flex-wrap gap-3 text-xs">
-          {f.evidence.map((e, i) => (
-            <button
-              // biome-ignore lint/suspicious/noArrayIndexKey: the same artifact can appear in two roles
-              key={`${e.artifactId}-${i}`}
-              type="button"
-              className="font-medium text-accent"
-              onClick={() => props.onShowEvidence(f.platform, e.artifactId)}
-            >
-              {e.role} screenshot
-            </button>
-          ))}
+          {f.evidence.map((e, i) =>
+            e.role === "log" ? (
+              // A crash log (text) opens on its own through the signed-URL redirect.
+              <a
+                // biome-ignore lint/suspicious/noArrayIndexKey: the same artifact can appear in two roles
+                key={`${e.artifactId}-${i}`}
+                href={`/api/artifacts/${e.artifactId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-accent"
+              >
+                crash log
+              </a>
+            ) : (
+              <button
+                // biome-ignore lint/suspicious/noArrayIndexKey: the same artifact can appear in two roles
+                key={`${e.artifactId}-${i}`}
+                type="button"
+                className="font-medium text-accent"
+                onClick={() => props.onShowEvidence(f.platform, e.artifactId)}
+              >
+                {e.role} screenshot
+              </button>
+            ),
+          )}
         </div>
       ) : null}
     </article>
