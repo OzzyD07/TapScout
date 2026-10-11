@@ -127,6 +127,22 @@ Giriş duvarı, ayarlar, yıkıcı buton, gizlilik politikası, hesap oluşturma
 
 Android'de çökme anında `adb logcat -b crash` kesiti (FATAL EXCEPTION, yığın izi) bulguya `log` kanıtı olarak; iOS'ta Simulator'ın `DiagnosticReports` altındaki çökme raporu. Kanıtta kişisel veri ve test hesabı değerleri maskelenir. Not: koşu sonundaki tam logcat dökümü public artifact'e gidiyor; test hesaplı oturumlarda bunun da güvenli olduğu kontrol edilmeli.
 
+### B11 — Nemotron'u doğrulanabilir işlerde daha aktif kullanmak (~1–1,5 gün)
+
+**Sorun.** Nemotron şu an çoğunlukla "sıradaki dokunuş"u planlıyor ve rapor özetini yazıyor; işin büyük kısmını deterministik kurallar yapıyor. Adım adım kararlarda modele daha çok serbestlik vermek hatayı artırır. 11 Ekim benchmark turlarında görülenler: dili Afrikaanca'ya çevirdi (`f86858fd`), test hesabı varken e-posta uydurdu (`648ec2ae`), dolu kullanıcı adı alanına tekrar yazdı (`43c5c77c`), hesapsız giriş formlarına bütçe harcadı (`614e2419`), "untried main navigation" satırını görmezden geldi (`52ad4070`). Bunları deterministik koruyucular yakaladı. "Agentic" iddiası için modelin katkısı hem artırılmalı hem ölçülmeli.
+
+**İlke.** Model önerir, sistem doğrular, benchmark ölçer. Modele geri alınamaz eylem yetkisi verilmez; çıktısı şemaya bağlı ve ekrandaki gerçek ref'lere/kanıta karşı doğrulanır.
+
+**Yapılacak (öncelik sırasıyla).**
+1. **Bulgu triyajı.** Rapor öncesinde her bulgu, kanıtıyla birlikte (hierarchy kesiti; gerekirse görsel modelle ekran görüntüsü) modele verilir. Model `likely_true / likely_false / needs_review` + kısa gerekçe döndürür. Model bulgu silemez; yalnız `manual_review_required` düzeyine indirip gerekçeyi bulguya yazabilir. **Ölçüm:** `quality/benchmark/*.json` içindeki ~100 elle verilmiş hükümle uyum (doğru pozitifleri düşürme oranı ayrıca raporlanır; bu oran düşük olmalı).
+2. **Uygulama düzeyinde test planı.** Açılışta ilk birkaç ekrandan uygulamanın türü ve 4–6 hedef ("abone ol, oynat, kuyruğa ekle, ayarlar") çıkarılır; planner hedefleri bunlarla başlar. **Ölçüm:** benchmark'ta ana ekran kapsamı önce/sonra (özellikle Jerboa 2/6, Habo 6/8, Read You 5/7).
+3. **Ekran sınıflandırma (B8 ile birleşir).** Yeni ekranda tek kısa çağrı: ekran türü + ayar/yıkıcı/gizlilik/giriş öğelerinin ref'leri. Ref'ler ekranda yoksa cevap atılır. Regex ilk süzgeç kalır; model İngilizce dışı ve belirsiz ekranlarda devreye girer.
+4. **Alan türüne göre veri (B6 ile birleşir).** Telefon, tarih, posta kodu gibi alanlar için geçerli değer önerisi; biçim kontrolü deterministik.
+
+**Model seçimi.** Adım adım planner hızlı ve ucuz kalır (Lightning, düşünme kapalı). Az sayıdaki yüksek düzeyli çağrı (triyaj, test planı) için düşünmeyi açmak ve Token Factory'deki daha büyük Nemotron modelleri bir kez denenip ölçülür. Hepsi relay bütçesinden geçer (`reserve_model_budget`), yeni çağrı amaçları için ayrı bütçe kalemi.
+
+**Bitti sayılır.** Triyajın benchmark hükümleriyle uyumu ve test planının kapsam etkisi `05`'e tablo olarak yazılmış; FieldNotes seeded 6/6 ve fixed 0 yanlış pozitif gerilemesiz.
+
 ### C — Zaman kalırsa
 
 - **Test notu:** yüklemede "şu akışa odaklan" gibi kısa not; planner'a hedef olarak verilir, yetki olarak değil.
@@ -138,7 +154,7 @@ Android'de çökme anında `adb logcat -b crash` kesiti (FATAL EXCEPTION, yığ�
 1. **A5 ilk tur:** set + ilk ölçüm (hangi engel ne sıklıkla?).
 2. **A1 → A2 → A3 → A4** (A5 sonucuna göre sıra değişebilir), **A9** araya sığdırılır.
 3. **A5 ikinci tur:** karşılaştırmalı tablo `05`'e.
-4. Zaman kalırsa **B6, B7, B8, B10**, sonra C.
+4. Zaman kalırsa **B11** (önce triyaj, sonra test planı; B6 ve B8 onun parçası olarak), sonra C. (B7 ve B10 11 Ekim'de yapıldı.)
 5. 24 Ekim'den sonra yalnız hata düzeltme; F4–F5 (`05` §6).
 
 ## 6. Kabul ölçütü (bu planın bütünü)
