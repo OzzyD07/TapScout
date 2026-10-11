@@ -459,6 +459,18 @@ export function normalizeHierarchy(
     kept.push(c.role === "other" && !c.clickable ? { ...c, role: "text" } : c);
   }
   const controls = kept.filter((c) => INTERACTIVE.has(c.role));
+  // A clickable container without its own name is announced by the texts inside it (Compose
+  // buttons, React Native pressables, list rows): name it the same way (benchmark run 0b8ca5e6:
+  // Jerboa's "Done" was an unnamed View with a "Done" text inside).
+  for (const c of controls) {
+    if (c.label || c.text || c.role === "text_field") continue;
+    const inner = kept
+      .filter(
+        (t) => t !== c && t.role === "text" && (t.text ?? t.label) && inside(t.bounds, c.bounds),
+      )
+      .map((t) => (t.text ?? t.label) as string);
+    if (inner.length > 0) c.text = clip(inner.slice(0, 3).join(" "));
+  }
   for (let i = kept.length - 1; i >= 0; i--) {
     const c = kept[i];
     if (c && isCaptionOf(c, controls)) kept.splice(i, 1);

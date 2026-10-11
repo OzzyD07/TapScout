@@ -33,6 +33,7 @@ import {
   type PersistenceProbe,
   valueVisible,
 } from "./functional.js";
+import { inAppInterruption } from "./interruptions.js";
 import { type NormalizedScreen, normalizeHierarchy, type Platform, pngSize } from "./observer.js";
 import {
   buildPlannerMessages,
@@ -165,6 +166,10 @@ class AgentStop extends Error {
 
 const OFF_APP = "off-app";
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** In-app interruptions are answered only this many steps after a (re)launch … */
+const INTRO_WINDOW_STEPS = 10;
+/** … and at most this often per session. */
+const MAX_INTRO_TAPS = 8;
 /** Order in which findings are kept when a session has more than the API accepts. */
 const VERIFICATION_RANK: Finding["verification"][] = [
   "reproduced",
@@ -756,6 +761,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   /** Why the planner can no longer be asked; exploration then continues without model calls. */
   let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
+  /** Step of the last (re)launch, and in-app interruption buttons already tapped per state. */
+  let launchStep = 0;
+  let introTaps = 0;
+  const introTried = new Map<string, Set<string>>();
   const findings: Finding[] = [];
   const probes: PersistenceProbe[] = [];
   const probedFields = new Set<string>();
@@ -1041,6 +1050,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         }
         action = { type: "relaunch", clearData: false };
         decisionSummary = "The app is no longer in the foreground; relaunch it.";
+        launchStep = step;
       } else {
         // A coverage tour reached its screen: tap the untried control without asking the planner.
         const arrived =
@@ -1050,7 +1060,19 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         const tourTarget = tour?.description;
         tour = null;
         let verdict: Awaited<ReturnType<typeof decide>> = null;
-        if (arrived) {
+        // Right after launch: answer a what's-new dialog, onboarding page or consent screen.
+        const intro =
+          !arrived && step - launchStep <= INTRO_WINDOW_STEPS && introTaps < MAX_INTRO_TAPS
+            ? inAppInterruption(snap.screen, introTried.get(fp))
+            : null;
+        if (intro) {
+          introTaps += 1;
+          introTried.set(fp, new Set([...(introTried.get(fp) ?? []), intro.label]));
+          action = { type: "tap", targetRef: intro.target.ref };
+          target = intro.target;
+          decisionSummary = `Interruption: in-app ${intro.kind} on "${state.label}"; tap "${intro.label}" to reach the app.`;
+          ports.emit({ type: "note", payload: { level: "info", message: decisionSummary } });
+        } else if (arrived) {
           action = { type: "tap", targetRef: arrived.ref };
           target = arrived;
           decisionSummary = `Coverage: try ${tourTarget}, which was never tapped.`;

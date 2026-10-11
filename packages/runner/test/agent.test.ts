@@ -167,8 +167,14 @@ describe("runAgent", () => {
     const sources = h.events
       .filter((e) => e.type === "action_planned")
       .map((e) => (e.payload as { source: string }).source);
-    expect(sources.filter((s) => s === "planner")).toHaveLength(4);
-    expect(sources.lastIndexOf("planner")).toBeLessThan(sources.indexOf("deterministic"));
+    // The welcome page right after launch is answered as onboarding, without the planner.
+    expect(sources[0]).toBe("deterministic");
+    expect(
+      h.events.some((e) => e.type === "note" && message(e).includes('tap "Get started"')),
+    ).toBe(true);
+    const later = sources.slice(1);
+    expect(later.filter((s) => s === "planner")).toHaveLength(3);
+    expect(later.lastIndexOf("planner")).toBeLessThan(later.indexOf("deterministic"));
     expect(out.detail).toContain("Every reachable control was tried afterwards");
     const newStates = h.events.filter(
       (e) => e.type === "observation" && (e.payload as { isNewState: boolean }).isNewState,
