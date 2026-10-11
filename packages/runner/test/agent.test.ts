@@ -783,4 +783,27 @@ describe("sign-in walls", () => {
       expect(text).not.toContain(account.username.slice(7));
     }
   });
+
+  it("scrubs fragments only as whole values, not inside element types (cdb25f9c)", async () => {
+    // The FieldNotes demo password starts with "FieldNotes": its fragment "Field" turned iOS
+    // XCUIElementTypeTextField into a non-field. Same shape here with Android's EditText.
+    const account = { username: "qa.tester@example.com", password: "EditText-Demo-2026" };
+    const { device, typed } = loginDevice(account);
+    const { plan, prompts } = signInPlanner(true);
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 6);
+    const evidence: string[] = [];
+    const save = h.ports.saveEvidence;
+    h.ports.saveEvidence = async (name, kind, data, at) => {
+      evidence.push(String(data));
+      return save(name, kind, data, at);
+    };
+    const out = await runAgent(h.ports, { ...h.config, testAccount: account });
+
+    expect(typed()).toEqual({ user: account.username, pass: account.password });
+    expect(out.blockers.filter((b) => /sign-in/i.test(b))).toEqual([]);
+    expect(evidence.some((x) => x.includes("android.widget.EditText"))).toBe(true);
+    for (const text of [...prompts, ...evidence, JSON.stringify(h.events)]) {
+      expect(text).not.toContain(account.password);
+    }
+  });
 });

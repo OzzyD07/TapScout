@@ -339,9 +339,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     let out = text;
     for (const v of secrets) {
       out = out.split(v).join("[test account]").split(xmlEscape(v)).join("[test account]");
-      // A partly typed value (lost keystrokes, 43c5c77c) leaves its start or its end behind.
+      // A partly typed value (lost keystrokes, 43c5c77c) leaves its start or its end behind as
+      // a field's whole value. Only whole attribute values are replaced: a fragment matched
+      // anywhere ("Field" of "FieldNotes-…") cut through element type names and broke every
+      // text field on the iOS sign-in screen (cdb25f9c).
       for (const part of fragments(v)) {
-        out = out.split(part).join("[test account]").split(xmlEscape(part)).join("[test account]");
+        for (const p of new Set([part, xmlEscape(part)])) {
+          out = out.split(`="${p}"`).join('="[test account]"');
+        }
       }
     }
     return out;

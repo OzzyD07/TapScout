@@ -115,7 +115,16 @@ for (const s of sessions ?? []) {
     const blockers = s.result?.blockers ?? [];
     const wall = blockers.find((b) => /^(Sign-in|Access blocked)/.test(b));
     const expected = s.build?.has_test_account ? "signed in" : "Sign-in required";
-    const got = wall ? wall.split(":")[0] : "signed in";
+    // "Signed in" needs the runner's own note that the wall was passed: in cdb25f9c (iOS) the
+    // sign-in fields were not recognised, so no wall and no blocker, yet nothing was passed.
+    const { data: passed } = await db
+      .from("run_events")
+      .select("id")
+      .eq("session_id", s.id)
+      .eq("type", "note")
+      .like("payload->>message", "Got past the sign-in%")
+      .limit(1);
+    const got = wall ? wall.split(":")[0] : passed?.length ? "signed in" : "never signed in";
     access = { expected, got, ok: got === expected };
   }
   const selected = rows.filter((r) => r.result !== "mode not selected");
