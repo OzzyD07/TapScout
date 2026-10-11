@@ -191,9 +191,17 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** "No new screen" stops overridden once while enough planner budget remains. */
+const MAX_ESCAPES = 1;
+const MIN_PLANNER_CALLS_FOR_ESCAPE = 6;
 /** A control's visible name (label, else text), trimmed; empty for an unnamed icon. */
 function displayName(e: UiElement): string {
   return (e.label ?? e.text ?? "").trim();
+}
+
+/** A navigation entry by name, or by place when it has none (icon-only bottom bars, 52ad4070). */
+function sweepKey(e: UiElement): string {
+  return displayName(e) || e.stableId || `at ${e.bounds.x},${e.bounds.y}`;
 }
 
 /** Main sections (tabs, bottom bar, app-bar entries) opened without the planner per session. */
@@ -839,6 +847,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
   let loadingPolls = 0;
+  /** Times the planner was sent elsewhere instead of ending on "no new screen". */
+  let escapes = 0;
+  let escapeWarning: string | null = null;
   /** Main navigation entries already opened by the sweep, by visible name. */
   const swept = new Set<string>();
   /** States whose spinner did not go away within the wait. */
@@ -1192,10 +1203,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           // B7: open each main section (tab, bottom bar, app-bar entry) once, without the planner,
           // before exploration goes deep into content (Jerboa runs never left the feed).
           const nav = navigationSweep(snap.screen, fp) as UiElement;
-          swept.add(displayName(nav));
+          swept.add(sweepKey(nav));
           action = { type: "tap", targetRef: nav.ref };
           target = nav;
-          decisionSummary = `Coverage: open the main section "${displayName(nav)}".`;
+          decisionSummary = displayName(nav)
+            ? `Coverage: open the main section "${displayName(nav)}".`
+            : "Coverage: open an unnamed main section of the navigation bar.";
         } else {
           if (
             step - lastNewStateStep >= NO_PROGRESS_STEPS &&
@@ -1203,14 +1216,26 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             (coveredControls(snap.screen, fp).length === 0 || keyboardCloseFailed(fp))
           ) {
             if (await startTour()) continue;
-            return {
-              phase: "completed",
-              stopReason: "goals_exhausted",
-              detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every reachable control was tried.`,
-              blockers: [],
-            };
+            // With planner budget left, let it look elsewhere before giving up (Jitsi run
+            // 80900a96 stopped after 37 actions with 8 planner calls unused).
+            if (
+              plannerDone ||
+              escapes >= MAX_ESCAPES ||
+              budget.maxPlannerRequests - counters.plannerCalls < MIN_PLANNER_CALLS_FOR_ESCAPE
+            ) {
+              return {
+                phase: "completed",
+                stopReason: "goals_exhausted",
+                detail: `No new screen in the last ${NO_PROGRESS_STEPS} actions and every reachable control was tried.`,
+                blockers: [],
+              };
+            }
+            escapes += 1;
+            lastNewStateStep = step;
+            escapeWarning = `No new screen in the last ${NO_PROGRESS_STEPS} actions. Head to a part of the app not explored yet: another tab, the menu, settings, or a form not filled in yet.`;
           }
-          let warning: string | undefined;
+          let warning: string | undefined = escapeWarning ?? undefined;
+          escapeWarning = null;
           if (graph.stuckFor(4)) {
             stuckWarnings += 1;
             if (stuckWarnings > 3) {
@@ -1341,6 +1366,41 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           target = alt.target;
           source = "deterministic";
           decisionSummary = "Loop detected; switching to an untried control or going back.";
+        }
+
+        // Back from here already left the app (AntennaPod run f9ba4aeb: Back on the home screen,
+        // relaunch, Back again until the relaunch limit ended the session): try something else.
+        if (
+          action.type === "back" &&
+          graph.get(fp)?.tried.get(keyOf(action, undefined))?.results.includes("left the app")
+        ) {
+          let alt = fallback(snap.screen, fp);
+          if (alt.action.type === "back") {
+            // Everything here was tried: the least tried safe control still beats leaving.
+            const tried = graph.get(fp)?.tried;
+            const least = controlsOf(snap.screen)
+              .filter(safeToTry)
+              .sort(
+                (a, b) =>
+                  (tried?.get(actionKey("tap", a))?.count ?? 0) -
+                  (tried?.get(actionKey("tap", b))?.count ?? 0),
+              )[0];
+            if (least) alt = { action: { type: "tap", targetRef: least.ref }, target: least };
+          }
+          if (alt.action.type !== "back") {
+            ports.emit({
+              type: "note",
+              payload: {
+                level: "info",
+                message: "Back left the app from here before; trying another control.",
+              },
+            });
+            action = alt.action;
+            target = alt.target;
+            source = "deterministic";
+            decisionSummary =
+              "Back from this screen leaves the app; switching to an untried control.";
+          }
         }
       }
 
@@ -1708,10 +1768,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (swept.size >= MAX_NAV_SWEEP) return undefined;
     const controls = controlsOf(screen);
     return untriedControls(screen, fp).find(
-      (e) =>
-        navigationEntry(e, controls, screen.heightPx) &&
-        displayName(e) !== "" &&
-        !swept.has(displayName(e)),
+      (e) => navigationEntry(e, controls, screen.heightPx) && !swept.has(sweepKey(e)),
     );
   }
 

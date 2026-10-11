@@ -443,6 +443,47 @@ describe("runAgent", () => {
     );
   });
 
+  it("does not press Back again where Back left the app (f9ba4aeb)", async () => {
+    const device = fakeDevice();
+    let out = false;
+    const source = device.pageSource;
+    device.pageSource = async () => (out ? '<hierarchy width="1080" height="2400"/>' : source());
+    device.appState = async () => (out ? 3 : 4);
+    const back = device.back;
+    device.back = async () => {
+      // Back on the first screen sends the app to the background; elsewhere it goes back.
+      if ((await source()).includes("Get started")) out = true;
+      else await back();
+    };
+    const relaunch = vi.fn(async () => {
+      out = false;
+    });
+    device.relaunch = relaunch;
+    // A planner that only ever goes back.
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "explore",
+          observationId: obs,
+          nextAction: { type: "back" },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Back.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 8);
+    const result = await runAgent(h.ports, h.config);
+    expect(relaunch.mock.calls.length).toBeLessThanOrEqual(1);
+    expect(result.stopReason).not.toBe("access_blocked");
+  });
+
   it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
     const device = fakeDevice();
     let sheet = false;

@@ -98,6 +98,15 @@ describe("navigationEntry (B7)", () => {
     // Three buttons in the middle of the screen are content, not navigation.
     const middle = ["A", "B", "C"].map((l, i) => tab(i * 216, 1200, l));
     expect(navigationEntry(middle[0] as UiElement, middle, 2400)).toBe(false);
+    // A post's vote row just under the app bar is content (52ad4070); the app bar itself is not.
+    const votes = ["Upvote", "Downvote", "Save"].map((l, i) =>
+      control({ label: l, bounds: { x: 600 + i * 150, y: 304, width: 126, height: 106 } }),
+    );
+    expect(navigationEntry(votes[0] as UiElement, votes, 2400)).toBe(false);
+    const appBar = ["Menu", "Sort", "More"].map((l, i) =>
+      control({ label: l, bounds: { x: 692 + i * 126, y: 158, width: 126, height: 126 } }),
+    );
+    expect(navigationEntry(appBar[0] as UiElement, appBar, 2400)).toBe(true);
   });
 });
 

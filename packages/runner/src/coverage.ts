@@ -54,8 +54,8 @@ export function iconOnly(e: Pick<UiElement, "label" | "text">): boolean {
 const ROW_ROLES = new Set(["button", "link", "tab"]);
 
 /**
- * A main navigation entry: a tab, or one of three or more controls side by side in the top or
- * bottom band (bottom bar, top tab row, app-bar icons). These lead to the app's main screens,
+ * A main navigation entry: a tab, or one of three or more controls side by side in the app bar
+ * or the bottom band (bottom bar, app-bar icons). These lead to the app's main screens,
  * so exploration opens them before going deeper into content (docs/07 B7; benchmark runs
  * 23a8e69a, aa5045dc: Jerboa's and Habo's main screens were never opened).
  */
@@ -66,7 +66,8 @@ export function navigationEntry(
 ): boolean {
   if (e.role === "tab") return true;
   if (screenHeight <= 0 || !ROW_ROLES.has(e.role)) return false;
-  const top = e.bounds.y + e.bounds.height <= screenHeight * 0.3;
+  // The app bar only: rows lower down are content (Jerboa run 52ad4070: a post's vote row).
+  const top = e.bounds.y + e.bounds.height <= screenHeight * 0.15;
   const bottom = e.bounds.y >= screenHeight * 0.8;
   if (!top && !bottom) return false;
   const row = elements.filter(
