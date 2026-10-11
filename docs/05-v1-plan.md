@@ -471,3 +471,33 @@ Doğrulama: birim ve sahte cihaz testleri (hesapsız → `access_blocked` + "Sig
 | `6af17ed2` | login, hesapsız, beş mod | `access_blocked`, "Sign-in required", 2 ekran, 0 bulgu | `access_blocked`, "Sign-in required", 4 ekran, 0 bulgu |
 
 Sızıntı denetimi: demo e-posta ve şifresi olaylarda, oturum kayıtlarında, raporda ve indirilen `run-android` artifact'inde yok; artifact'te Appium logu yerine `appium.log.removed` var. Hesapsız koşunun özeti "notCovered" alan adını metne taşıdı; özet doğrulayıcısı artık veri alan adlarını ve ham check id'lerini reddediyor.
+
+## 21. Gerçek uygulama ölçüm seti, ilk tur (A5) ve ilk sağlamlaştırmalar (11 Ekim 2026)
+
+**Set** (`scripts/benchmark/apps.json`, beklentiler `quality/benchmark/`). F-Droid'den sabit sürüm ve hash'le (F-Droid index-v2'ye karşı doğrulandı) beş APK; kaynaktan iki uygulama. Build'ler `build-benchmark.yml` ile üretilir, `scripts/publish-benchmark.mjs` ile `tester@tapscout.com`'un normal build'leri olarak yüklenir; koşu `dev-run.mjs --app "<ad>"`.
+
+| Uygulama | Yığın | Platform | Özellik |
+|---|---|---|---|
+| Jitsi Meet 26.0.0 | React Native | Android (x86_64) | kamera/mikrofon/bildirim izinleri, backend, sekmeler |
+| AntennaPod 3.12.2 | Java/Kotlin, Views | Android | podcast arama/backend listeleri, bildirim izni |
+| Read You 0.16.2 | Kotlin, Compose | Android | açılışta bildirim izni, şartlar ekranı |
+| Jerboa 0.0.88 | Kotlin, Compose | Android | değişen akış (lemmy.ml), isteğe bağlı giriş, açılış diyalogları |
+| Tusky 33.0 | Kotlin, Views | Android | parolasız giriş duvarı (instance → OAuth), hesap yok |
+| Habo 4.0.0-foss | Flutter | Android + iOS | tanıtım ekranları, bildirim izni, yerel form/veri |
+| Ice Cubes 2.1.3 | SwiftUI | iOS | backend zaman akışı, hesapsız gezinme |
+
+Ana ekran listeleri her uygulamanın kaynak metinlerinden, koşulara bakılmadan önce yazıldı. Bir ekran, saklanan hierarchy'lerden birinde işaretleri eşleşince "ulaşıldı" sayılır (`quality/benchmark.mjs`). Değerlendirici ayrıca erişim sonucunu, durma yeri/sebebini, kesinti ve yükleme göstergesi sıklığını ve her bulgunun elle verilmiş hükmünü (bölge eşlemeli) raporlar. İşaretler yalnız koşu belirsiz olduklarını gösterince düzeltildi (Jitsi Settings, Jerboa akışı); düzeltmeler dosyada `markerNote` ile kayıtlı.
+
+**İlk tur bulguları ve düzeltmeler** (koşu → engel → düzeltme):
+
+| Koşu | Engel | Düzeltme |
+|---|---|---|
+| AntennaPod `6f037472` | Oturum açılmadı: `SplashActivity` hemen kapanıyor, Appium onu bekliyor | Appium uygulamanın activity'sini beklemez (`appWaitForLaunch: false`); ilk ekranı runner bekler |
+| Read You `14966324`, `9e9419b2` | Açılışta bildirim izni: önce Appium, sonra (izin activity'si öndeyken uygulama "arka planda" sayıldığı için) agent ekranı hiç okumadı | Android/iOS izin diyalogları kesinti olarak tanınır ve "Allow" ile geçilir (timeline'a `Interruption:` notu); Android'de arkada çalışan uygulamada da ekran okunur |
+| Jerboa `0b8ca5e6` | Sonuç kayboldu: 50'den fazla bulgu → `finish` 400. Açılışta iki diyalogda 9 eylem; metin linklerine basıp uygulamadan çıktı | Oturum başına en çok 50 bulgu (önce doğrulama, sonra severity). Açılıştan sonraki 10 adımda uygulama içi diyalog/tanıtım/onay ekranları planner'sız cevaplanır (OK/Done/Skip…, çerezde önce "Reject"); tarayıcıya çıkan düğmelere basılmaz |
+| Jerboa `5a5a1b40` | "Share" sayfası uygulamanın görevinde kaldı; yeniden başlatma onu tekrar öne getirdi → `access_blocked` | Android'de önce bir kez Geri, sonra yeniden başlatma |
+| Jitsi `f86858fd` | Planner dili Afrikaanca'ya çevirdi; tur artık bulunamayan "Language" ekranına ~65 eylem harcadı | Dil seçeneklerine (kendi dilinde dil adları) planner ve kapsam turu dokunmaz (prompt `planner-2026-10-11.v3`); gözlenen yolla ulaşılamayan ekran yeniden hedeflenmez |
+
+**Yanlış pozitifler (A4).** İlk tur bulgularının elle hükmü: AntennaPod 44 bulgu, %73 yanlış pozitif; Jitsi 35 bulgu, %29. Kaynaklar: etiketi alt metninden gelen tıklanabilir satır/kartlar, etiketli satırın içindeki tıklanamaz checkbox, bottom sheet arka planı, klavyenin arkasına giren alt sekme çubuğu, kaydırma kenarında kırpılmış kontrolün ölçüsü, ve aynı sorunun kontrol başına (ve dil değişince ekran adı başına) tekrar sayılması. Düzeltmeler (`checks.ts`, `observer.ts`): etiketsiz kontrol içindeki metinlerle adlandırılır (planner da görür); kırpılmış ya da ekran kenarında kesilmiş kontrol ölçülmez; alt gezinme klavye örtmesi sayılmaz; bulgular ekran ve kontrol türü başına gruplanır, aynı kontrol başka ekranda tek sayılır. Kayıtlı hierarchy'lerin yeni kurallarla çevrimdışı tekrarı: AntennaPod 44 → 1, Jitsi 35 → 4, Jerboa (sonucu kaybolan koşu) → 4 bulgu; kalanlar elle doğrulanmış gerçek sorunlar (açıklamasız kapak/küçük resimler, etiketsiz switch'ler ve geri butonu, 46×27 dp switch'ler). Rapor özeti doğrulayıcısı gruplanmış bulgunun kendi sayısını ("6 switches") kabul eder.
+
+**iOS build'leri.** Habo (Flutter Simulator'da yalnız debug) ve Ice Cubes (Xcode 26.6'da `main` derlenmiyor, 2.1.3 Release'te derleyici çöküyor → Debug) Free plandaki 50 MB nesne sınırını aştı (68,6 MB ve 115 MB zip). Zip öncesi sembol soyma + Ice Cubes uzantılarının kaldırılması + ad-hoc yeniden imza eklendi; sınır hâlâ aşılırsa iOS ölçümü Supabase Pro'yu bekler.
