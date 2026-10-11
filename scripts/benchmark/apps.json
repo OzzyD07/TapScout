@@ -1,0 +1,109 @@
+{
+  "$comment": "Build sources of the real-app benchmark set (docs/07 A5). Only where each build comes from; the expectations used to score runs live in quality/benchmark/ and are never read by runtime code. F-Droid hashes were checked against the signed F-Droid index-v2 on 2026-10-11.",
+  "apps": [
+    {
+      "key": "jitsi-meet",
+      "name": "Jitsi Meet",
+      "stack": "React Native",
+      "license": "Apache-2.0",
+      "source": "https://github.com/jitsi/jitsi-meet",
+      "android": {
+        "kind": "fdroid",
+        "package": "org.jitsi.meet",
+        "versionCode": 26000004,
+        "versionName": "26.0.0",
+        "abi": "x86_64",
+        "sha256": "72aab4912b08431a2340fc1fb1f181be3a07e8b7ac607e0bb9e4c3814c2e4248"
+      }
+    },
+    {
+      "key": "antennapod",
+      "name": "AntennaPod",
+      "stack": "Java/Kotlin, Android Views",
+      "license": "GPL-3.0-only",
+      "source": "https://github.com/AntennaPod/AntennaPod",
+      "android": {
+        "kind": "fdroid",
+        "package": "de.danoeh.antennapod",
+        "versionCode": 3120295,
+        "versionName": "3.12.2",
+        "abi": "universal",
+        "sha256": "3f43a4337a693cdb49141afe06cb596e88c796009ed77bff51e9444ce2d1ebfc"
+      }
+    },
+    {
+      "key": "read-you",
+      "name": "Read You",
+      "stack": "Kotlin, Jetpack Compose",
+      "license": "GPL-3.0-only",
+      "source": "https://github.com/Ashinch/ReadYou",
+      "android": {
+        "kind": "fdroid",
+        "package": "me.ash.reader",
+        "versionCode": 47,
+        "versionName": "0.16.2",
+        "abi": "universal",
+        "sha256": "78b1b8b9b6f6d18baaba31427895f1f10e9ca6cc1e01b3ceeb96df26e8fca075"
+      }
+    },
+    {
+      "key": "jerboa",
+      "name": "Jerboa",
+      "stack": "Kotlin, Jetpack Compose",
+      "license": "AGPL-3.0-only",
+      "source": "https://github.com/LemmyNet/jerboa",
+      "android": {
+        "kind": "fdroid",
+        "package": "com.jerboa",
+        "versionCode": 88,
+        "versionName": "0.0.88-fdroid",
+        "abi": "universal",
+        "sha256": "70c18bd6cc9eafdfbdad3973cb3f728eadaead5548318002c13929c58aaa5824"
+      }
+    },
+    {
+      "key": "tusky",
+      "name": "Tusky",
+      "stack": "Kotlin, Android Views",
+      "license": "GPL-3.0-only",
+      "source": "https://codeberg.org/tusky/Tusky",
+      "android": {
+        "kind": "fdroid",
+        "package": "com.keylesspalace.tusky",
+        "versionCode": 144,
+        "versionName": "33.0",
+        "abi": "universal",
+        "sha256": "4358a8c2d4ea3680105199753b6141f3a0cb3b3b6547f4447ea7b4f439200c34"
+      }
+    },
+    {
+      "key": "habo",
+      "name": "Habo",
+      "stack": "Flutter",
+      "license": "GPL-3.0",
+      "source": "https://github.com/xpavle00/Habo",
+      "repo": "xpavle00/Habo",
+      "ref": "35fdb2991a76bb4730b56020e44d06e1810d0cbc",
+      "refName": "v4.0.0-foss",
+      "flutter": "3.41.5",
+      "android": { "kind": "flutter", "abi": "x86_64" },
+      "ios": { "kind": "flutter", "arch": "arm64" }
+    },
+    {
+      "key": "ice-cubes",
+      "name": "Ice Cubes",
+      "stack": "SwiftUI",
+      "license": "AGPL-3.0",
+      "source": "https://github.com/Dimillian/IceCubesApp",
+      "repo": "Dimillian/IceCubesApp",
+      "ref": "2ad6e689125801abeb7e356360785c08a4864982",
+      "refName": "main (2026-10-08)",
+      "ios": {
+        "kind": "xcodebuild",
+        "project": "IceCubesApp.xcodeproj",
+        "scheme": "IceCubesApp",
+        "arch": "arm64"
+      }
+    }
+  ]
+}

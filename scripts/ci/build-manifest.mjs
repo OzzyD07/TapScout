@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Writes <file>.manifest.json next to a sample build: hash, size, variant, source commit and
-// toolchain. The ground-truth defect list is never part of this manifest (docs/04 §6).
+// Writes <file>.manifest.json next to a sample or benchmark build: hash, size, variant, source
+// commit and toolchain. The ground-truth defect list is never part of this manifest (docs/04 §6).
+// Benchmark builds (docs/07 A5) pass --app, --benchmark <key> and the upstream --source/--ref.
 import { createHash } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
@@ -13,6 +14,10 @@ const { values } = parseArgs({
     variant: { type: "string" },
     arch: { type: "string" },
     toolchain: { type: "string", default: "" },
+    app: { type: "string", default: "FieldNotes" },
+    benchmark: { type: "string" },
+    source: { type: "string" },
+    ref: { type: "string" },
   },
 });
 if (!values.file || !values.platform || !values.variant) {
@@ -24,7 +29,9 @@ if (!values.file || !values.platform || !values.variant) {
 
 const bytes = await readFile(values.file);
 const manifest = {
-  app: "FieldNotes",
+  app: values.app,
+  benchmark: values.benchmark ?? null,
+  upstream: values.source ? { source: values.source, ref: values.ref ?? null } : null,
   platform: values.platform,
   environment: values.platform === "ios" ? "ios_simulator" : "android_emulator",
   variant: values.variant,

@@ -1,0 +1,198 @@
+name: build-benchmark
+
+# Builds the real-app benchmark set (docs/07 A5, scripts/benchmark/apps.json) for the test
+# runners. F-Droid APKs are downloaded at a pinned version and hash; the Flutter and SwiftUI apps
+# are built from a pinned upstream commit. No secret is available to these jobs: upstream build
+# scripts run here, so the workflow only has read access to this repository.
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: Which builds
+        type: choice
+        options: [all, fdroid, habo, ice-cubes]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-benchmark-${{ inputs.apps }}
+  cancel-in-progress: true
+
+env:
+  HABO_REPO: xpavle00/Habo
+  HABO_REF: 35fdb2991a76bb4730b56020e44d06e1810d0cbc
+  FLUTTER_VERSION: 3.41.5
+  ICECUBES_REPO: Dimillian/IceCubesApp
+  ICECUBES_REF: 2ad6e689125801abeb7e356360785c08a4864982
+
+jobs:
+  fdroid:
+    if: inputs.apps == 'all' || inputs.apps == 'fdroid'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Download pinned F-Droid APKs
+        run: |
+          echo "| File | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/ci/fetch-fdroid.mjs --out out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-fdroid-android
+          path: out/
+          retention-days: 30
+          if-no-files-found: error
+
+  habo-android:
+    if: inputs.apps == 'all' || inputs.apps == 'habo'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.HABO_REPO }}
+          ref: ${{ env.HABO_REF }}
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      # Same steps as the upstream CI: the reproducible-build .env is part of the repository.
+      - name: Build release APK (x86_64)
+        working-directory: upstream
+        run: |
+          cp .env.rb .env
+          flutter pub get
+          dart run flutter_iconpicker:generate_packs --packs fontAwesomeIcons
+          flutter build apk --release --target-platform android-x64 --no-tree-shake-icons
+      # The upstream release build is unsigned; Android installs only signed APKs, so it is signed
+      # with a throwaway key that exists only in this job.
+      - name: Sign APK and write manifest
+        run: |
+          mkdir -p out
+          tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 | sort -V | tail -1)
+          keytool -genkeypair -keystore "$RUNNER_TEMP/bench.jks" -storepass benchmark -keypass benchmark \
+            -alias bench -keyalg RSA -keysize 2048 -validity 30 -dname "CN=TapScout benchmark" > /dev/null
+          "$tools/zipalign" -f -p 4 upstream/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$RUNNER_TEMP/bench.jks" --ks-pass pass:benchmark \
+            --out out/bench-habo-android-x86_64.apk "$RUNNER_TEMP/aligned.apk"
+          echo "| File | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/ci/build-manifest.mjs --file out/bench-habo-android-x86_64.apk \
+            --platform android --variant benchmark --arch x86_64 --app Habo --benchmark habo \
+            --source "https://github.com/$HABO_REPO" --ref "$HABO_REF" \
+            --toolchain "flutter $FLUTTER_VERSION, jdk17"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-habo-android
+          path: out/
+          retention-days: 30
+          if-no-files-found: error
+
+  habo-ios:
+    if: inputs.apps == 'all' || inputs.apps == 'habo'
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.HABO_REPO }}
+          ref: ${{ env.HABO_REF }}
+          path: upstream
+          persist-credentials: false
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app && xcodebuild -version
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+      # Flutter builds for the iOS Simulator only in debug mode (JIT); the app runs standalone.
+      - name: Build for iOS Simulator
+        working-directory: upstream
+        run: |
+          cp .env.rb .env
+          flutter pub get
+          dart run flutter_iconpicker:generate_packs --packs fontAwesomeIcons
+          flutter build ios --simulator --debug --no-codesign
+      - name: Collect .app zip and manifest
+        run: |
+          mkdir -p out
+          ditto -c -k --sequesterRsrc --keepParent upstream/build/ios/iphonesimulator/Runner.app \
+            out/bench-habo-ios-sim-arm64.app.zip
+          echo "| File | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/ci/build-manifest.mjs --file out/bench-habo-ios-sim-arm64.app.zip \
+            --platform ios --variant benchmark --arch arm64 --app Habo --benchmark habo \
+            --source "https://github.com/$HABO_REPO" --ref "$HABO_REF" \
+            --toolchain "flutter $FLUTTER_VERSION (debug), $(xcodebuild -version | tr '\n' ' ')"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-habo-ios
+          path: out/
+          retention-days: 30
+          if-no-files-found: error
+
+  ice-cubes-ios:
+    if: inputs.apps == 'all' || inputs.apps == 'ice-cubes'
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.ICECUBES_REPO }}
+          ref: ${{ env.ICECUBES_REF }}
+          path: upstream
+          persist-credentials: false
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app && xcodebuild -version
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The upstream README requires a local xcconfig; signing is off for a Simulator build.
+      - name: Build for iOS Simulator (arm64)
+        working-directory: upstream
+        run: |
+          printf 'DEVELOPMENT_TEAM =\nBUNDLE_ID_PREFIX = dev.tapscout.bench\n' > IceCubesApp.xcconfig
+          set -o pipefail
+          xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 200
+      - name: Collect .app zip and manifest
+        run: |
+          mkdir -p out
+          app=$(find upstream/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          echo "app: $app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" out/bench-ice-cubes-ios-sim-arm64.app.zip
+          echo "| File | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/ci/build-manifest.mjs --file out/bench-ice-cubes-ios-sim-arm64.app.zip \
+            --platform ios --variant benchmark --arch arm64 --app "Ice Cubes" --benchmark ice-cubes \
+            --source "https://github.com/$ICECUBES_REPO" --ref "$ICECUBES_REF" \
+            --toolchain "$(xcodebuild -version | tr '\n' ' ')"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bench-ice-cubes-ios
+          path: out/
+          retention-days: 30
+          if-no-files-found: error
