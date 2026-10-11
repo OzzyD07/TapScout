@@ -65,7 +65,7 @@ describe("accessibility", () => {
     const t = new ModeTracker("android", 2.625);
     const icon = el({
       stableId: "profile-settings",
-      bounds: { x: 0, y: 0, width: 126, height: 126 },
+      bounds: { x: 913, y: 336, width: 126, height: 126 },
     });
     const labelled = el({ stableId: "profile-edit", label: "Edit profile" });
     t.observe("Profile", screen([icon, labelled]), "shot-1", 1);
@@ -204,6 +204,15 @@ describe("accessibility on real apps (benchmark runs f86858fd, e24b2ce6)", () =>
       1,
     );
     expect(buildModeChecks(edge, ctx(["accessibility"])).findings).toEqual([]);
+    // Nor is a row cut by the edge reported as unlabeled: its text may be below it (23a8e69a).
+    const cut = new ModeTracker("android", 2.625);
+    cut.observe(
+      "Feed",
+      screen([el({ bounds: { x: 0, y: 2369, width: 329, height: 31 } })]),
+      "s",
+      1,
+    );
+    expect(buildModeChecks(cut, ctx(["accessibility"])).findings).toEqual([]);
   });
 });
 
@@ -775,7 +784,7 @@ describe("finding cap (benchmark run 0b8ca5e6: 400 on more than 50 findings)", (
     for (let i = 0; i < 60; i++) {
       t.observe(
         `Screen ${i}`,
-        screen([el({ bounds: { x: i, y: 0, width: 126, height: 126 } })]),
+        screen([el({ bounds: { x: i, y: 300, width: 126, height: 126 } })]),
         "s",
         i,
       );

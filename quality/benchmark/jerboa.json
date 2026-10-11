@@ -55,6 +55,39 @@
     {
       "check": "a11y.control_labels",
       "region": {
+        "y": 2369
+      },
+      "verdict": "false_positive",
+      "reason": "Controls cut by the bottom edge of the screen; their text may be in the hidden part.",
+      "firstSeen": "23a8e69a"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "width": 1080,
+        "height": 675
+      },
+      "verdict": "true_positive",
+      "reason": "Image post area, clickable, without a description.",
+      "firstSeen": "23a8e69a"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "United States",
+      "verdict": "unsure",
+      "reason": "Community link in a post's byline, 184×17dp; arguably inline text.",
+      "firstSeen": "23a8e69a"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Sweet, thx",
+      "verdict": "unsure",
+      "reason": "A one-line comment body that collapses the comment when tapped; a text block more than a control.",
+      "firstSeen": "23a8e69a"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
         "width": 1080,
         "height": 1500
       },

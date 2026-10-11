@@ -129,11 +129,13 @@ function labelledByContent(e: UiElement, elements: UiElement[]): boolean {
  * screen (same class and width), is clipped by a scrolling area; its drawn size is not its real
  * size (f86858fd: a switch half hidden behind the tab bar).
  */
+/** Cut by the top or bottom edge of the screen (0b8ca5e6: a name link half below the edge). */
+function cutByEdge(e: UiElement, screenHeight: number): boolean {
+  return e.bounds.y <= 0 || (screenHeight > 0 && e.bounds.y + e.bounds.height >= screenHeight - 1);
+}
+
 function clippedByScroll(e: UiElement, elements: UiElement[], screenHeight: number): boolean {
-  // Cut by the top or bottom edge of the screen (0b8ca5e6: a name link half below the edge).
-  if (e.bounds.y <= 0 || (screenHeight > 0 && e.bounds.y + e.bounds.height >= screenHeight - 1)) {
-    return true;
-  }
+  if (cutByEdge(e, screenHeight)) return true;
   return elements.some(
     (o) =>
       o !== e &&
@@ -263,7 +265,14 @@ export class ModeTracker {
       this.seenUncovered.add(k);
       this.controls.add(k);
       const partOfRow = !e.clickable && labelledByContent(e, screen.elements);
-      if (!e.label && !e.text && e.role !== "cell" && !labelledByContent(e, screen.elements)) {
+      // A control cut by the screen edge may have its text in the part not shown (23a8e69a).
+      if (
+        !e.label &&
+        !e.text &&
+        e.role !== "cell" &&
+        !labelledByContent(e, screen.elements) &&
+        !cutByEdge(e, screen.heightPx)
+      ) {
         if (!this.unlabeled.has(k)) this.unlabeled.set(k, sighting);
       }
       if (

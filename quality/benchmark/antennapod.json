@@ -70,6 +70,13 @@
   "knownIssues": [],
   "verdicts": [
     {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Filtered",
+      "verdict": "true_positive",
+      "reason": "Full-width filter bar only 27dp tall.",
+      "firstSeen": "3efcc886"
+    },
+    {
       "check": "a11y.control_labels",
       "region": {
         "x": 84,

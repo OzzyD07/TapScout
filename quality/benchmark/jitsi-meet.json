@@ -53,6 +53,16 @@
   "knownIssues": [],
   "verdicts": [
     {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 42,
+        "y": 95
+      },
+      "verdict": "true_positive",
+      "reason": "Lobby header back button without a content description.",
+      "firstSeen": "15fc88db"
+    },
+    {
       "check": "functional.persistence",
       "titleIncludes": "Enter room name",
       "verdict": "false_positive",
