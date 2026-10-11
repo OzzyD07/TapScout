@@ -65,6 +65,47 @@
     {
       "check": "a11y.control_labels",
       "region": {
+        "width": 158,
+        "height": 126
+      },
+      "verdict": "true_positive",
+      "reason": "Settings switches without semantics labels; the row descriptions are separate nodes.",
+      "firstSeen": "59785198"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "width": 84,
+        "height": 84
+      },
+      "verdict": "unsure",
+      "reason": "Small unlabelled buttons on Settings; their purpose is not clear from the evidence.",
+      "firstSeen": "59785198"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "Sign In",
+      "verdict": "unsure",
+      "reason": "Semantics bounds 23dp tall; the drawn button may be larger.",
+      "firstSeen": "59785198"
+    },
+    {
+      "check": "ui.keyboard_occlusion",
+      "titleIncludes": "\"Next\"",
+      "verdict": "false_positive",
+      "reason": "'Next' belongs to the sync intro, a different view that shares the name 'Sync' with the sign-in form.",
+      "firstSeen": "59785198"
+    },
+    {
+      "check": "ui.keyboard_occlusion",
+      "titleIncludes": "Sign Up",
+      "verdict": "unsure",
+      "reason": "'Sign Up' link below the sign-in fields is under the keyboard; a side action rather than the form's submit.",
+      "firstSeen": "59785198"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
         "width": 126,
         "height": 126
       },

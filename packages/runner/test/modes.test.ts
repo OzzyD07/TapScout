@@ -217,6 +217,15 @@ describe("accessibility on real apps (benchmark runs f86858fd, e24b2ce6)", () =>
 });
 
 describe("ui/ux keyboard occlusion", () => {
+  it("does not compare a form with a field-less view of the same name (59785198)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const next = el({ label: "Next", bounds: { x: 84, y: 2182, width: 912, height: 134 } });
+    t.observe("Sync", screen([next]), "intro", 1);
+    const field = el({ role: "text_field", label: "Email", stableId: "email" });
+    t.observe("Sync", screen([field], true), "form", 2);
+    expect(buildModeChecks(t, ctx(["ui_ux"])).findings).toEqual([]);
+  });
+
   it("does not count bottom navigation that Android hides behind the keyboard (f86858fd)", () => {
     const t = new ModeTracker("android", 2.625);
     const field = el({ role: "text_field", label: "Search", stableId: "search" });

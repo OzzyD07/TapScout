@@ -297,7 +297,10 @@ export class ModeTracker {
       const present = new Set(screen.elements.map((e) => key(e, screenLabel)));
       const known = this.withoutKeyboard.get(screenLabel) ?? new Map<string, ScreenSighting>();
       if (!screen.keyboardVisible) {
-        for (const e of screen.elements) {
+        // Only a form's controls are compared: a screen without fields that shares the form's
+        // name (Habo's sync intro and sync sign-in, both "Sync", run 59785198) is another view.
+        const isForm = screen.elements.some((e) => e.role === "text_field");
+        for (const e of isForm ? screen.elements : []) {
           if (
             CONTROL.has(e.role) &&
             e.enabled &&
