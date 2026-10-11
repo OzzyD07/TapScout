@@ -34,9 +34,9 @@ describe("buildCapabilities", () => {
     expect(ios["appium:usePreinstalledWDA"]).toBeUndefined();
   });
 
-  it("does not let Appium wait for the app's activity on Android (splash, permission first)", () => {
+  it("does not let Appium launch (and wait for) the app on Android", () => {
     const android = buildCapabilities({ platform: "android", appPath: "a.apk" });
-    expect(android["appium:appWaitForLaunch"]).toBe(false);
+    expect(android["appium:autoLaunch"]).toBe(false);
   });
 
   it("uses a prebuilt WebDriverAgent when one is given", () => {

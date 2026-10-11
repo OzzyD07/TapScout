@@ -31,11 +31,13 @@ export function buildCapabilities(options: SessionOptions): Record<string, unkno
       "appium:uiautomator2ServerLaunchTimeout": 120_000,
       "appium:adbExecTimeout": 120_000,
       "appium:androidInstallTimeout": 180_000,
-      // Appium only starts the app; the runner waits for a usable first screen itself. Real
-      // apps launch a splash activity that finishes at once (AntennaPod) or ask for a permission
-      // first (Read You: the permission controller is in front), and Appium's own wait for the
-      // app's activity then fails the whole session (benchmark runs 6f037472, 14966324).
-      "appium:appWaitForLaunch": false,
+      // Appium installs the app but does not start it: its launch waits for one activity, and
+      // real apps show a splash activity that finishes at once (AntennaPod), a permission
+      // dialog (Read You) or redirect to a login activity (Tusky), which failed the whole
+      // session (benchmark runs 6f037472, 14966324, 0ca7f5f2; appWaitForLaunch=false still
+      // waited). DeviceSession.open starts it without waiting; the runner waits for a usable
+      // first screen itself.
+      "appium:autoLaunch": false,
       ...common,
     };
   }

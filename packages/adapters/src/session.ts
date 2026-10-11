@@ -45,7 +45,14 @@ export class DeviceSession {
     });
     // Explicit polling below; never rely on implicit waits.
     await driver.setTimeout({ implicit: 0 });
-    return new DeviceSession(options.platform, driver);
+    const session = new DeviceSession(options.platform, driver);
+    if (options.platform === "android") {
+      // autoLaunch is off (see buildCapabilities): start the app without waiting for an activity.
+      const appId = session.appIdFromCapabilities();
+      if (!appId) throw new Error("the driver did not report the app package of the build");
+      await driver.activateApp(appId);
+    }
+    return session;
   }
 
   /** Polls every candidate until one matches exactly one element, or the deadline passes. */
