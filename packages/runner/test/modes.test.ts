@@ -108,7 +108,100 @@ describe("accessibility", () => {
   });
 });
 
+describe("accessibility on real apps (benchmark runs f86858fd, e24b2ce6)", () => {
+  it("reads a clickable row by the texts inside it, but not an image-only tile", () => {
+    const t = new ModeTracker("android", 2.625);
+    const row = el({
+      platformClass: "android.widget.LinearLayout",
+      bounds: { x: 527, y: 178, width: 543, height: 126 },
+    });
+    const title = el({
+      role: "text",
+      clickable: false,
+      text: "Refresh",
+      bounds: { x: 600, y: 200, width: 200, height: 60 },
+    });
+    const tile = el({
+      platformClass: "android.widget.LinearLayout",
+      bounds: { x: 42, y: 545, width: 249, height: 249 },
+    });
+    t.observe("Add podcast", screen([row, title, tile]), "s", 1);
+    const r = buildModeChecks(t, ctx(["accessibility"]));
+    valid(r);
+    expect(r.findings).toHaveLength(1);
+    expect(r.findings[0]?.evidence[0]?.region).toEqual(tile.bounds);
+  });
+
+  it("treats a non-clickable checkbox inside a labelled row as part of the row", () => {
+    const t = new ModeTracker("android", 2.625);
+    const row = el({ label: "Sort by date", bounds: { x: 545, y: 556, width: 525, height: 126 } });
+    const box = el({
+      role: "checkbox",
+      clickable: false,
+      bounds: { x: 902, y: 580, width: 60, height: 60 },
+    });
+    t.observe("Sort", screen([row, box]), "s", 1);
+    const r = buildModeChecks(t, ctx(["accessibility"]));
+    expect(r.findings).toEqual([]);
+  });
+
+  it("groups the same issue per screen and counts a control seen again on another screen once", () => {
+    const t = new ModeTracker("android", 2.625);
+    const sw = (y: number) =>
+      el({
+        role: "switch",
+        platformClass: "android.widget.Switch",
+        bounds: { x: 895, y, width: 122, height: 71 },
+      });
+    const switches = [sw(699), sw(1427), sw(1574)];
+    t.observe("Settings", screen(switches), "en", 1);
+    // The same page after the app language changed (f86858fd: "Instellings").
+    t.observe("Instellings", screen(switches), "af", 2);
+    const r = buildModeChecks(t, ctx(["accessibility"]));
+    valid(r);
+    expect(r.findings.map((f) => f.title)).toEqual([
+      '3 switches without an accessibility label on "Settings"',
+      '3 very small touch targets ("switch") on "Settings"',
+    ]);
+    expect(r.findings[0]?.evidence.map((e) => e.region?.y)).toEqual([699, 1427, 1574]);
+  });
+
+  it("measures a switch cut off by the scroll edge by its full-size twin", () => {
+    const t = new ModeTracker("android", 2.625);
+    const sw = (y: number, height: number) =>
+      el({
+        role: "switch",
+        platformClass: "android.widget.Switch",
+        label: `s${y}`,
+        bounds: { x: 895, y, width: 122, height },
+      });
+    // 122×71 px = 46×27 dp (a real, small switch) and the same switch clipped to 33 px.
+    t.observe("Settings", screen([sw(1427, 71), sw(2238, 33)]), "s", 1);
+    const r = buildModeChecks(t, ctx(["accessibility"]));
+    expect(r.findings.map((f) => f.evidence[0]?.region?.y)).toEqual([1427]);
+  });
+});
+
 describe("ui/ux keyboard occlusion", () => {
+  it("does not count bottom navigation that Android hides behind the keyboard (f86858fd)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const field = el({ role: "text_field", label: "Search", stableId: "search" });
+    const tabs = ["Recent", "Calendar", "Settings"].map((label, i) =>
+      el({ label, bounds: { x: i * 360, y: 2272, width: 360, height: 128 } }),
+    );
+    const save = el({
+      label: "Save",
+      stableId: "save",
+      bounds: { x: 0, y: 1900, width: 1080, height: 150 },
+    });
+    t.observe("Profile", screen([field, save, ...tabs]), "closed", 1);
+    t.observe("Profile", screen([field], true), "open", 2);
+    const r = buildModeChecks(t, ctx(["ui_ux"]));
+    expect(r.findings.map((f) => f.title)).toEqual([
+      '"Save" is hidden by the keyboard on "Profile"',
+    ]);
+  });
+
   it("reports an app control seen under the keyboard and elsewhere uncovered", () => {
     const t = new ModeTracker("ios", 3);
     const cont = el({ stableId: "register-continue", label: "Continue" });

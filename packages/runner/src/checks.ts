@@ -92,6 +92,100 @@ function name(e: UiElement): string {
   return e.label ?? e.text ?? e.stableId ?? e.role;
 }
 
+function within(inner: UiElement["bounds"], outer: UiElement["bounds"]): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  );
+}
+
+/**
+ * Screen-reader view of a control without its own label. Android (and VoiceOver for most
+ * containers) announce a clickable row or card by the texts inside it, and a non-clickable
+ * checkbox or icon inside a labelled clickable row is part of that row, not a control of its own
+ * (benchmark runs f86858fd, e24b2ce6: menu rows, search results, list rows with a checkbox).
+ */
+function labelledByContent(e: UiElement, elements: UiElement[]): boolean {
+  const hasName = (o: UiElement) => Boolean(o.label || o.text);
+  const contains = (outer: UiElement) =>
+    elements.some((o) => o !== outer && hasName(o) && within(o.bounds, outer.bounds));
+  if (contains(e)) return true;
+  if (e.clickable) return false;
+  return elements.some(
+    (a) =>
+      a !== e &&
+      a.clickable &&
+      INTERACTIVE.has(a.role) &&
+      within(e.bounds, a.bounds) &&
+      (hasName(a) || contains(a)),
+  );
+}
+
+/**
+ * A control drawn smaller than an identical control on the same screen (same class and width)
+ * is cut off by the edge of a scrolling area; its drawn size is not its real size (f86858fd: a
+ * switch half hidden behind the tab bar).
+ */
+function clippedByScroll(e: UiElement, elements: UiElement[]): boolean {
+  return elements.some(
+    (o) =>
+      o !== e &&
+      o.platformClass === e.platformClass &&
+      ((o.bounds.width === e.bounds.width && o.bounds.height > e.bounds.height) ||
+        (o.bounds.height === e.bounds.height && o.bounds.width > e.bounds.width)),
+  );
+}
+
+/**
+ * Bottom navigation: three or more controls side by side in the bottom band. Android hides the
+ * bar behind the keyboard by design; it is not the action of the form being typed into.
+ */
+function inBottomNavigation(e: UiElement, elements: UiElement[], screenHeight: number): boolean {
+  if (screenHeight <= 0 || e.bounds.y < screenHeight * 0.8) return false;
+  if (e.role === "tab") return true;
+  const row = elements.filter(
+    (o) =>
+      CONTROL.has(o.role) &&
+      o.bounds.y === e.bounds.y &&
+      o.bounds.height === e.bounds.height &&
+      o.bounds.y >= screenHeight * 0.8,
+  );
+  return row.length >= 3;
+}
+
+/** Evidence regions shown per grouped finding. */
+const MAX_GROUP_EVIDENCE = 6;
+
+/**
+ * One finding per screen and control kind instead of one per control: the same control seen
+ * again on another screen (same class, role and bounds: a shared header button, or a settings
+ * page seen again under a new title) counts once, the rest is grouped by screen and role
+ * (benchmark run f86858fd reported 35 findings for 3 issues).
+ */
+function groupSightings<T extends ScreenSighting>(items: T[], kind: (s: T) => string): T[][] {
+  const seen = new Set<string>();
+  const groups = new Map<string, T[]>();
+  for (const s of items) {
+    const b = s.element.bounds;
+    const same = `${s.element.platformClass}|${s.element.role}|${b.x},${b.y},${b.width},${b.height}`;
+    if (seen.has(same)) continue;
+    seen.add(same);
+    const k = `${s.screenLabel}|${kind(s)}`;
+    groups.set(k, [...(groups.get(k) ?? []), s]);
+  }
+  return [...groups.values()];
+}
+
+function groupEvidence(group: ScreenSighting[]): EvidenceRef[] {
+  return group.slice(0, MAX_GROUP_EVIDENCE).map((s) => ({
+    artifactId: s.artifactId,
+    role: "symptom" as const,
+    region: s.element.bounds,
+  }));
+}
+
 function key(e: UiElement, screenLabel: string): string {
   return (
     e.stableId ?? `${screenLabel}|${e.role}|${e.label ?? e.text ?? `${e.bounds.x},${e.bounds.y}`}`
@@ -141,15 +235,22 @@ export class ModeTracker {
       if (!INTERACTIVE.has(e.role) || !e.enabled) continue;
       if (!e.visible) {
         // Covered by the keyboard: only app controls count, i.e. ones also seen uncovered.
-        if (screen.keyboardVisible && CONTROL.has(e.role)) this.covered.set(k, sighting);
+        if (
+          screen.keyboardVisible &&
+          CONTROL.has(e.role) &&
+          !inBottomNavigation(e, screen.elements, screen.heightPx)
+        ) {
+          this.covered.set(k, sighting);
+        }
         continue;
       }
       this.seenUncovered.add(k);
       this.controls.add(k);
-      if (!e.label && !e.text && e.role !== "cell") {
+      const partOfRow = !e.clickable && labelledByContent(e, screen.elements);
+      if (!e.label && !e.text && e.role !== "cell" && !labelledByContent(e, screen.elements)) {
         if (!this.unlabeled.has(k)) this.unlabeled.set(k, sighting);
       }
-      if (e.role !== "text_field") {
+      if (e.role !== "text_field" && !partOfRow && !clippedByScroll(e, screen.elements)) {
         const w = e.bounds.width / this.unitScale;
         const h = e.bounds.height / this.unitScale;
         if (Math.min(w, h) < limits.recommended && !this.smallTargets.has(k)) {
@@ -165,7 +266,11 @@ export class ModeTracker {
       const known = this.withoutKeyboard.get(screenLabel) ?? new Map<string, ScreenSighting>();
       if (!screen.keyboardVisible) {
         for (const e of screen.elements) {
-          if (CONTROL.has(e.role) && e.enabled) {
+          if (
+            CONTROL.has(e.role) &&
+            e.enabled &&
+            !inBottomNavigation(e, screen.elements, screen.heightPx)
+          ) {
             known.set(key(e, screenLabel), { screenLabel, element: e, artifactId, step });
           }
         }
@@ -337,22 +442,31 @@ export function buildModeChecks(
   // ---- Accessibility --------------------------------------------------------------------------
   if (has("accessibility")) {
     const unlabeled = [...t.unlabeled.values()];
-    const ids = unlabeled.map((u) =>
-      finding({
+    const ids = groupSightings(unlabeled, (u) => u.element.role).map((group) => {
+      const u = group[0] as ScreenSighting;
+      const kind = u.element.role === "text_field" ? "Text field" : "Control";
+      const what = u.element.role.replace("_", " ");
+      return finding({
         mode: "accessibility",
         checkId: "a11y.control_labels",
-        title: `${u.element.role === "text_field" ? "Text field" : "Control"} without an accessibility label on "${u.screenLabel}"`,
+        title:
+          group.length > 1
+            ? `${group.length} ${what}${/(s|x|ch|sh)$/.test(what) ? "es" : "s"} without an accessibility label on "${u.screenLabel}"`
+            : `${kind} without an accessibility label on "${u.screenLabel}"`,
         expected: "Every interactive control exposes a label that screen readers announce.",
-        observed: `A ${u.element.role.replace("_", " ")}${u.element.stableId ? ` (id ${u.element.stableId})` : ""} on "${u.screenLabel}" has neither a label nor visible text in the accessibility hierarchy.`,
+        observed:
+          group.length > 1
+            ? `${group.length} ${what} controls on "${u.screenLabel}" have neither a label nor visible text in the accessibility hierarchy, nor a text inside them.`
+            : `A ${what}${u.element.stableId ? ` (id ${u.element.stableId})` : ""} on "${u.screenLabel}" has neither a label nor visible text in the accessibility hierarchy.`,
         basis: "platform_rule",
         kind: "measured",
         verification: "potential_issue",
         severity: "medium",
         rationale:
           "Screen-reader users cannot tell what this control does. Not confirmed with TalkBack/VoiceOver; a merged parent label could exist.",
-        evidence: [{ artifactId: u.artifactId, role: "symptom", region: u.element.bounds }],
-      }),
-    );
+        evidence: groupEvidence(group),
+      });
+    });
     check({
       checkId: "a11y.control_labels",
       mode: "accessibility",
@@ -376,21 +490,30 @@ export function buildModeChecks(
     const unit = ctx.platform === "ios" ? "pt" : "dp";
     const small = [...t.smallTargets.values()];
     const tiny = small.filter((s) => Math.min(s.size.w, s.size.h) < limits.minimum);
-    const tinyIds = tiny.map((s) =>
-      finding({
-        mode: "accessibility",
-        checkId: "a11y.touch_targets",
-        title: `Very small touch target "${name(s.element)}" on "${s.screenLabel}"`,
-        expected: `Touch targets of at least ${limits.recommended}×${limits.recommended}${unit} (minimum ${limits.minimum}${unit}).`,
-        observed: `The control measures ${s.size.w}×${s.size.h}${unit} in the hierarchy.`,
-        basis: "platform_rule",
-        kind: "measured",
-        verification: "potential_issue",
-        severity: "low",
-        rationale:
-          "Hard to hit for users with limited dexterity; the real hit area may be larger than the drawn bounds.",
-        evidence: [{ artifactId: s.artifactId, role: "symptom", region: s.element.bounds }],
-      }),
+    const tinyIds = groupSightings(tiny, (s) => `${s.element.role}|${s.size.w}x${s.size.h}`).map(
+      (group) => {
+        const s = group[0] as (typeof tiny)[number];
+        return finding({
+          mode: "accessibility",
+          checkId: "a11y.touch_targets",
+          title:
+            group.length > 1
+              ? `${group.length} very small touch targets ("${name(s.element)}") on "${s.screenLabel}"`
+              : `Very small touch target "${name(s.element)}" on "${s.screenLabel}"`,
+          expected: `Touch targets of at least ${limits.recommended}×${limits.recommended}${unit} (minimum ${limits.minimum}${unit}).`,
+          observed:
+            group.length > 1
+              ? `${group.length} controls of this kind each measure ${s.size.w}×${s.size.h}${unit} in the hierarchy.`
+              : `The control measures ${s.size.w}×${s.size.h}${unit} in the hierarchy.`,
+          basis: "platform_rule",
+          kind: "measured",
+          verification: "potential_issue",
+          severity: "low",
+          rationale:
+            "Hard to hit for users with limited dexterity; the real hit area may be larger than the drawn bounds.",
+          evidence: groupEvidence(group),
+        });
+      },
     );
     check({
       checkId: "a11y.touch_targets",

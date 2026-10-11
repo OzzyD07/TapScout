@@ -100,6 +100,18 @@ describe("validateSummary", () => {
     ).toEqual({ ok: true, used: ["F1", "F2"] });
   });
 
+  it("accepts the count a grouped finding states in its own title", () => {
+    const grouped = { ...icon, title: '6 switches without an accessibility label on "Settings"' };
+    const g = summaryInput(report([lost, grouped])).labels;
+    const label = [...g.entries()].find(([, f]) => f.findingId === grouped.findingId)?.[0];
+    expect(
+      validateSummary(
+        { summary: `Six switches have no label on iOS [${label}].`, referencedFindingIds: [] },
+        g,
+      ).ok,
+    ).toBe(true);
+  });
+
   it.each([
     ["an unknown label", "The app crashed [F3].", []],
     ["an unknown referenced id", "Two issues were found.", ["F9"]],

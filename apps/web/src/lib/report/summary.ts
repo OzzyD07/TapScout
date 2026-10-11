@@ -181,7 +181,9 @@ export function validateSummary(
     // "two … incidents [F3]" (run 75c696bc): a counted claim must match the labels it cites.
     const counted = /\b(two|three|four|five|six|seven|eight|nine|ten)\b/i.exec(clause)?.[1];
     const n = counted ? COUNT_WORDS.indexOf(counted.toLowerCase()) + 2 : 0;
-    if (n > 0 && n !== found.length) {
+    // A grouped finding counts its own controls ("6 switches without … [F2]").
+    const ownCount = found.length === 1 && new RegExp(`^${n}\\b`).test(found[0]?.title ?? "");
+    if (n > 0 && n !== found.length && !ownCount) {
       return {
         ok: false,
         reason: `"${counted}" does not match the ${found.length} label(s) of ${name}`,
