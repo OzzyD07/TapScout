@@ -400,13 +400,25 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       png = Buffer.alloc(0);
     }
     // Ask for the state first: the page source of an app that is not in front can hang WDA
-    // (iOS, after a link opened Safari) or fail ("is not running, possibly crashed").
+    // (iOS, after a link opened Safari) or fail ("is not running, possibly crashed"). On Android
+    // a running app behind another window is still read: that window is often a system
+    // permission dialog to answer (benchmark run 9e9419b2: Read You asks at launch).
     let appState = appId ? await timed("app state", () => device.appState(appId as string)) : 4;
     let xml = "";
-    if (appState === 4) {
+    const behind = platform === "android" && appState === 3;
+    if (appState === 4 || behind) {
       try {
         xml = await timed("page source", () => device.pageSource());
       } catch (error) {
+        if (behind)
+          return {
+            png,
+            xml: "",
+            screen: normalizeHierarchy(platform, "", { scale: 1 }),
+            appForeground: false,
+            appState,
+            scale: 1,
+          };
         if (!APP_UNAVAILABLE.test((error as Error).message ?? "")) throw error;
         appState = appId ? await device.appState(appId) : 1;
         if (appState === 4) appState = 3;

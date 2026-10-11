@@ -314,7 +314,7 @@ describe("runAgent", () => {
     });
   });
 
-  it("never asks for the page source while the app is in the background", async () => {
+  it("relaunches when the app went to the background and its page source fails", async () => {
     const device = fakeDevice();
     let background = false;
     const source = device.pageSource;
@@ -357,6 +357,8 @@ describe("runAgent", () => {
     let asking = true;
     const source = device.pageSource;
     device.pageSource = async () => (asking ? xml("android-permission") : source());
+    // The permission controller's activity is in front: the app reports "running in background".
+    device.appState = async () => (asking ? 3 : 4);
     device.tapAt = vi.fn(async () => {
       asking = false;
     });
