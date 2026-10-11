@@ -64,6 +64,21 @@ describe("AccessTracker", () => {
       t.noteTransition({ fromLabel: "Log in", toLabel: "Home", toIsGate: false, type: "back" }),
     ).toBe(false);
     expect(t.blockers(false)[0]).toMatch(/^Sign-in required/);
+    // Without the account, a link to the server's rules leads on but not past the sign-in
+    // (benchmark run 5cf50571, Tusky on mastodon.social).
+    const rules = el({
+      role: "button",
+      text: "By logging in you agree to the rules of mastodon.social.",
+    });
+    expect(
+      t.noteTransition({
+        fromLabel: "Log in",
+        toLabel: "mastodon.social rules",
+        toIsGate: false,
+        type: "tap",
+        target: rules,
+      }),
+    ).toBe(false);
     const guest = el({ role: "button", label: "Continue as guest" });
     expect(
       t.noteTransition({

@@ -14,6 +14,13 @@ const CHANGE_PASSWORD = /\b(change|update|current|old) password\b/i;
 const ONE_TIME_CODE =
   /\b(verification code|one[- ]time|otp|sms code|security code|confirmation code|enter (?:the )?(?:\d-digit )?code|\d-digit code|2fa|two[- ]factor|authenticator|doğrulama kodu)\b/i;
 const CAPTCHA = /captcha|i'?m not a robot|ben robot değilim/i;
+/**
+ * Ways past a sign-in screen without an account. Without the test account typed, only these
+ * pass a wall: a link to the server's rules or terms leads somewhere, but not past the sign-in
+ * (benchmark run 5cf50571, Tusky: "By logging in you agree to the rules" counted as passing).
+ */
+const GUEST =
+  /\b(guest|skip|not now|later|continue without|without (?:an )?account|browse|explore|anonymous(?:ly)?|use without|misafir|atla)\b/i;
 /** Taps that leave a sign-in screen sideways rather than through it. */
 const SIDE_EXIT =
   /\b(forgot|reset|sign ?up|register|create|help|privacy|terms|policy|back|cancel|close|navigate up)\b/i;
@@ -62,8 +69,8 @@ export class AccessTracker {
 
   /**
    * A gate is passed when an action on it leads forward to a screen that is not a wall itself:
-   * a submit after the account was typed, or a tap such as "Continue as guest". Side exits
-   * (forgot password, sign up, back) do not count.
+   * a submit after the account was typed, or a guest way such as "Continue as guest". Side exits
+   * (forgot password, sign up, back) and, without the account, any other link do not count.
    */
   noteTransition(o: {
     fromLabel: string;
@@ -81,6 +88,7 @@ export class AccessTracker {
     const name = `${o.target?.label ?? ""} ${o.target?.text ?? ""}`;
     if (o.type === "tap" && SIDE_EXIT.test(name)) return false;
     if (o.type !== "tap" && o.type !== "type") return false;
+    if (gate.kind === "sign_in" && !gate.accountUsed && !GUEST.test(name)) return false;
     gate.passed = true;
     return true;
   }

@@ -4,9 +4,7 @@
   "stack": "Kotlin, Jetpack Compose",
   "source": "https://github.com/ReadYouApp/ReadYou (F-Droid 0.16.2)",
   "license": "GPL-3.0-only",
-  "platforms": [
-    "android"
-  ],
+  "platforms": ["android"],
   "android": {
     "package": "me.ash.reader"
   },
@@ -22,62 +20,40 @@
     {
       "id": "welcome",
       "name": "Welcome / terms",
-      "all": [
-        "Agree"
-      ]
+      "all": ["Agree"]
     },
     {
       "id": "feeds",
       "name": "Feeds",
-      "all": [
-        "Feeds"
-      ],
-      "any": [
-        "All",
-        "Unread",
-        "Starred"
-      ]
+      "all": ["Feeds"],
+      "any": ["All", "Unread", "Starred"]
     },
     {
       "id": "subscribe",
       "name": "Subscribe dialog",
-      "any": [
-        "Feed or site URL",
-        "Import from OPML"
-      ]
+      "any": ["Feed or site URL", "Import from OPML"]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": [
-        "Accounts",
-        "Languages"
-      ],
+      "all": ["Accounts", "Languages"],
       "markerNote": "0.16.2 names the page 'Color & style', not 'Appearance' (run f5596ba1)."
     },
     {
       "id": "accounts",
       "name": "Accounts",
-      "any": [
-        "Add accounts"
-      ]
+      "any": ["Add accounts"]
     },
     {
       "id": "appearance",
       "name": "Color & style",
-      "all": [
-        "Dark theme",
-        "Basic fonts"
-      ],
+      "all": ["Dark theme", "Basic fonts"],
       "markerNote": "'Color & style' is also a row of Settings; the page is recognised by its own rows (run f5596ba1)."
     },
     {
       "id": "tips",
       "name": "Tips & support",
-      "any": [
-        "Open source licenses",
-        "Sponsor"
-      ]
+      "any": ["Open source licenses", "Sponsor"]
     }
   ],
   "knownIssues": [],
