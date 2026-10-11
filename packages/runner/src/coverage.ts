@@ -14,9 +14,25 @@ const ACCOUNT_HINT = /setting|account|profile|privacy|help|about|preference|gear
 const nameOf = (e: Pick<UiElement, "label" | "text" | "stableId">) =>
   [e.label, e.text, e.stableId].filter(Boolean).join(" ");
 
-/** A control the agent may tap on its own: not destructive and not a plain back button. */
+/**
+ * A language option written in its own language. Picking one changes every text of the app and
+ * makes the rest of the session unreadable (benchmark run f86858fd switched Jitsi Meet to
+ * Afrikaans and spent half its actions on a screen it could no longer find).
+ */
+export const LANGUAGE_OPTION =
+  /^(english|deutsch|español|espanol|français|francais|italiano|português|portugues|nederlands|türkçe|turkce|polski|русский|українська|日本語|中文|简体中文|繁體中文|한국어|العربية|עברית|हिन्दी|svenska|norsk( bokmål)?|dansk|suomi|čeština|slovenčina|magyar|română|ελληνικά|български|hrvatski|srpski|српски|slovenščina|català|euskara|galego|afrikaans|bahasa indonesia|bahasa melayu|tiếng việt|ไทย|فارسی|eesti|latviešu|lietuvių|esperanto|gaeilge|íslenska|shqip|беларуская|қазақ тілі|oʻzbekcha|azərbaycan|ქართული|հայերեն|বাংলা|தமிழ்|తెలుగు|kiswahili|filipino)( \(.*\))?$/i;
+
+export function isLanguageOption(e: Pick<UiElement, "label" | "text">): boolean {
+  const name = (e.label ?? e.text ?? "").trim();
+  return LANGUAGE_OPTION.test(name);
+}
+
+/**
+ * A control the agent may tap on its own: not destructive, not a plain back button and not an
+ * option that switches the app's language.
+ */
 export function safeToTry(e: UiElement): boolean {
-  return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e);
+  return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e) && !isLanguageOption(e);
 }
 
 /**

@@ -87,6 +87,23 @@ describe("validatePlannerAnswer", () => {
     expect(v.ok && v.target?.stableId).toBe("register-name");
   });
 
+  it("rejects switching the app's language", () => {
+    const ctx = context();
+    const lang = {
+      ...(ctx.screen.elements[0] as (typeof ctx.screen.elements)[number]),
+      role: "button" as const,
+      label: "Afrikaans",
+      text: undefined,
+      enabled: true,
+      visible: true,
+    };
+    ctx.screen = { ...ctx.screen, elements: [lang, ...ctx.screen.elements.slice(1)] };
+    expect(validatePlannerAnswer(answer({ type: "tap", targetRef: lang.ref }), ctx)).toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("language"),
+    });
+  });
+
   it("rejects refs that are not on screen, stale observations and wrong targets", () => {
     const ctx = context();
     expect(validatePlannerAnswer(answer({ type: "tap", targetRef: "el-99" }), ctx)).toMatchObject({

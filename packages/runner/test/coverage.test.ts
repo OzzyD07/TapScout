@@ -42,6 +42,13 @@ describe("safeToTry / iconOnly", () => {
     expect(iconOnly(gear)).toBe(true);
     expect(iconOnly(edit)).toBe(false);
   });
+
+  it("never picks a language option on its own (f86858fd switched the app to Afrikaans)", () => {
+    for (const text of ["Afrikaans", "Deutsch", "Türkçe", "English (US)", "日本語"]) {
+      expect(safeToTry(control({ text }))).toBe(false);
+    }
+    expect(safeToTry(control({ text: "Language English" }))).toBe(true);
+  });
 });
 
 describe("ControlLedger.frontier", () => {

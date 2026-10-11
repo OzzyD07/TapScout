@@ -758,6 +758,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   /** The frontier control being headed for; the loop taps it once its screen is reached. */
   let tour: FrontierControl | null = null;
   const toured = new Set<string>();
+  /** Screens an observed path did not lead back to; their untried controls are not toured again. */
+  const unreachable = new Set<string>();
   /** Why the planner can no longer be asked; exploration then continues without model calls. */
   let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
@@ -1596,7 +1598,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const noLinks = relaunches >= MAX_RELAUNCHES - 1;
     const candidates = ledger
       .frontier(graph, from, config.modes)
-      .filter((c) => !toured.has(c.id) && !(noLinks && c.role === "link"))
+      .filter(
+        (c) =>
+          !toured.has(c.id) && !unreachable.has(c.screenLabel) && !(noLinks && c.role === "link"),
+      )
       .slice(0, 3);
     for (const c of candidates) {
       toured.add(c.id);
@@ -1615,6 +1620,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         tour = c;
         return true;
       }
+      // The path did not lead there (the screen changed, f86858fd): stop heading for it.
+      unreachable.add(c.screenLabel);
       if (current?.label !== from) return true;
     }
     return false;
