@@ -51,6 +51,31 @@ export function iconOnly(e: Pick<UiElement, "label" | "text">): boolean {
   return !e.label?.trim() && !e.text?.trim();
 }
 
+const ROW_ROLES = new Set(["button", "link", "tab"]);
+
+/**
+ * A main navigation entry: a tab, or one of three or more controls side by side in the top or
+ * bottom band (bottom bar, top tab row, app-bar icons). These lead to the app's main screens,
+ * so exploration opens them before going deeper into content (docs/07 B7; benchmark runs
+ * 23a8e69a, aa5045dc: Jerboa's and Habo's main screens were never opened).
+ */
+export function navigationEntry(
+  e: UiElement,
+  elements: UiElement[],
+  screenHeight: number,
+): boolean {
+  if (e.role === "tab") return true;
+  if (screenHeight <= 0 || !ROW_ROLES.has(e.role)) return false;
+  const top = e.bounds.y + e.bounds.height <= screenHeight * 0.3;
+  const bottom = e.bounds.y >= screenHeight * 0.8;
+  if (!top && !bottom) return false;
+  const row = elements.filter(
+    (o) =>
+      ROW_ROLES.has(o.role) && o.bounds.y === e.bounds.y && o.bounds.height === e.bounds.height,
+  );
+  return row.length >= 3;
+}
+
 export interface FrontierControl {
   /** Stable key for "already toured": screen label + tap action key. */
   id: string;
@@ -64,19 +89,25 @@ export interface FrontierControl {
 }
 
 export class ControlLedger {
-  private readonly seen = new Map<string, Map<string, { element: UiElement }>>();
+  private readonly seen = new Map<string, Map<string, { element: UiElement; nav: boolean }>>();
 
   /** Remembers the tappable controls of a named screen (latest copy wins). */
-  note(screenLabel: string, controls: UiElement[]) {
+  note(screenLabel: string, controls: UiElement[], screenHeight = 0) {
     const byKey = this.seen.get(screenLabel) ?? new Map();
-    for (const e of controls) if (safeToTry(e)) byKey.set(actionKey("tap", e), { element: e });
+    for (const e of controls) {
+      if (!safeToTry(e)) continue;
+      byKey.set(actionKey("tap", e), {
+        element: e,
+        nav: navigationEntry(e, controls, screenHeight),
+      });
+    }
     this.seen.set(screenLabel, byKey);
   }
 
   /**
-   * Untried controls on other screens that an observed path reaches, best first: account and
-   * settings entry points (strongly when Store Readiness or Accessibility is selected), icon-only
-   * buttons, then the nearest.
+   * Untried controls on other screens that an observed path reaches, best first: main navigation
+   * entries, account and settings entry points (strongly when Store Readiness or Accessibility is
+   * selected), icon-only buttons, then the nearest.
    */
   frontier(graph: StateGraph, currentLabel: string, modes: TestMode[]): FrontierControl[] {
     const storeOrA11y = modes.includes("store_readiness") || modes.includes("accessibility");
@@ -96,7 +127,7 @@ export class ControlLedger {
       const families = new Set(
         [...controls].flatMap(([k, c]) => (tried.has(k) ? [familyOf(c.element) ?? ""] : [])),
       );
-      for (const [key, { element: e }] of controls) {
+      for (const [key, { element: e, nav }] of controls) {
         const family = familyOf(e);
         if (tried.has(key) || (family && families.has(family))) continue;
         if (family) families.add(family);
@@ -112,7 +143,8 @@ export class ControlLedger {
           role: e.role,
           description: `${JSON.stringify(screenLabel)}: ${what}`,
           hops: path.length,
-          score: (hint ? (storeOrA11y ? 3 : 1) : 0) + (icon ? 2 : 0) - path.length * 0.5,
+          score:
+            (nav ? 4 : 0) + (hint ? (storeOrA11y ? 3 : 1) : 0) + (icon ? 2 : 0) - path.length * 0.5,
         });
       }
     }

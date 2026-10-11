@@ -24,7 +24,13 @@ import {
 import { AccessTracker, gateOf } from "./access.js";
 import { RunnerApiError } from "./api.js";
 import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
-import { ControlLedger, type FrontierControl, familyOf, safeToTry } from "./coverage.js";
+import {
+  ControlLedger,
+  type FrontierControl,
+  familyOf,
+  navigationEntry,
+  safeToTry,
+} from "./coverage.js";
 import {
   buildFunctionalChecks,
   FunctionalTracker,
@@ -899,7 +905,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       }
       if (snap.appForeground) {
         modeTracker.observe(state.label, snap.screen, shot, step);
-        ledger.note(state.label, controlsOf(snap.screen));
+        ledger.note(state.label, controlsOf(snap.screen), snap.screen.heightPx);
         access.observe(state.label, snap.screen, shot);
       }
       if (isNew) lastNewStateStep = step;
@@ -1227,6 +1233,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               visionNote,
               warning,
               untriedRefs: new Set(untriedControls(snap.screen, fp).map((e) => e.ref)),
+              untriedNavigation: untriedControls(snap.screen, fp)
+                .filter((e) => navigationEntry(e, controlsOf(snap.screen), snap.screen.heightPx))
+                .map((e) => e.ref),
               testAccount: Boolean(account),
               frontier: ledger
                 .frontier(graph, state.label, config.modes)
@@ -1668,7 +1677,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         .filter((e) => tried?.has(actionKey("tap", e)))
         .map((e) => familyOf(e)),
     );
-    const next = untriedControls(screen, fp).find((e) => {
+    // Main navigation first (tabs, bottom bar): they lead to the app's main screens.
+    const controls = controlsOf(screen);
+    const untried = untriedControls(screen, fp).sort(
+      (a, b) =>
+        Number(navigationEntry(b, controls, screen.heightPx)) -
+        Number(navigationEntry(a, controls, screen.heightPx)),
+    );
+    const next = untried.find((e) => {
       const family = familyOf(e);
       return !(noLinks && e.role === "link") && !(family && opened.has(family));
     });

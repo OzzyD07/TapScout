@@ -91,6 +91,8 @@ export interface PlanningContext {
   untriedRefs?: Set<string>;
   /** Untried controls elsewhere that an observed path reaches, best first. */
   frontier?: string[];
+  /** Refs of untried main navigation entries on this screen (tabs, bottom bar, app-bar icons). */
+  untriedNavigation?: string[];
   /** A test account exists for this build; the model only ever names it, never sees it. */
   testAccount?: boolean;
 }
@@ -132,6 +134,11 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
       .map((s) => `${quote(s.label)}×${s.visits}`)
       .join(", ")}`,
   );
+  if (ctx.untriedNavigation && ctx.untriedNavigation.length > 0) {
+    lines.push(
+      `Untried main navigation on this screen: ${ctx.untriedNavigation.join(", ")}. Open these main screens before going deeper into lists of content.`,
+    );
+  }
   if (ctx.frontier && ctx.frontier.length > 0) {
     lines.push(`Untried controls on other screens: ${ctx.frontier.join("; ")}`);
   }

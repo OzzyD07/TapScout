@@ -1,6 +1,6 @@
 import type { UiElement } from "@tapscout/shared";
 import { describe, expect, it } from "vitest";
-import { ControlLedger, familyOf, iconOnly, safeToTry } from "../src/coverage.js";
+import { ControlLedger, familyOf, iconOnly, navigationEntry, safeToTry } from "../src/coverage.js";
 import { actionKey, StateGraph } from "../src/state.js";
 
 let refs = 0;
@@ -84,6 +84,20 @@ describe("ControlLedger.frontier", () => {
     expect(ledger.frontier(g, "Home", ["functional"])).toHaveLength(2);
     g.record("notes", actionKey("tap", rows[0]), "Open row", "notes", 6, { type: "tap" });
     expect(ledger.frontier(g, "Home", ["functional"]).map((c) => c.role)).toEqual(["button"]);
+  });
+});
+
+describe("navigationEntry (B7)", () => {
+  it("knows a bottom bar and app-bar icon row from an ordinary row of buttons", () => {
+    const tab = (x: number, y: number, label: string) =>
+      control({ label, bounds: { x, y, width: 216, height: 168 } });
+    const bar = ["Home", "Search", "Inbox", "Saved", "Profile"].map((l, i) =>
+      tab(i * 216, 2232, l),
+    );
+    expect(navigationEntry(bar[1] as UiElement, bar, 2400)).toBe(true);
+    // Three buttons in the middle of the screen are content, not navigation.
+    const middle = ["A", "B", "C"].map((l, i) => tab(i * 216, 1200, l));
+    expect(navigationEntry(middle[0] as UiElement, middle, 2400)).toBe(false);
   });
 });
 
