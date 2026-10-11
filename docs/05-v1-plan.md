@@ -531,3 +531,34 @@ Sembol soyma, uzantıları kaldırma ve Ice Cubes'ta Release `-Onone` denendi: H
 | FieldNotes | seeded `907861d5` iki platform **6/6**; fixed `6218f5dc` iki platform 0 YP; login hesaplı `20f5b4b6` iOS geçti; hesapsız `1b23f910` iki platform "Sign-in required" | seeded `2943c592` iki platform **6/6** |
 
 Seeded arada 5/6'ya düşebiliyor (`52c6ac59`: Android'de Settings'e, iOS'ta profil düzenlemeye ulaşılmadı); rapor bunu `inconclusive`/kapsam olarak söylüyor, yanlış "geçti" demiyor.
+
+## 22. G3 koşuları, A2 süre etkisi ve bulunan üç hata (11 Ekim 2026, gece)
+
+**G3 ölçütü:** planner en az 3 ekran keşfetmeli ve geçersiz eylem uygulamamalı. Ölçüm, son runner'la FieldNotes'un dört build'inde, iki platformda ve beş modda yapıldı. Koşular $25 Token Factory kredisiyle çalıştı: relay 402/401 vermedi, bütün çağrılarda usage geldi. Bir koşunun maliyeti iki platform için ≈ $0,011–0,013.
+
+| Run | Build | Android | iOS |
+|---|---|---|---|
+| `9a50d038` | seeded | **6/6**, 0 YP; 15 ekran, 65 eylem, 5,8 dk | **6/6**, 0 YP; 15 ekran, 60 eylem, 12,0 dk |
+| `a60921bc` | fixed | 0 YP; 20 ekran, 4,3 dk | 0 YP; 16 ekran, 9,6 dk |
+| `bf758efb` | login, test hesaplı | giriş geçildi, 18 durum, 0 bulgu | giriş geçildi, 17 durum, 0 bulgu |
+| `5b0eb187` | login, hesapsız | "Sign-in required", 0 bulgu | "Sign-in required", 0 bulgu |
+
+Bu koşuların hiçbirinde reddedilen bir öneri uygulanmadı; reddedilenler repair ya da deterministik eylemle değişti (oturum başına 0–4). Başarısız eylem yok; yalnız `uncertain` sonuçlar var. Ekran durumu sayısı 14–20, eşik 3. **G3 karşılandı.**
+
+**Yol boyunca bulunan ve düzeltilen hatalar** (koşu → sebep → düzeltme):
+
+| Koşu | Ne oldu | Düzeltme |
+|---|---|---|
+| `4021bb0b` Android seeded | Boot'tan ~45 sn sonra adb emülatörü kaybetti (`dumpsys` 255). UiAutomator2 instrumentation'ı da düştü. Erken hata tekrarı 13 sn sonra yeni oturum açtı, ilk screenshot'ta düştü: `infrastructure_failed` | Erken hata tekrarından önce de emülatör adb'ye geri getirilir: `reconnect offline` → `wait-for-device` → `sys.boot_completed=1`. Daha önce bu yalnız oturum başında vardı (`0eda082`) |
+| `cdb25f9c` iOS login hesaplı | Kısmi değer maskeleme (`054b9b7`), demo şifrenin "Field" parçasını XML'in her yerinde değiştirdi. `XCUIElementTypeTextField`, `XCUIElementTypeText[test account]` oldu. Giriş alanları "not a text field" diye reddedildi, oturum giriş ekranından çıkamadı. Duvar da tanınmadığı için engel yazılmadı | Parçalar yalnız bütün öznitelik değeri olarak (`="…"`) maskelenir, tam değer her yerde. Değerlendirici "signed in" demek için runner'ın "Got past the sign-in" notunu ister; yoksa "never signed in" der (`107f31d`) |
+| `b13c27ba` iOS seeded (1/6) | Simülatör tuş vuruşlarını kaybetti ya da karıştırdı ("ADoe", "ax.doe@…"). Bir alan boş okundu, oysa doluydu; yeni değer sonuna eklendi ("…comalex.doe@…"). Form geçilemedi, planner tekrar yazmakla bütçeyi bitirdi | 100 karaktere kadar her yazılan değer okunur; tutmazsa bir kez temizlenip yeniden yazılır. Önceden bu yalnız test kullanıcı adı içindi. Maskeli alanlar ve uzun stres metni hariç (`b8487b7`) |
+| `f138ef62` Android seeded (5/6) | Planner "About you" alanına kayıt adını ("Alex Doe") yazdı. Yeniden başlatmadan sonra bio kayboldu ("No bio yet."), ama başlıktaki "Hi, Alex Doe" aynı metni içerdiği için kalıcılık "kept" sayıldı: yanlış negatif | Kayıttan hemen sonra bir öğenin tam metni olarak görülen değer, yeniden başlatmadan sonra da tam metin olarak aranır. Liste satırı gibi birleşik metinlerde gevşek eşleşme kalır (`6049766`) |
+
+**A2 süre etkisi.** Eylem başına oturum süresi, A2 öncesindeki 5 FieldNotes koşusuyla (`bcd6a32e`, `75c696bc`, `4d53f5f4`, `c212fd12`, `77fbdf49`) sonrasındaki 5 koşu (`907861d5`, `6218f5dc`, `2943c592`, `4021bb0b`, `a1ff94ce`; tamamlanan oturumlar) karşılaştırıldı:
+
+| | Önce | Sonra |
+|---|---|---|
+| Android | 6,27 dk ort., 6,19 sn/eylem | 5,04 dk ort., 5,47 sn/eylem (−%12) |
+| iOS | 12,02 dk ort., 14,14 sn/eylem | 10,31 dk ort., 12,17 sn/eylem (−%14) |
+
+Arada başka değişiklikler de girdi (B7, kapsam turları), bu yüzden fark tek başına A2'ye ait değil. Ama süre artmadı; **hedef (<%10 artış) karşılandı.** A2 sonrası FieldNotes koşularının hiçbirinde "Still loading" notu yok, beklemenin üst sınırı hiç dolmadı. Okuma doğrulaması (`b8487b7`) da süreyi uzatmadı: `9a50d038` Android 5,35, iOS 12,0 sn/eylem.

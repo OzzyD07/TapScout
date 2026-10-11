@@ -207,8 +207,8 @@ Ayrıntı ve tablolar `05` §21'de.
 **Dördüncü/beşinci tur sonrası (`05` §21):** AntennaPod 8/10, Jitsi 5/5, Habo 6/8, Read You 5/7, Tusky doğru "Sign-in required"; yanlış pozitif son turlarda %0. Jerboa'da gerçek bir çökme bulundu (lemmy.ml zaman aşımında `HttpRequestTimeoutException`), crash log kanıtıyla. FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru.
 
 **Kalan işler (sırayla):**
-1. Model kredisi: tahmini harcama $0,52 / $1; benchmark turları $25 kredi gelene kadar durduruldu (G3 ve gerileme koşuları için pay bırakıldı).
-2. FieldNotes'ta A2 süre etkisinin ölçülmesi (<%10 hedef; son seeded koşu süreleri 05 §16–17 ile karşılaştırılmalı).
+1. ~~Model kredisi~~: $25 kredi tanımlandı ve G3 koşularında çalıştı (`05` §22). Benchmark turları yeniden açık.
+2. ~~FieldNotes'ta A2 süre etkisi~~ ölçüldü (`05` §22): eylem başına süre Android −%12, iOS −%14; artış yok.
 3. Jerboa ana ekran kapsamı (2/6): uygulama sık çöküyor ve içerik ağırlıklı; tarama doğru satırları seçiyor mu bir koşuyla bakılmalı.
 4. iOS benchmark (Supabase Pro sonrası).
 5. B6 (alan türüne göre veri), B8 (dilden bağımsız anlam).

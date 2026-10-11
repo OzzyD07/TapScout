@@ -1,6 +1,6 @@
 # TapScout — Devam Notu (yeni oturum için)
 
-Tarih: 11 Ekim 2026 (gece)  
+Tarih: 11 Ekim 2026 (gece, G3 sonrası)  
 Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir, sıradaki işin planı `07`'dedir. Bu not durum özeti ve çalışma kurallarıdır.
 
 ## 1. Proje ve takvim
@@ -17,7 +17,7 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (11 Ekim, gece):** F2 ve F3 bitti; `07`'nin (gerçek uygulamalara dayanıklılık) A grubu ile B7 ve B10 da bitti. 7 açık kaynak uygulamalık ölçüm setinde (Android) beş tur koşuldu: son turlarda yanlış pozitif %0, hiçbir oturum ilk ekranlarda takılmıyor, bir uygulamada (Jerboa) gerçek bir çökme bulundu. FieldNotes gerilemesiz: seeded iki platformda 6/6, fixed 0 yanlış pozitif, login hesaplı/hesapsız doğru. Ayrıntı `07` §7, `05` §21. Takvimin ~10 gün önündeyiz.
+- **Şu an (11 Ekim, gece):** F2 ve F3 bitti; `07`'nin (gerçek uygulamalara dayanıklılık) A grubu ile B7 ve B10 da bitti. 7 açık kaynak uygulamalık ölçüm setinde (Android) beş tur koşuldu: son turlarda yanlış pozitif %0, hiçbir oturum ilk ekranlarda takılmıyor, bir uygulamada (Jerboa) gerçek bir çökme bulundu. FieldNotes gerilemesiz: seeded iki platformda 6/6, fixed 0 yanlış pozitif, login hesaplı/hesapsız doğru. Ayrıntı `07` §7, `05` §21. **G3 karşılandı** (`05` §22): son runner'la seeded `9a50d038` iki platformda 6/6, fixed `a60921bc` 0 YP, login hesaplı `bf758efb` iki platformda giriş geçti, hesapsız `5b0eb187` "Sign-in required". Yol boyunca üç gerçek hata bulundu ve düzeltildi (iOS giriş alanlarını bozan maskeleme, iOS kayıp tuş vuruşları, kalıcılıkta yanlış negatif). A2 süreyi artırmadı. $25 kredi çalışıyor. Takvimin ~10 gün önündeyiz.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
 
@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 204 birim testi (shared 9, adapters 5, runner 83, web 107; 11 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 245 birim testi (shared 9, adapters 6, runner 119, web 111; 11 Ekim gecesi) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -98,7 +98,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - [x] **Vercel'e `APP_CREDENTIALS_ENCRYPTION_KEY` eklemek** (11 Ekim; `7ccf0723`'te bootstrap hesabı çözdü): değer yerel `.env`'de (11 Ekim'de üretildi, 32 bayt base64). Eklenmeden test hesabıyla yükleme "Test accounts are not enabled on this server" hatası verir. Anahtar değişirse kayıtlı hesaplar çözülemez.
 - [ ] Supabase Pro'ya geçiş (11 Ekim gecesi hâlâ alınamadı). Ardından `builds` bucket sınırı 300 MB'a çıkarılacak; iOS benchmark build'leri (Habo 65 MB, Ice Cubes 80 MB) buna bağlı.
 - [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
-- [x] Token Factory kredisi: hackathon'un **$25 kredisi 11 Ekim gecesi tanımlandı** (proje sahibi). O ana kadar $1 deneme kredisinin tahmini ~$0,52'si harcanmıştı (`usage_records`; beş modlu tek platform koşu ≈ $0,005–0,01). Yeni oturumda ilk koşuda relay'in 402/401 vermediği doğrulanmalı.
+- [x] Token Factory kredisi: hackathon'un **$25 kredisi 11 Ekim gecesi tanımlandı** (proje sahibi). O ana kadar $1 deneme kredisinin tahmini ~$0,52'si harcanmıştı (`usage_records`; beş modlu tek platform koşu ≈ $0,005–0,01). G3 koşularında relay 402/401 vermedi; kredi çalışıyor.
 - [x] Vercel'e `TOKEN_FACTORY_*`, `NEMOTRON_MODEL_ID`, `VISION_MODEL_ID` (10 Ekim).
 
 ## 7. Sıradaki işler (F2 ve açık borçlar)
@@ -136,15 +136,23 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - **B7:** ana gezinme girişleri oturumda bir kez planner'sız açılır. **B10:** Android çökme bulgusu crash logu taşır (maskeli, imzaya göre gruplanmış).
 - **Agent:** dil seçeneğine dokunmaz; hesapsız giriş formuna yazmaz, test hesabının kullanıcı adını doğrular; şifresiz giriş duvarı; isteğe bağlı giriş oturumu bitirmez; Flutter alanlarına odaktan yazar; "Geri uygulamadan çıkardıysa tekrar Geri yok"; emülatör offline olursa bir kez yeniden bağlanır.
 
+### 11 Ekim gecesi, G3 oturumu (`05` §22)
+
+- **G3 bitti:** dört FieldNotes build'i, iki platform, beş mod; ölçüt karşılandı. Maliyet koşu başına ≈ $0,011–0,013.
+- **Düzeltmeler:**
+  - Erken hata tekrarından önce emülatör adb'ye geri getirilir (`0eda082`).
+  - Test hesabı parçaları yalnız bütün öznitelik değeri olarak maskelenir; değerlendirici "signed in" demek için runner'ın geçiş notunu ister (`107f31d`).
+  - 100 karaktere kadar yazılan her değer okunur, tutmazsa bir kez yeniden yazılır (`b8487b7`).
+  - Kalıcılıkta, tam metin olarak kaydedilen değer tam metin olarak aranır (`6049766`).
+- **A2 süre etkisi ölçüldü:** eylem başına süre Android −%12, iOS −%14 (artış yok).
+
 ### Hemen sıradaki
 
-1. **G3 (16 Ekim):** son runner ile FieldNotes seeded + fixed + login (iki platform, beş mod) koşuları; sonuç `05`'e yeni bölüm. Bu, $25 kredinin çalıştığını da doğrular.
-2. **A2 süre etkisi:** son FieldNotes koşularının süreleri `05` §16–17 ile karşılaştırılmalı (hedef <%10 artış).
-3. **Ölçüm setinde bir doğrulama turu** (kredi geldi): Jerboa (kapsam 2/6; sık çöküyor), Tusky, Read You, Habo — son düzeltmelerle. Hükümsüz bulgular `quality/benchmark/<app>.json`'a.
-4. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki yeni "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
-5. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
-6. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
-7. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
+1. **Ölçüm setinde bir doğrulama turu** (kredi var): Jerboa (kapsam 2/6; sık çöküyor), Tusky, Read You, Habo, AntennaPod, Jitsi. Son düzeltmelerle koşulur; özellikle okuma doğrulaması ve kalıcılıktaki tam metin kuralı gerçek uygulamalarda yanlış pozitif ya da yanlış negatif üretiyor mu, ona bakılır. Hükümsüz bulgular `quality/benchmark/<app>.json`'a.
+2. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
+3. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
+4. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
+5. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ### Açık borçlar
 
@@ -155,4 +163,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3 ve `07`'nin A grubu (A1, A2, A4, A5, A9) ile B7 ve B10 bitti; 7 uygulamalık gerçek uygulama setinde son turlarda yanlış pozitif %0, FieldNotes seeded iki platformda 6/6. Hackathon'un $25 Token Factory kredisi tanımlandı; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 "Hemen sıradaki": önce G3 koşuları (16 Ekim), sonra A2 süre ölçümü ve ölçüm setinde bir doğrulama turu. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§22'yi oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 "Hemen sıradaki": ölçüm setinde son düzeltmelerle bir doğrulama turu. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
