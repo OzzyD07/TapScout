@@ -91,8 +91,8 @@ describe("accessibility", () => {
     t.observe(
       "Profile",
       screen([
-        el({ label: "Settings", bounds: { x: 0, y: 0, width: 120, height: 120 } }), // 40pt
-        el({ label: "Close", bounds: { x: 0, y: 0, width: 60, height: 60 } }), // 20pt
+        el({ label: "Settings", bounds: { x: 0, y: 300, width: 120, height: 120 } }), // 40pt
+        el({ label: "Close", bounds: { x: 0, y: 300, width: 60, height: 60 } }), // 20pt
       ]),
       "s",
       1,
@@ -179,6 +179,16 @@ describe("accessibility on real apps (benchmark runs f86858fd, e24b2ce6)", () =>
     t.observe("Settings", screen([sw(1427, 71), sw(2238, 33)]), "s", 1);
     const r = buildModeChecks(t, ctx(["accessibility"]));
     expect(r.findings.map((f) => f.evidence[0]?.region?.y)).toEqual([1427]);
+
+    // A name link cut by the bottom edge of the screen (0b8ca5e6): 113×81 px, ends at 2400.
+    const edge = new ModeTracker("android", 2.625);
+    edge.observe(
+      "Comments",
+      screen([el({ label: "N0x0n", bounds: { x: 74, y: 2319, width: 113, height: 81 } })]),
+      "s",
+      1,
+    );
+    expect(buildModeChecks(edge, ctx(["accessibility"])).findings).toEqual([]);
   });
 });
 

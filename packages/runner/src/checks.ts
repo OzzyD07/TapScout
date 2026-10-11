@@ -124,11 +124,15 @@ function labelledByContent(e: UiElement, elements: UiElement[]): boolean {
 }
 
 /**
- * A control drawn smaller than an identical control on the same screen (same class and width)
- * is cut off by the edge of a scrolling area; its drawn size is not its real size (f86858fd: a
- * switch half hidden behind the tab bar).
+ * A control cut off by the screen edge, or drawn smaller than an identical control on the same
+ * screen (same class and width), is clipped by a scrolling area; its drawn size is not its real
+ * size (f86858fd: a switch half hidden behind the tab bar).
  */
-function clippedByScroll(e: UiElement, elements: UiElement[]): boolean {
+function clippedByScroll(e: UiElement, elements: UiElement[], screenHeight: number): boolean {
+  // Cut by the top or bottom edge of the screen (0b8ca5e6: a name link half below the edge).
+  if (e.bounds.y <= 0 || (screenHeight > 0 && e.bounds.y + e.bounds.height >= screenHeight - 1)) {
+    return true;
+  }
   return elements.some(
     (o) =>
       o !== e &&
@@ -250,7 +254,11 @@ export class ModeTracker {
       if (!e.label && !e.text && e.role !== "cell" && !labelledByContent(e, screen.elements)) {
         if (!this.unlabeled.has(k)) this.unlabeled.set(k, sighting);
       }
-      if (e.role !== "text_field" && !partOfRow && !clippedByScroll(e, screen.elements)) {
+      if (
+        e.role !== "text_field" &&
+        !partOfRow &&
+        !clippedByScroll(e, screen.elements, screen.heightPx)
+      ) {
         const w = e.bounds.width / this.unitScale;
         const h = e.bounds.height / this.unitScale;
         if (Math.min(w, h) < limits.recommended && !this.smallTargets.has(k)) {
