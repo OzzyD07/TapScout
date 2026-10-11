@@ -11,7 +11,7 @@ import {
   type UiElement,
 } from "@tapscout/shared";
 import { describe, expect, it, vi } from "vitest";
-import { type AgentDevice, runAgent } from "../src/agent.js";
+import { type AgentDevice, capFindings, runAgent } from "../src/agent.js";
 import { buildModeChecks, groundClipping, ModeTracker } from "../src/checks.js";
 import type { NormalizedScreen } from "../src/observer.js";
 
@@ -717,5 +717,34 @@ describe("stress long-text probe", () => {
           String((e.payload as { summary: string }).summary).includes("long text"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("finding cap (benchmark run 0b8ca5e6: 400 on more than 50 findings)", () => {
+  it("keeps the most important findings and drops the rest from the checks", () => {
+    const t = new ModeTracker("android", 2.625);
+    // 60 unlabeled icons on 60 screens: 60 findings before the cap.
+    for (let i = 0; i < 60; i++) {
+      t.observe(
+        `Screen ${i}`,
+        screen([el({ bounds: { x: i, y: 0, width: 126, height: 126 } })]),
+        "s",
+        i,
+      );
+    }
+    const r = buildModeChecks(t, ctx(["accessibility"]));
+    const crash = {
+      ...(r.findings[0] as Finding),
+      findingId: "bbbbbbbb-bbbb-4bbb-8bbb-000000000001",
+      verification: "reproduced" as const,
+      severity: "high" as const,
+    };
+    const all = [...r.findings, crash];
+    const capped = capFindings(all, r.checks, 50);
+    expect(capped.findings).toHaveLength(50);
+    expect(capped.dropped).toBe(11);
+    expect(capped.findings.some((f) => f.findingId === crash.findingId)).toBe(true);
+    const cited = r.checks.flatMap((c) => c.findingIds);
+    expect(cited.every((id) => capped.findings.some((f) => f.findingId === id))).toBe(true);
   });
 });

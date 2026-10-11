@@ -8,6 +8,7 @@ import {
   describeAction,
   type Finding,
   formatReproduction,
+  MAX_SESSION_FINDINGS,
   type PlatformBudget,
   type ProposedAction,
   type ProposedGoal,
@@ -164,6 +165,39 @@ class AgentStop extends Error {
 
 const OFF_APP = "off-app";
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** Order in which findings are kept when a session has more than the API accepts. */
+const VERIFICATION_RANK: Finding["verification"][] = [
+  "reproduced",
+  "observed",
+  "potential_issue",
+  "manual_review_required",
+];
+const SEVERITY_RANK: Finding["severity"][] = ["critical", "high", "medium", "low", "info"];
+
+/**
+ * Keeps at most `max` findings, most important first (verification, then severity), and removes
+ * the dropped ones from the checks that cite them. Order of the kept findings is preserved.
+ */
+export function capFindings(
+  findings: Finding[],
+  checks: CheckResult[],
+  max: number,
+): { findings: Finding[]; dropped: number } {
+  if (findings.length <= max) return { findings, dropped: 0 };
+  const rank = (f: Finding) =>
+    VERIFICATION_RANK.indexOf(f.verification) * 10 + SEVERITY_RANK.indexOf(f.severity);
+  const keep = new Set(
+    [...findings]
+      .sort((a, b) => rank(a) - rank(b))
+      .slice(0, max)
+      .map((f) => f.findingId),
+  );
+  for (const c of checks) c.findingIds = c.findingIds.filter((id) => keep.has(id));
+  return {
+    findings: findings.filter((f) => keep.has(f.findingId)),
+    dropped: findings.length - keep.size,
+  };
+}
 const MAX_PLANNER_FAILURES = 3;
 const MAX_RELAUNCHES = 3;
 /** Exploration is over when this many actions found no new state and this screen is fully tried. */
@@ -293,7 +327,20 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     });
     checks.push(...modes.checks);
     findings = [...findings, ...modes.findings];
-    for (const f of modes.findings) {
+    // finish_session accepts a bounded list; a real app can exceed it (benchmark run 0b8ca5e6
+    // lost its whole result to a 400). The most important findings are kept.
+    const capped = capFindings(findings, checks, MAX_SESSION_FINDINGS);
+    if (capped.dropped > 0) {
+      findings = capped.findings;
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "warn",
+          message: `${capped.dropped} lower-priority findings were not reported: a session reports at most ${MAX_SESSION_FINDINGS}.`,
+        },
+      });
+    }
+    for (const f of findings.filter((x) => modes.findings.includes(x))) {
       ports.emit({
         type: "finding_candidate",
         payload: { findingId: f.findingId, mode: f.mode, title: f.title, severity: f.severity },

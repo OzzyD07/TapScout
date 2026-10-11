@@ -5,7 +5,9 @@
   "source": "https://github.com/LemmyNet/jerboa (F-Droid 0.0.88)",
   "license": "AGPL-3.0-only",
   "platforms": ["android"],
-  "android": { "package": "com.jerboa" },
+  "android": {
+    "package": "com.jerboa"
+  },
   "access": "optional_sign_in",
   "traits": [
     "backend feed (lemmy.ml, changes every visit)",
@@ -18,16 +20,37 @@
     {
       "id": "home",
       "name": "Home feed",
-      "all": ["~comments"],
-      "any": ["All", "Local", "Subscribed"]
+      "all": ["Upvote"],
+      "any": ["Local", "All", "Subscribed"],
+      "markerNote": "Comment counts are plain numbers in 0.0.88 (run 0b8ca5e6); the feed is recognised by its vote buttons and the listing type."
     },
-    { "id": "search", "name": "Search / communities", "any": ["Search…"] },
-    { "id": "community", "name": "Community page", "any": ["~users / month"] },
-    { "id": "login", "name": "Login", "all": ["Instance", "Password"] },
-    { "id": "settings", "name": "Settings", "all": ["Look and feel"] },
-    { "id": "about", "name": "About", "any": ["~source code", "~Donate", "~Matrix"] }
+    {
+      "id": "search",
+      "name": "Search / communities",
+      "any": ["Search…"]
+    },
+    {
+      "id": "community",
+      "name": "Community page",
+      "any": ["~users / month"]
+    },
+    {
+      "id": "login",
+      "name": "Login",
+      "all": ["Instance", "Password"]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "all": ["Look and feel"]
+    },
+    {
+      "id": "about",
+      "name": "About",
+      "any": ["~source code", "~Donate", "~Matrix"]
+    }
   ],
   "knownIssues": [],
   "verdicts": [],
-  "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not."
+  "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not. First launch shows two in-app dialogs (changelog 'Done'; an announcement with DETAILS / SOLUTION / OK where the first two open the browser)."
 }

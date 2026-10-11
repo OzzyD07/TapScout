@@ -118,12 +118,15 @@ export const HeartbeatResponse = z.object({
 });
 export type HeartbeatResponse = z.infer<typeof HeartbeatResponse>;
 
+/** Findings one platform session may report (the runner keeps the most important ones). */
+export const MAX_SESSION_FINDINGS = 50;
+
 export const FinishSessionRequest = z.object({
   phase: z.enum(["completed", "blocked", "infrastructure_failed", "cancelled"]),
   stopReason: StopReason,
   result: PlatformResult,
   /** Full findings of this session; `result.findingIds` must list exactly these. */
-  findings: z.array(Finding).max(50).optional(),
+  findings: z.array(Finding).max(MAX_SESSION_FINDINGS).optional(),
   device: DeviceProfile.optional(),
 });
 export type FinishSessionRequest = z.infer<typeof FinishSessionRequest>;
