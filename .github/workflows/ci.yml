@@ -29,6 +29,15 @@ jobs:
       - name: Guard ground truth isolation
         run: bash scripts/check-ground-truth.sh
 
+  workflows:
+    # actionlint checks every workflow (expressions, job graph, and the run: scripts through the
+    # shellcheck bundled in the image). Pinned image tag, no local install needed.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+
   database:
     runs-on: ubuntu-24.04
     steps:
