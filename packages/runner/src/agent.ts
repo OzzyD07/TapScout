@@ -191,6 +191,13 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** A control's visible name (label, else text), trimmed; empty for an unnamed icon. */
+function displayName(e: UiElement): string {
+  return (e.label ?? e.text ?? "").trim();
+}
+
+/** Main sections (tabs, bottom bar, app-bar entries) opened without the planner per session. */
+const MAX_NAV_SWEEP = 8;
 /** Re-observations while a spinner is shown, and the pause between them (docs/07 A2). */
 const MAX_LOADING_POLLS = 5;
 const LOADING_POLL_MS = 1_000;
@@ -832,6 +839,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let plannerDone: string | null = null;
   const interruptionSteps: number[] = [];
   let loadingPolls = 0;
+  /** Main navigation entries already opened by the sweep, by visible name. */
+  const swept = new Set<string>();
   /** States whose spinner did not go away within the wait. */
   const slowStates = new Set<string>();
   /** Step of the last (re)launch, and in-app interruption buttons already tapped per state. */
@@ -1179,6 +1188,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           action = { type: "tap", targetRef: arrived.ref };
           target = arrived;
           decisionSummary = `Coverage: try ${tourTarget}, which was never tapped.`;
+        } else if (navigationSweep(snap.screen, fp)) {
+          // B7: open each main section (tab, bottom bar, app-bar entry) once, without the planner,
+          // before exploration goes deep into content (Jerboa runs never left the feed).
+          const nav = navigationSweep(snap.screen, fp) as UiElement;
+          swept.add(displayName(nav));
+          action = { type: "tap", targetRef: nav.ref };
+          target = nav;
+          decisionSummary = `Coverage: open the main section "${displayName(nav)}".`;
         } else {
           if (
             step - lastNewStateStep >= NO_PROGRESS_STEPS &&
@@ -1243,7 +1260,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               untriedRefs: new Set(untriedControls(snap.screen, fp).map((e) => e.ref)),
               untriedNavigation: untriedControls(snap.screen, fp)
                 .filter((e) => navigationEntry(e, controlsOf(snap.screen), snap.screen.heightPx))
-                .map((e) => e.ref),
+                .map((e) => `${e.ref} ${JSON.stringify(displayName(e))}`),
               testAccount: Boolean(account),
               frontier: ledger
                 .frontier(graph, state.label, config.modes)
@@ -1684,6 +1701,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if ((current as { label: string } | null)?.label === before) return false;
     }
     return current?.label === toLabel;
+  }
+
+  /** The next main navigation entry on this screen that was never opened in this session. */
+  function navigationSweep(screen: NormalizedScreen, fp: string): UiElement | undefined {
+    if (swept.size >= MAX_NAV_SWEEP) return undefined;
+    const controls = controlsOf(screen);
+    return untriedControls(screen, fp).find(
+      (e) =>
+        navigationEntry(e, controls, screen.heightPx) &&
+        displayName(e) !== "" &&
+        !swept.has(displayName(e)),
+    );
   }
 
   /** Without the planner: close a keyboard that hides untried controls, else an untried control. */

@@ -414,6 +414,35 @@ describe("runAgent", () => {
     expect(crash?.evidence.some((e) => e.role === "log")).toBe(true);
   });
 
+  it("opens each main section of a bottom bar once without the planner (B7)", async () => {
+    const device = fakeDevice();
+    let section = "Home";
+    const tab = (label: string, i: number) =>
+      `<android.widget.Button class="android.widget.Button" package="dev.tapscout.fieldnotes" text="" content-desc="${label}" resource-id="tab-${label.toLowerCase()}" clickable="true" enabled="true" bounds="[${i * 360},2232][${(i + 1) * 360},2400]" displayed="true"/>`;
+    device.pageSource = async () =>
+      `<hierarchy width="1080" height="2400"><android.widget.FrameLayout class="android.widget.FrameLayout" package="dev.tapscout.fieldnotes" bounds="[0,0][1080,2400]" displayed="true">
+        <android.widget.TextView class="android.widget.TextView" package="dev.tapscout.fieldnotes" text="${section}" clickable="false" enabled="true" bounds="[42,160][600,240]" displayed="true"/>
+        <android.widget.Button class="android.widget.Button" package="dev.tapscout.fieldnotes" text="Item in ${section}" resource-id="item" clickable="true" enabled="true" bounds="[42,600][1038,760]" displayed="true"/>
+        ${["Home", "Search", "Profile"].map(tab).join("")}
+      </android.widget.FrameLayout></hierarchy>`;
+    device.tap = async (t) => {
+      const name = /^tab-(\w+)$/.exec(t.elementId)?.[1];
+      if (name) section = name[0]?.toUpperCase() + name.slice(1);
+    };
+    const h = harness(device, scriptedPlanner(), 2);
+    await runAgent(h.ports, h.config);
+    const sweeps = h.events
+      .filter((e) => e.type === "action_planned")
+      .map((e) => (e.payload as { decisionSummary: string }).decisionSummary)
+      .filter((d) => d.startsWith("Coverage: open the main section"));
+    expect(sweeps).toEqual(
+      expect.arrayContaining([
+        'Coverage: open the main section "Search".',
+        'Coverage: open the main section "Profile".',
+      ]),
+    );
+  });
+
   it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
     const device = fakeDevice();
     let sheet = false;
