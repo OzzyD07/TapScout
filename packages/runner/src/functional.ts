@@ -19,6 +19,8 @@ export interface PersistenceCandidate {
   savedStep: number;
   /** Screenshot of `screenLabel` showing the value before any relaunch. */
   savedArtifactId: string;
+  /** The value was a whole element's text after the save, so it must be one again later. */
+  exact: boolean;
 }
 
 export interface FeedbackRecord {
@@ -73,6 +75,32 @@ export function valueVisible(value: string, elements: UiElement[]): boolean {
       !e.masked &&
       (norm(e.text ?? "").includes(needle) || norm(e.label ?? "").includes(needle)),
   );
+}
+
+/** True when a display element shows exactly the value as its whole text or label. */
+export function valueShownExactly(value: string, elements: UiElement[]): boolean {
+  const needle = norm(value);
+  if (needle.length < MIN_VALUE_LENGTH) return false;
+  return elements.some(
+    (e) =>
+      e.role !== "text_field" &&
+      !e.masked &&
+      (norm(e.text ?? "") === needle || norm(e.label ?? "") === needle),
+  );
+}
+
+/**
+ * Whether a saved value is still shown. A value that was a whole element's text after the save
+ * ("About: Alex Doe") must be one again: as part of other text it can be different data that
+ * happens to match (f138ef62: the bio "Alex Doe" was lost, and "Hi, Alex Doe" came from the
+ * registered name). List rows that join several values keep the looser match.
+ */
+export function valueStillShown(
+  c: Pick<PersistenceCandidate, "exact">,
+  value: string,
+  elements: UiElement[],
+): boolean {
+  return c.exact ? valueShownExactly(value, elements) : valueVisible(value, elements);
 }
 
 /** Platform back controls: navigation-bar back buttons and Android's "Navigate up". */
@@ -182,6 +210,7 @@ export class FunctionalTracker {
             commitLabel: displayName(o.target),
             savedStep: o.step,
             savedArtifactId: o.artifactId,
+            exact: valueShownExactly(w.value, o.toElements),
           };
           this.candidates.push(candidate);
           created.push(candidate);

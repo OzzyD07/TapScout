@@ -37,7 +37,7 @@ import {
   isBackControl,
   type PersistenceCandidate,
   type PersistenceProbe,
-  valueVisible,
+  valueStillShown,
 } from "./functional.js";
 import { inAppInterruption } from "./interruptions.js";
 import { type NormalizedScreen, normalizeHierarchy, type Platform, pngSize } from "./observer.js";
@@ -1947,7 +1947,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           `Replay: save with "${c.commitLabel}".`,
           "replay",
         );
-        if (current.label !== c.screenLabel || !valueVisible(value, current.snap.screen.elements)) {
+        if (
+          current.label !== c.screenLabel ||
+          !valueStillShown(c, value, current.snap.screen.elements)
+        ) {
           reproduction.blocked.push({
             reason: "reset_failed",
             detail: "The new value was not shown after saving, so the replay is not valid.",
@@ -1964,7 +1967,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         }
         reproduction.valid += 1;
         replayShots.push(current.shot);
-        if (!valueVisible(value, current.snap.screen.elements)) reproduction.symptom += 1;
+        if (!valueStillShown(c, value, current.snap.screen.elements)) reproduction.symptom += 1;
       } catch (error) {
         if (!(error instanceof ProbeBlocked)) throw error;
         reproduction.blocked.push({ reason: "budget", detail: error.message });
@@ -2060,7 +2063,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     try {
       await relaunchApp(`Relaunch the app to check that the saved ${c.fieldLabel} is kept.`);
       if ((await navigateTo(c.screenLabel)) && current) {
-        const kept = valueVisible(c.value, current.snap.screen.elements);
+        const kept = valueStillShown(c, c.value, current.snap.screen.elements);
         probe = { candidate: c, status: kept ? "kept" : "lost", afterArtifactId: current.shot };
       }
     } catch (error) {

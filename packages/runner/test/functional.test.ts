@@ -24,7 +24,7 @@ const page = (title: string, nodes: string[]) =>
   `<hierarchy width="1080" height="2400">${node("android.widget.TextView", { text: title }, 150)}${nodes.join("")}</hierarchy>`;
 
 /** Profile ⇄ Edit profile. `seeded` keeps edits only in memory, like the FieldNotes defect. */
-function profileApp(seeded: boolean) {
+function profileApp(seeded: boolean, greeting?: string) {
   let screen: "profile" | "edit" = "profile";
   let persisted = "";
   let memory: string | null = null;
@@ -37,6 +37,7 @@ function profileApp(seeded: boolean) {
     pageSource: async () =>
       screen === "profile"
         ? page("Profile", [
+            ...(greeting ? [node("android.widget.TextView", { text: greeting }, 280)] : []),
             node("android.widget.TextView", { text: bio() || "No bio yet." }, 400),
             node(
               "android.widget.Button",
@@ -132,7 +133,7 @@ function editingPlanner() {
   });
 }
 
-async function run(seeded: boolean) {
+async function run(seeded: boolean, greeting?: string) {
   const events: Array<Pick<RunEventInput, "type" | "payload">> = [];
   let clock = 0;
   let artifacts = 0;
@@ -147,7 +148,7 @@ async function run(seeded: boolean) {
   };
   const out = await runAgent(
     {
-      device: profileApp(seeded),
+      device: profileApp(seeded, greeting),
       emit: (e) => events.push(e),
       flush: async () => {},
       saveEvidence: async () => `00000000-0000-4000-8000-${String(++artifacts).padStart(12, "0")}`,
@@ -221,6 +222,21 @@ describe("functional persistence check", () => {
       .filter((e) => e.type === "phase_changed")
       .map((e) => (e.payload as { to: string }).to);
     expect(phases).toEqual(["testing", "reproducing", "exploring"]);
+  });
+
+  it("does not take the same text inside other content for the kept value (f138ef62)", async () => {
+    // The bio was typed as the registered name; after the relaunch only the greeting shows it.
+    const { out } = await run(true, "Hi, Birds seen at the lake");
+    const persistence = out.checks.find((c) => c.checkId === "functional.persistence");
+    expect(persistence?.status).toBe("failed");
+    expect(out.findings[0]).toMatchObject({ reproduction: { valid: 2, symptom: 2 } });
+  });
+
+  it("still passes in the fixed build when other content repeats the value", async () => {
+    const { out } = await run(false, "Hi, Birds seen at the lake");
+    const persistence = out.checks.find((c) => c.checkId === "functional.persistence");
+    expect(persistence).toMatchObject({ status: "passed_within_scope" });
+    expect(out.findings).toHaveLength(0);
   });
 });
 
