@@ -181,9 +181,10 @@ jobs:
         run: |
           printf 'DEVELOPMENT_TEAM =\nBUNDLE_ID_PREFIX = dev.tapscout.bench\n' > IceCubesApp.xcconfig
           log="$RUNNER_TEMP/xcodebuild.log"
-          if ! xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Debug \
+          if ! xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
+            SWIFT_OPTIMIZATION_LEVEL=-Onone DEBUG_INFORMATION_FORMAT=dwarf \
             build > "$log" 2>&1; then
             grep -E "error:" "$log" | sort -u | head -60
             tail -n 40 "$log"
@@ -193,7 +194,7 @@ jobs:
       - name: Collect .app zip and manifest
         run: |
           mkdir -p out
-          app=$(find upstream/build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
+          app=$(find upstream/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' | head -1)
           echo "app: $app"
           bash scripts/ci/slim-sim-app.sh "$app" --drop-plugins
           ditto -c -k --sequesterRsrc --keepParent "$app" out/bench-ice-cubes-ios-sim-arm64.app.zip
@@ -202,7 +203,7 @@ jobs:
           node scripts/ci/build-manifest.mjs --file out/bench-ice-cubes-ios-sim-arm64.app.zip \
             --platform ios --variant benchmark --arch arm64 --app "Ice Cubes" --benchmark ice-cubes \
             --source "https://github.com/$ICECUBES_REPO" --ref "$ICECUBES_REF" \
-            --toolchain "Debug, symbols stripped, extensions removed, $(xcodebuild -version | tr '\n' ' ')"
+            --toolchain "Release -Onone, symbols stripped, extensions removed, $(xcodebuild -version | tr '\n' ' ')"
       - uses: actions/upload-artifact@v7
         with:
           name: bench-ice-cubes-ios
