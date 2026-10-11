@@ -4,7 +4,9 @@
   "stack": "Kotlin, Jetpack Compose",
   "source": "https://github.com/LemmyNet/jerboa (F-Droid 0.0.88)",
   "license": "AGPL-3.0-only",
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
     "package": "com.jerboa"
   },
@@ -20,38 +22,67 @@
     {
       "id": "home",
       "name": "Home feed",
-      "all": ["Upvote"],
-      "any": ["Local", "All", "Subscribed"],
+      "all": [
+        "Upvote"
+      ],
+      "any": [
+        "Local",
+        "All",
+        "Subscribed"
+      ],
       "markerNote": "Comment counts are plain numbers in 0.0.88 (run 0b8ca5e6); the feed is recognised by its vote buttons and the listing type."
     },
     {
       "id": "search",
       "name": "Search / communities",
-      "any": ["Search…"]
+      "any": [
+        "Search…"
+      ]
     },
     {
       "id": "community",
       "name": "Community page",
-      "any": ["~users / month"]
+      "any": [
+        "~users / month"
+      ]
     },
     {
       "id": "login",
       "name": "Login",
-      "all": ["Instance", "Password"]
+      "all": [
+        "Instance",
+        "Password"
+      ]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": ["Look and feel"]
+      "all": [
+        "Look and feel"
+      ]
     },
     {
       "id": "about",
       "name": "About",
-      "any": ["~source code", "~Donate", "~Matrix"]
+      "any": [
+        "~source code",
+        "~Donate",
+        "~Matrix"
+      ]
     }
   ],
   "knownIssues": [],
   "verdicts": [
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 0,
+        "width": 1080
+      },
+      "verdict": "true_positive",
+      "reason": "Full-width image post area, clickable, without a description.",
+      "firstSeen": "52ad4070"
+    },
     {
       "check": "a11y.control_labels",
       "region": {
