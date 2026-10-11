@@ -105,9 +105,10 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
       <summary className="cursor-pointer font-semibold">Test your own build</summary>
       <div className="mt-3 flex flex-col gap-3">
         <p className="text-xs text-muted">
-          Android: an x86_64-compatible <code>.apk</code>. iOS: a <code>.zip</code> containing an
-          iOS Simulator <code>.app</code> (not a device build). Up to {maxMb} MB. The file goes
-          straight to private storage; only you can start tests with it.
+          Android: an <code>.apk</code> with arm64-v8a or x86_64 code (arm64-only builds run through
+          the emulator&apos;s ARM translation). iOS: a <code>.zip</code> containing an iOS Simulator{" "}
+          <code>.app</code> (not a device build). Up to {maxMb} MB. The file goes straight to
+          private storage; only you can start tests with it.
         </p>
         <details className="text-xs text-muted">
           <summary className="cursor-pointer font-medium text-text">
@@ -116,7 +117,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
           <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4">
             <li>
               Android (Gradle): <code>./gradlew assembleRelease</code> (or{" "}
-              <code>assembleDebug</code>); use a universal APK or one that includes x86_64. Only an{" "}
+              <code>assembleDebug</code>); a universal APK or one with arm64-v8a or x86_64. Only an{" "}
               <code>.aab</code>? <code>bundletool build-apks --mode=universal</code>, then unzip{" "}
               <code>universal.apk</code>.
             </li>

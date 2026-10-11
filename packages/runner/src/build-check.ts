@@ -2,8 +2,10 @@
 // (docs/02 §3 step 5), never an infrastructure failure or an app bug.
 
 const ANDROID_CODES: Record<string, string> = {
+  // arm64-only APKs install and run through the emulator's ARM translation (benchmark run
+  // 98fdd338); 32-bit-only (armeabi-v7a) builds do not.
   INSTALL_FAILED_NO_MATCHING_ABIS:
-    "The APK has no native code for the emulator's x86_64 CPU. Include x86_64 (or build a universal APK).",
+    "The APK has no native code the test emulator can run: it runs x86_64 and, through ARM translation, arm64-v8a, but not 32-bit-only (armeabi-v7a) builds. Include arm64-v8a or x86_64 (or build a universal APK).",
   INSTALL_FAILED_OLDER_SDK: "The APK requires a newer Android version than the test emulator.",
   INSTALL_FAILED_INVALID_APK: "Android rejected the APK as invalid.",
   INSTALL_FAILED_UPDATE_INCOMPATIBLE:

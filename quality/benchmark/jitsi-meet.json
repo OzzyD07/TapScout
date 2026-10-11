@@ -4,9 +4,7 @@
   "stack": "React Native",
   "source": "https://github.com/jitsi/jitsi-meet (F-Droid 26.0.0, x86_64)",
   "license": "Apache-2.0",
-  "platforms": [
-    "android"
-  ],
+  "platforms": ["android"],
   "android": {
     "package": "org.jitsi.meet"
   },
@@ -21,38 +19,24 @@
     {
       "id": "welcome",
       "name": "Welcome (room name)",
-      "any": [
-        "Enter room name",
-        "Start meeting"
-      ]
+      "any": ["Enter room name", "Start meeting"]
     },
     {
       "id": "recent",
       "name": "Recent meetings",
-      "any": [
-        "~Your recent list is currently empty"
-      ]
+      "any": ["~Your recent list is currently empty"]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": [
-        "Hide self view"
-      ],
-      "any": [
-        "Language",
-        "Conference",
-        "Taal",
-        "Konferensie"
-      ],
+      "all": ["Hide self view"],
+      "any": ["Language", "Conference", "Taal", "Konferensie"],
       "markerNote": "v26 shows Settings as a tab without 'Display name'/'Server URL' labels (run f86858fd); markers corrected to the tab's own rows."
     },
     {
       "id": "prejoin",
       "name": "Pre-join",
-      "any": [
-        "Join meeting"
-      ]
+      "any": ["Join meeting"]
     },
     {
       "id": "conference",
