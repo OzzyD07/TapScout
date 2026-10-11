@@ -188,11 +188,14 @@ Ayrıntı ve tablolar `05` §21'de.
 - **B10 yapıldı:** Android çökme bulgusu (keşif ve stres) logcat crash tamponunu `log` kanıtı olarak taşır (test hesabı ve e-postalar maskeli); rapor "crash log" bağlantısı gösterir.
 - **Diğer:** Flutter alanlarına odaktaki öğe üzerinden yazılır (Habo 2/8 → 6/8); kapsam turu ulaşılamayan ekranlarda pes etmez; test kullanıcı adının tam yazıldığı okunup gerekirse bir kez yeniden yazılır; emülatör oturum başında "offline" olursa bir kez yeniden bağlanılır.
 
+**Dördüncü/beşinci tur sonrası (`05` §21):** AntennaPod 8/10, Jitsi 5/5, Habo 6/8, Read You 5/7, Tusky doğru "Sign-in required"; yanlış pozitif son turlarda %0. Jerboa'da gerçek bir çökme bulundu (lemmy.ml zaman aşımında `HttpRequestTimeoutException`), crash log kanıtıyla. FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru.
+
 **Kalan işler (sırayla):**
-1. Dördüncü tur (B7 taraması + B10 ile; Jerboa, Habo, AntennaPod, Jitsi, FieldNotes seeded + fixed) değerlendirmesi ve `05` §21'e satır.
-2. FieldNotes'ta A2 süre etkisinin ölçülmesi (<%10 hedef).
-3. iOS benchmark (Supabase Pro sonrası).
-4. B6 (alan türüne göre veri), B8 (dilden bağımsız anlam).
+1. Model kredisi: tahmini harcama $0,52 / $1; benchmark turları $25 kredi gelene kadar durduruldu (G3 ve gerileme koşuları için pay bırakıldı).
+2. FieldNotes'ta A2 süre etkisinin ölçülmesi (<%10 hedef; son seeded koşu süreleri 05 §16–17 ile karşılaştırılmalı).
+3. Jerboa ana ekran kapsamı (2/6): uygulama sık çöküyor ve içerik ağırlıklı; tarama doğru satırları seçiyor mu bir koşuyla bakılmalı.
+4. iOS benchmark (Supabase Pro sonrası).
+5. B6 (alan türüne göre veri), B8 (dilden bağımsız anlam).
 
 **Açık gözlemler:**
 - Jerboa ana ekranlar 2/6: planner içerikte kalıyor (B7 taraması bunun için).

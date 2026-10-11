@@ -126,7 +126,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
-**11 Ekim gecesi durumu:** `07` A5 (üç tur, Android), A1, A2, A4, A9, B7, B10 yapıldı; yanlış pozitif oranı üçüncü turda %4,8 (ölçüt <%10). Ayrıntı `07` §7 ve `05` §21. Dördüncü tur gönderildi (B7 taraması ile): koşu kimlikleri yerel `queue5.log`'da değil, `test_runs` tablosunda 11 Ekim 13:50 UTC sonrası (sahibi `tester@tapscout.com`). İlk iş: `quality/evaluate-run.mjs --run <id>` ile değerlendirmek, hükümsüz bulgulara `quality/benchmark/<app>.json` içinde hüküm yazmak, `05` §21 tablosuna satır eklemek. iOS benchmark Supabase Pro'yu bekliyor.
+**11 Ekim gecesi durumu:** `07` A1, A2, A4, A5 (beş tur, Android), A9, B7, B10 yapıldı; A3 ölçülüp ertelendi. Son turlarda yanlış pozitif %0, FieldNotes gerilemesiz (seeded 6/6 iki platform). Ayrıntı `07` §7, `05` §21. **Model kredisi:** tahmini $0,52 / $1 harcandı; yeni benchmark turu $25 kredi gelmeden açılmamalı. İlk iş: `07` §7 "Kalan işler". iOS benchmark Supabase Pro'yu bekliyor.
 
 **Ana iş: `docs/07-gercek-uygulama-plani.md`** — TapScout'u rastgele, ortalama bir uygulamada da doğru sonuç verecek hale getirmek. Sıra: A5 (gerçek uygulama ölçüm seti, ilk tur) → A1 kesintiler → A2 yükleme beklemesi → A3 ekran kimliği → A4 yanlış pozitif sertleştirme → A9 build netliği → A5 ikinci tur; zaman kalırsa B ve C grupları. Ayrıntı, dosya yerleri ve kabul ölçütleri `07`'de.
 
