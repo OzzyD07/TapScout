@@ -214,6 +214,8 @@ const MAX_LOADING_POLLS = 5;
 const LOADING_POLL_MS = 1_000;
 /** Screens a coverage tour may try to reach before it gives up. */
 const MAX_TOUR_ATTEMPTS = 6;
+/** Typed values up to this length are read back and retyped once if they did not arrive. */
+const MAX_VERIFIED_TEXT = 100;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
 const INTRO_WINDOW_STEPS = 10;
 /** … and at most this often per session. */
@@ -757,12 +759,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? credential(action.input.key)
             : generatedText(action.input);
         await device.typeInto(found, text, Boolean(target.text));
-        // The test account's username must arrive in full: the first keystrokes can be lost
-        // while the keyboard comes up (FieldNotes login run 43c5c77c on iOS), and a broken
-        // username fails the sign-in. Checked once, retyped once; the value is never logged.
+        // Typed text must arrive in full: keystrokes can be lost or land out of order while the
+        // keyboard comes up, and a field read as empty can still hold text that the new value
+        // is appended to (iOS: login 43c5c77c, seeded b13c27ba "ADoe", "ax.doe@…",
+        // "…comalex.doe@…"). A broken value fails the form and sends the planner into retyping.
+        // Checked once, retyped once with a clear; masked fields cannot be read back, and long
+        // stress text may be cut by the field on purpose. The value is never logged.
         if (
-          action.input.kind === "credential_ref" &&
-          action.input.key === "username" &&
+          !target.masked &&
+          text.length <= MAX_VERIFIED_TEXT &&
           device.readValue &&
           (await device.readValue(found).catch(() => undefined)) !== text
         ) {

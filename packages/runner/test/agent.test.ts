@@ -358,6 +358,27 @@ describe("runAgent", () => {
     expect(device.typed).toContain("register-name=Alex Doe");
   });
 
+  it("reads typed text back and retypes it once with a clear when keystrokes were lost (b13c27ba)", async () => {
+    const device = fakeDevice();
+    const values = new Map<string, string>();
+    let garble = true;
+    device.typeInto = async (t, text, clear) => {
+      // iOS simulator: the first keystrokes vanished and the rest landed out of order.
+      const arrived = garble ? "ADoe" : text;
+      garble = false;
+      values.set(t.elementId, clear ? arrived : (values.get(t.elementId) ?? "") + arrived);
+      device.typed.push(`${t.elementId}=${arrived}${clear ? " (cleared)" : ""}`);
+    };
+    device.readValue = async (t) => values.get(t.elementId);
+    const h = harness(device, scriptedPlanner(), 3);
+    await runAgent(h.ports, h.config);
+    expect(device.typed.slice(0, 2)).toEqual([
+      "register-name=ADoe",
+      "register-name=Alex Doe (cleared)",
+    ]);
+    expect(values.get("register-name")).toBe("Alex Doe");
+  });
+
   it("waits for a spinner to go away before judging the screen (docs/07 A2)", async () => {
     const device = fakeDevice();
     let polls = 0;
