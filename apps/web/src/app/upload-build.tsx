@@ -3,6 +3,7 @@
 import type { CreateBuildUploadResponse } from "@tapscout/shared";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { unsupportedBuildReason } from "@/lib/builds/formats";
 
 type Phase =
   | { kind: "idle" }
@@ -108,12 +109,50 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
           iOS Simulator <code>.app</code> (not a device build). Up to {maxMb} MB. The file goes
           straight to private storage; only you can start tests with it.
         </p>
+        <details className="text-xs text-muted">
+          <summary className="cursor-pointer font-medium text-text">
+            How do I get these files?
+          </summary>
+          <ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4">
+            <li>
+              Android (Gradle): <code>./gradlew assembleRelease</code> (or{" "}
+              <code>assembleDebug</code>); use a universal APK or one that includes x86_64. Only an{" "}
+              <code>.aab</code>? <code>bundletool build-apks --mode=universal</code>, then unzip{" "}
+              <code>universal.apk</code>.
+            </li>
+            <li>
+              iOS (Xcode):{" "}
+              <code>
+                xcodebuild -scheme App -sdk iphonesimulator -configuration Release
+                CODE_SIGNING_ALLOWED=NO build
+              </code>
+              , then zip the <code>.app</code> from{" "}
+              <code>Build/Products/Release-iphonesimulator</code> (
+              <code>ditto -c -k --keepParent App.app App.zip</code>).
+            </li>
+            <li>
+              Expo: an EAS profile with{" "}
+              <code>
+                &quot;ios&quot;: {"{"} &quot;simulator&quot;: true {"}"}
+              </code>{" "}
+              and{" "}
+              <code>
+                &quot;android&quot;: {"{"} &quot;buildType&quot;: &quot;apk&quot; {"}"}
+              </code>
+              .
+            </li>
+            <li>
+              Flutter: <code>flutter build apk</code>; <code>flutter build ios --simulator</code>{" "}
+              (debug only), then zip <code>build/ios/iphonesimulator/Runner.app</code>.
+            </li>
+          </ul>
+        </details>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex flex-1 flex-col gap-1">
             <span className="text-xs font-medium">Build file</span>
             <input
               type="file"
-              accept=".apk,.zip"
+              accept=".apk,.zip,.aab,.apks,.xapk,.ipa"
               disabled={busy}
               onChange={(e) => pick(e.target.files?.[0] ?? null)}
               className="text-xs file:mr-3 file:rounded-lg file:border file:border-border file:bg-bg file:px-3 file:py-1.5 file:text-sm file:font-medium"
@@ -182,7 +221,9 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
             </p>
           ) : null}
         </fieldset>
-        {file && !platform ? (
+        {file && unsupportedBuildReason(file.name) ? (
+          <p className="text-xs text-danger">{unsupportedBuildReason(file.name)}</p>
+        ) : file && !platform ? (
           <p className="text-xs text-danger">Choose an .apk (Android) or .zip (iOS Simulator).</p>
         ) : file ? (
           <p className="text-xs text-muted">

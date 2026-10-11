@@ -5,6 +5,7 @@ import {
   UPLOAD_LIMITS,
 } from "@tapscout/shared";
 import { fromZodError, HttpError } from "@/lib/api/errors";
+import { unsupportedBuildReason } from "./formats";
 
 /** Started but not finished uploads one user may have at a time. */
 export const MAX_PENDING_UPLOADS = 3;
@@ -73,6 +74,8 @@ export async function createBuildUpload(
   if (!parsed.success) throw fromZodError(parsed.error);
   const req = parsed.data;
   const format = FORMATS[req.platform];
+  const unsupported = unsupportedBuildReason(req.fileName);
+  if (unsupported) throw new HttpError(400, "invalid_request", unsupported);
   if (
     req.contentType !== format.contentType ||
     !req.fileName.toLowerCase().endsWith(`.${format.ext}`)

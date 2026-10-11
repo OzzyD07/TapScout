@@ -50,6 +50,19 @@ const apk = {
 };
 
 describe("createBuildUpload", () => {
+  it.each([
+    ["MyApp.aab", "android", /universal APK/],
+    ["MyApp.apks", "android", /split-APK set/],
+    ["MyApp.ipa", "ios", /Simulator/],
+  ])("explains why %s cannot be tested", async (fileName, platform, reason) => {
+    const d = deps();
+    await expect(createBuildUpload(d, USER, { ...apk, platform, fileName })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(reason),
+    });
+    expect(d.insertBuild).not.toHaveBeenCalled();
+  });
+
   it("records the build and signs an upload for its staging path only", async () => {
     const d = deps();
     const res = await createBuildUpload(d, USER, apk);
