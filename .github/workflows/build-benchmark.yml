@@ -176,11 +176,16 @@ jobs:
         working-directory: upstream
         run: |
           printf 'DEVELOPMENT_TEAM =\nBUNDLE_ID_PREFIX = dev.tapscout.bench\n' > IceCubesApp.xcconfig
-          set -o pipefail
-          xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Release \
+          log="$RUNNER_TEMP/xcodebuild.log"
+          if ! xcodebuild -project IceCubesApp.xcodeproj -scheme IceCubesApp -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
-            build | tail -n 200
+            build > "$log" 2>&1; then
+            grep -E "error:" "$log" | sort -u | head -60
+            tail -n 40 "$log"
+            exit 1
+          fi
+          tail -n 20 "$log"
       - name: Collect .app zip and manifest
         run: |
           mkdir -p out
