@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Body, Button, Screen, Title } from "../components/ui";
 import { deleteAccount } from "../lib/profile-store";
+import { signOutSession } from "../lib/session";
 
 export default function DeleteAccount() {
   const [deleting, setDeleting] = useState(false);
@@ -9,6 +10,7 @@ export default function DeleteAccount() {
   async function onDelete() {
     setDeleting(true);
     await deleteAccount();
+    await signOutSession();
     if (router.canDismiss()) router.dismissAll();
     router.replace("/");
   }

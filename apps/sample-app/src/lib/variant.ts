@@ -3,14 +3,16 @@
  * - seeded:       demo build with intentional defects (listed only in quality/ground-truth)
  * - fixed:        healthy control build
  * - changed_flow: same features with changed labels/order/layout, to test fresh exploration
+ * - login:        the healthy build behind a sign-in screen (demo account in demo-account.json)
  *
  * Nothing in the UI reveals the variant; the agent must not be able to read it.
  */
-export type Variant = "seeded" | "fixed" | "changed_flow";
+export type Variant = "seeded" | "fixed" | "changed_flow" | "login";
 
 const raw = process.env.EXPO_PUBLIC_APP_VARIANT;
 
-export const VARIANT: Variant = raw === "seeded" || raw === "changed_flow" ? raw : "fixed";
+export const VARIANT: Variant =
+  raw === "seeded" || raw === "changed_flow" || raw === "login" ? raw : "fixed";
 
 /** Behaviour switches of the seeded build; each one is a ground-truth entry. */
 export const SEEDED = VARIANT === "seeded";

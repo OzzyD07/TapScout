@@ -58,7 +58,7 @@ export default async function Dashboard() {
     id: b.id,
     platform: b.platform,
     label: b.is_sample
-      ? `${b.app_name} (sample${b.sample_variant ? `: ${b.sample_variant}` : ""})`
+      ? `${b.app_name} (sample${b.sample_variant ? `: ${b.sample_variant}` : ""}${b.has_test_account ? ", test account" : ""})`
       : `${b.app_name} · ${b.file_name} · ${new Date(b.created_at).toLocaleDateString("en")}${b.has_test_account ? " · test account" : ""}`,
   }));
   const maxMb = Math.floor(

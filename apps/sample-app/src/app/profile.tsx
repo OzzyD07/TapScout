@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { Body, Button, Card, IconButton, Screen, Title, useTheme } from "../components/ui";
 import { clearProfile, loadProfile, type Profile } from "../lib/profile-store";
+import { signOutSession } from "../lib/session";
 import { COPY, SEEDED, VARIANT } from "../lib/variant";
 
 export default function ProfileScreen() {
@@ -17,6 +18,7 @@ export default function ProfileScreen() {
 
   async function onSignOut() {
     await clearProfile();
+    await signOutSession();
     router.replace("/");
   }
 

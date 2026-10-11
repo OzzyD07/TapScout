@@ -3,13 +3,17 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Body, Button, Screen, Title } from "../components/ui";
 import { loadProfile } from "../lib/profile-store";
+import { isSignedIn } from "../lib/session";
 import { COPY } from "../lib/variant";
 
 export default function Welcome() {
-  const [state, setState] = useState<"loading" | "new" | "existing">("loading");
+  const [state, setState] = useState<"loading" | "signed-out" | "new" | "existing">("loading");
 
   useEffect(() => {
-    loadProfile().then((p) => setState(p ? "existing" : "new"));
+    (async () => {
+      if (!(await isSignedIn())) return setState("signed-out");
+      setState((await loadProfile()) ? "existing" : "new");
+    })();
   }, []);
 
   if (state === "loading") {
@@ -19,6 +23,7 @@ export default function Welcome() {
       </View>
     );
   }
+  if (state === "signed-out") return <Redirect href="/sign-in" />;
   if (state === "existing") return <Redirect href="/profile" />;
 
   return (

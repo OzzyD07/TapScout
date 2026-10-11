@@ -18,6 +18,8 @@ const { values } = parseArgs({
     platforms: { type: "string", default: "both" },
     modes: { type: "string", default: "functional" },
     variant: { type: "string", default: "fixed" },
+    // login variant: use the published build without the test account (default: with it).
+    "no-account": { type: "boolean", default: false },
   },
 });
 const env = (n) => {
@@ -42,6 +44,7 @@ async function sampleBuild(platform) {
     .eq("is_sample", true)
     .eq("platform", platform)
     .eq("sample_variant", values.variant)
+    .eq("has_test_account", values.variant === "login" && !values["no-account"])
     .eq("validation_status", "accepted")
     .order("created_at", { ascending: false })
     .limit(1)

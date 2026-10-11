@@ -9,7 +9,7 @@ on:
       variant:
         description: Sample variant
         type: choice
-        options: [fixed, seeded, changed_flow]
+        options: [fixed, seeded, changed_flow, login]
         default: fixed
   push:
     branches: [main]

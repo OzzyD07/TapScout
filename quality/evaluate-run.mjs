@@ -5,6 +5,8 @@
 // Usage: node --env-file=.env quality/evaluate-run.mjs --run <run id>
 //   seeded builds are matched against quality/ground-truth/fieldnotes-<variant>-v1.json;
 //   fixed (and changed_flow) builds expect no findings: every finding counts as a false positive.
+//   login builds also expect no findings, plus the right access outcome: with the build's test
+//   account the sign-in must be passed; without it the report must say "Sign-in required".
 // Prints a table and writes quality/results/<run id>.json (gitignored). Never prints secrets.
 
 import { existsSync } from "node:fs";
@@ -42,7 +44,9 @@ if (runError || !run) throw new Error(`run ${values.run} not found`);
 
 const { data: sessions } = await db
   .from("platform_sessions")
-  .select("id, platform, phase, stop_reason, build:app_builds(sample_variant)")
+  .select(
+    "id, platform, phase, stop_reason, result, build:app_builds(sample_variant, has_test_account)",
+  )
   .eq("run_id", run.id);
 const { data: findings } = await db
   .from("findings")
@@ -76,6 +80,14 @@ for (const s of sessions ?? []) {
     };
   });
   const extra = mine.filter((f) => !used.has(f));
+  let access;
+  if (variant === "login") {
+    const blockers = s.result?.blockers ?? [];
+    const wall = blockers.find((b) => /^(Sign-in|Access blocked)/.test(b));
+    const expected = s.build?.has_test_account ? "signed in" : "Sign-in required";
+    const got = wall ? wall.split(":")[0] : "signed in";
+    access = { expected, got, ok: got === expected };
+  }
   const selected = rows.filter((r) => r.result !== "mode not selected");
   report.platforms.push({
     platform: s.platform,
@@ -84,6 +96,7 @@ for (const s of sessions ?? []) {
     stopReason: s.stop_reason,
     detected: selected.filter((r) => r.result === "detected").length,
     expected: selected.length,
+    access,
     falsePositives: extra.map((f) => ({
       check: f.check_id,
       title: f.title,
@@ -97,6 +110,11 @@ for (const p of report.platforms) {
   console.log(
     `\n${p.platform} (${p.variant}, ${p.phase}/${p.stopReason}): detected ${p.detected}/${p.expected}, unexpected findings ${p.falsePositives.length}`,
   );
+  if (p.access) {
+    console.log(
+      `  access            ${p.access.ok ? "ok" : "WRONG"} — expected ${p.access.expected}, got ${p.access.got}`,
+    );
+  }
   for (const r of p.seeds) {
     console.log(
       `  ${r.result.padEnd(17)} ${r.seed}${r.verification ? ` — ${r.verification}${r.reproduction ? ` ${r.reproduction}` : ""}` : ""}`,
