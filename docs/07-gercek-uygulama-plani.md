@@ -180,14 +180,21 @@ Ayrıntı ve tablolar `05` §21'de.
 - **A9 yapıldı (ARM ölçümü hariç).** `.aab`, split APK ve `.ipa` için yüklemede açıklamalı ret (istemci + API) ve "How do I get these files?" bölümü. Arayüz tarayıcıda görsel olarak kontrol edilmedi. ARM çevirisini ölçmek için arm64-only Jitsi APK'sı sete eklendi.
 - **FieldNotes gerilemesi:** seeded `4d53f5f4` iki platformda **6/6**, yanlış pozitif 0. iOS'taki ek kalıcılık bulgusu aynı tohumun ikinci alanı; değerlendirici bunu artık ayrı sayıyor.
 
+**Sonraki oturumda yapılanlar (11 Ekim, gece):**
+- **A5 ikinci ve üçüncü tur** koşuldu (`05` §21). Üçüncü turda 21 bulgudan 1'i yanlış pozitif (%4,8, düzeltildi): **kabul ölçütü (<%10) karşılandı.** Hiçbir oturum ilk ekranlarda takılmadı; Tusky "Sign-in required" doğru, iOS login geçiyor.
+- **A2 yapıldı:** dönen yükleme göstergesi veya "Loading…" metni varken gözlem 1 sn aralıkla en çok 5 kez yenilenir; geçmezse not düşülür ve o durumda bir daha beklenmez. FieldNotes süre etkisi henüz ölçülmedi.
+- **A3 ölçüldü, ertelendi:** kayıtlı oturumlarda durumların çoğu gerçekten farklı görünümler (profil sekmeleri vb.); şablon anahtarı AntennaPod'da 36 → 32, Jerboa'da 19 → 18 durum kazandırıyor.
+- **B7 yapıldı:** ana gezinme girişleri (sekme, alt çubuk, app-bar ikon satırı) kapsam önceliğinin başında; her biri oturumda bir kez planner'sız açılır (en çok 8); planner adlarını görür.
+- **B10 yapıldı:** Android çökme bulgusu (keşif ve stres) logcat crash tamponunu `log` kanıtı olarak taşır (test hesabı ve e-postalar maskeli); rapor "crash log" bağlantısı gösterir.
+- **Diğer:** Flutter alanlarına odaktaki öğe üzerinden yazılır (Habo 2/8 → 6/8); kapsam turu ulaşılamayan ekranlarda pes etmez; test kullanıcı adının tam yazıldığı okunup gerekirse bir kez yeniden yazılır; emülatör oturum başında "offline" olursa bir kez yeniden bağlanılır.
+
 **Kalan işler (sırayla):**
-1. A5 ikinci tur (`05` §21).
-2. Yanlış pozitif oranının hedefin (<%10) altında olduğunu doğrulamak.
-3. A2 (yükleme beklemesi) ve A3 (ekran kimliği).
-4. iOS benchmark (Pro sonrası).
-5. B grubu.
+1. Dördüncü tur (B7 taraması + B10 ile; Jerboa, Habo, AntennaPod, Jitsi, FieldNotes seeded + fixed) değerlendirmesi ve `05` §21'e satır.
+2. FieldNotes'ta A2 süre etkisinin ölçülmesi (<%10 hedef).
+3. iOS benchmark (Supabase Pro sonrası).
+4. B6 (alan türüne göre veri), B8 (dilden bağımsız anlam).
 
 **Açık gözlemler:**
-- Flutter'da (Habo) planner bütçesi tanıtım ve sync akışlarına gidiyor (ana ekranlar 3/8).
-- Jitsi'de toplantıya hiç katılınmadı.
-- Uygulama içi kesinti cevaplama ilk 10 adımla sınırlı.
+- Jerboa ana ekranlar 2/6: planner içerikte kalıyor (B7 taraması bunun için).
+- FieldNotes seeded kapsama göre 5/6–6/6 arasında dalgalanıyor (Settings'e ya da profil düzenlemeye ulaşılmayan koşular dürüstçe `inconclusive`/kapsam dışı raporlanıyor).
+- "Emin değilim" hükümleri (byline linkleri, Flutter semantik sınırları) jüri öncesi bir kez daha gözden geçirilmeli.

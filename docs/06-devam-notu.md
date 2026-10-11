@@ -126,7 +126,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
-**11 Ekim akşamı durumu:** A5 ilk iki tur (Android), A1, A9 ve A4'ün büyük kısmı yapıldı (`07` §7, `05` §21). Üçüncü tur koşuları gönderildi (Read You, Jitsi, AntennaPod, Tusky, Jerboa, Habo, FieldNotes login + seeded); ilk iş bunları `quality/evaluate-run.mjs --run <id>` ile değerlendirmek, yeni bulgulara `quality/benchmark/<app>.json` içinde hüküm yazmak ve `05` §21'e ikinci/üçüncü tur tablosunu eklemek. Üçüncü tur bitti (değerlendirilmedi): Read You `b16e11b2`, Jitsi `15fc88db`, AntennaPod `3efcc886`, Tusky `6d9d756b`, Jerboa `23a8e69a`, Habo `aa5045dc`, FieldNotes login `43c5c77c`, seeded `77fbdf49`. iOS benchmark Supabase Pro'yu bekliyor (Habo 65 MB, Ice Cubes 80 MB zip).
+**11 Ekim gecesi durumu:** `07` A5 (üç tur, Android), A1, A2, A4, A9, B7, B10 yapıldı; yanlış pozitif oranı üçüncü turda %4,8 (ölçüt <%10). Ayrıntı `07` §7 ve `05` §21. Dördüncü tur gönderildi (B7 taraması ile): koşu kimlikleri yerel `queue5.log`'da değil, `test_runs` tablosunda 11 Ekim 13:50 UTC sonrası (sahibi `tester@tapscout.com`). İlk iş: `quality/evaluate-run.mjs --run <id>` ile değerlendirmek, hükümsüz bulgulara `quality/benchmark/<app>.json` içinde hüküm yazmak, `05` §21 tablosuna satır eklemek. iOS benchmark Supabase Pro'yu bekliyor.
 
 **Ana iş: `docs/07-gercek-uygulama-plani.md`** — TapScout'u rastgele, ortalama bir uygulamada da doğru sonuç verecek hale getirmek. Sıra: A5 (gerçek uygulama ölçüm seti, ilk tur) → A1 kesintiler → A2 yükleme beklemesi → A3 ekran kimliği → A4 yanlış pozitif sertleştirme → A9 build netliği → A5 ikinci tur; zaman kalırsa B ve C grupları. Ayrıntı, dosya yerleri ve kabul ölçütleri `07`'de.
 
