@@ -1167,9 +1167,14 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           return {
             phase: "completed",
             stopReason: "access_blocked",
-            detail: "The app could not be kept in the foreground.",
+            detail:
+              modeTracker.crashes.length > 0
+                ? "The app kept crashing; relaunching did not keep it running."
+                : "The app could not be kept in the foreground.",
             blockers: [
-              "The app left the foreground repeatedly and relaunching did not keep it open.",
+              modeTracker.crashes.length > 0
+                ? "The app kept crashing (see the crash finding), so exploration stopped early."
+                : "The app left the foreground repeatedly and relaunching did not keep it open.",
             ],
           };
         }

@@ -63,6 +63,13 @@
   "knownIssues": [],
   "verdicts": [
     {
+      "check": "ui.keyboard_occlusion",
+      "titleIncludes": "\"Sign In\"",
+      "verdict": "true_positive",
+      "reason": "The sign-in form's main action is under the keyboard while typing.",
+      "firstSeen": "d6f972d9"
+    },
+    {
       "check": "a11y.control_labels",
       "region": {
         "width": 158,
