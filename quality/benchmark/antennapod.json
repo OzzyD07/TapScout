@@ -5,7 +5,9 @@
   "source": "https://github.com/AntennaPod/AntennaPod (F-Droid 3.12.2)",
   "license": "GPL-3.0-only",
   "platforms": ["android"],
-  "android": { "package": "de.danoeh.antennapod" },
+  "android": {
+    "package": "de.danoeh.antennapod"
+  },
   "access": "open",
   "traits": [
     "list/backend (podcast search, feeds)",
@@ -19,8 +21,16 @@
       "name": "Home",
       "any": ["Welcome to AntennaPod!", "Continue listening", "Get surprised"]
     },
-    { "id": "queue", "name": "Queue", "any": ["No queued episodes", "~No episodes lined up"] },
-    { "id": "inbox", "name": "Inbox", "any": ["No episodes in the inbox"] },
+    {
+      "id": "queue",
+      "name": "Queue",
+      "any": ["No queued episodes", "~No episodes lined up"]
+    },
+    {
+      "id": "inbox",
+      "name": "Inbox",
+      "any": ["No episodes in the inbox"]
+    },
     {
       "id": "subscriptions",
       "name": "Subscriptions",
@@ -31,7 +41,11 @@
       "name": "Add podcast",
       "any": ["Search Apple Podcasts", "Add podcast by RSS address", "OPML import"]
     },
-    { "id": "podcast_preview", "name": "Podcast preview (from search)", "all": ["Subscribe"] },
+    {
+      "id": "podcast_preview",
+      "name": "Podcast preview (from search)",
+      "all": ["Subscribe"]
+    },
     {
       "id": "episodes",
       "name": "Episodes",
@@ -42,10 +56,41 @@
       "name": "Downloads",
       "any": ["No downloaded episodes", "No download log"]
     },
-    { "id": "history", "name": "Playback history", "any": ["No history"] },
-    { "id": "settings", "name": "Settings", "all": ["User interface", "Backup & restore"] }
+    {
+      "id": "history",
+      "name": "Playback history",
+      "any": ["No history"]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "all": ["User interface", "Backup & restore"]
+    }
   ],
   "knownIssues": [],
-  "verdicts": [],
+  "verdicts": [
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "width": 249,
+        "height": 249
+      },
+      "verdict": "true_positive",
+      "reason": "Discovery tiles are a cover ImageView without a content description; TalkBack has nothing to announce.",
+      "firstSeen": "e24b2ce6"
+    },
+    {
+      "check": "a11y.control_labels",
+      "verdict": "false_positive",
+      "reason": "Clickable menu rows, search results and More-sheet rows announced by their child texts; a non-clickable checkbox inside a labelled row; the bottom-sheet scrim (touch_outside).",
+      "firstSeen": "e24b2ce6"
+    },
+    {
+      "check": "ui.keyboard_occlusion",
+      "verdict": "false_positive",
+      "reason": "Bottom navigation hidden behind the keyboard on the search screen, by Android design.",
+      "firstSeen": "e24b2ce6"
+    }
+  ],
   "notes": "Lists filled after subscribing lose their empty-state marker; such a session can under-count Queue/Inbox/Episodes."
 }

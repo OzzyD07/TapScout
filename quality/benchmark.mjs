@@ -95,12 +95,20 @@ async function sessionHierarchies(db, runId, sessionId, cacheDir) {
   return out;
 }
 
+/** A verdict's `region` matches when every coordinate it names equals the finding's symptom region. */
+function regionMatches(want, finding) {
+  if (!want) return true;
+  const got = finding.data?.evidence?.find((e) => e.role === "symptom")?.region;
+  return Boolean(got) && Object.entries(want).every(([k, v]) => got[k] === v);
+}
+
 function verdictFor(spec, platform, finding) {
   const v = (spec.verdicts ?? []).find(
     (x) =>
       x.check === finding.check_id &&
       (!x.platform || x.platform === platform) &&
-      (!x.titleIncludes || finding.title.toLowerCase().includes(x.titleIncludes.toLowerCase())),
+      (!x.titleIncludes || finding.title.toLowerCase().includes(x.titleIncludes.toLowerCase())) &&
+      regionMatches(x.region, finding),
   );
   return v ? { verdict: v.verdict, reason: v.reason } : { verdict: "unmarked" };
 }
@@ -238,5 +246,12 @@ export function printBenchmark(p) {
   console.log(`  last screen       ${p.lastScreenTexts.join(" | ")}`);
   for (const f of p.findings) {
     console.log(`  finding [${f.verdict}] ${f.check} (${f.verification}): ${f.title}`);
+  }
+  const n = (v) => p.findings.filter((f) => f.verdict === v).length;
+  if (p.findings.length) {
+    const fp = n("false_positive");
+    console.log(
+      `  verdicts          ${n("true_positive")} true, ${fp} false positive, ${n("unsure")} unsure, ${n("unmarked")} unmarked → false-positive rate ${Math.round((100 * fp) / p.findings.length)}%`,
+    );
   }
 }
