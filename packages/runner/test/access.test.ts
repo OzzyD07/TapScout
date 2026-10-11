@@ -36,6 +36,12 @@ describe("gateOf", () => {
     expect(gateOf(screen("Check", [el({ text: "I'm not a robot" })]))).toBe("captcha");
   });
 
+  it("calls a password form with an optional two-factor field a sign-in (a306bbdb, Jerboa)", () => {
+    const totp = el({ role: "text_field", label: "TOTP 2FA token" });
+    const login = el({ role: "button", text: "Login" });
+    expect(gateOf(screen("Login", [email, password, totp, login]))).toBe("sign_in");
+  });
+
   it("recognises a sign-in that starts without a password (f142b47c, Tusky)", () => {
     const instance = el({ role: "text_field", label: "Which instance?" });
     const go = el({ role: "button", text: "Login with Tusky" });

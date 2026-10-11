@@ -163,6 +163,20 @@
       "verdict": "unsure",
       "reason": "Community link in a post's byline, 300×32 px; arguably inline text, like the other byline links.",
       "firstSeen": "a306bbdb"
+    },
+    {
+      "check": "ui.keyboard_occlusion",
+      "titleIncludes": "\"button\" is hidden by the keyboard on \"Login\"",
+      "verdict": "false_positive",
+      "reason": "The unnamed control is the password field's eye icon; with the keyboard open the form moves up and the icon stays visible. Its position-based identity changed (fixed: unnamed controls are not compared).",
+      "firstSeen": "398fa898"
+    },
+    {
+      "check": "a11y.control_labels",
+      "titleIncludes": "without an accessibility label on \"Login\"",
+      "verdict": "true_positive",
+      "reason": "The password visibility toggle (eye) and the Instance dropdown arrow are clickable icons without a description.",
+      "firstSeen": "398fa898"
     }
   ],
   "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not. First launch shows two in-app dialogs (changelog 'Done'; an announcement with DETAILS / SOLUTION / OK where the first two open the browser)."

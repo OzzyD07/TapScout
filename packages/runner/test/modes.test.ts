@@ -285,6 +285,25 @@ describe("android keyboard occlusion", () => {
     ]);
     expect(r.findings[0]?.evidence[0]?.artifactId).toBe("open");
   });
+
+  it("does not take an unnamed icon that moved up with the form for a hidden one (398fa898)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const user = el({ role: "text_field", label: "Email or username" });
+    const pass = (y: number) =>
+      el({
+        role: "text_field",
+        label: "Password",
+        masked: true,
+        bounds: { x: 174, y, width: 732, height: 144 },
+      });
+    // The eye icon has neither id nor text: its identity is where it sits.
+    const eye = (y: number) => el({ bounds: { x: 783, y, width: 126, height: 126 } });
+    t.observe("Login", screen([user, pass(1300), eye(1309)]), "closed", 1);
+    t.observe("Login", screen([user, pass(858), eye(867)], true), "open", 2);
+    const r = buildModeChecks(t, ctx(["ui_ux"]));
+    valid(r);
+    expect(r.findings.filter((f) => f.checkId === "ui.keyboard_occlusion")).toEqual([]);
+  });
 });
 
 describe("clipping grounding (real model answers)", () => {

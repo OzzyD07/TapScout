@@ -36,10 +36,13 @@ export function gateOf(screen: NormalizedScreen): GateKind | null {
   const text = screenText(screen);
   const fields = screen.elements.filter((e) => e.role === "text_field");
   if (CAPTCHA.test(text)) return "captcha";
-  if (fields.length > 0 && ONE_TIME_CODE.test(text)) return "one_time_code";
+  // A password form is a sign-in even when it also offers a two-factor field (Jerboa a306bbdb:
+  // username, password and an optional "TOTP 2FA token"); without an account the password is
+  // what stops the run. A code screen on its own asks for the code alone.
   if (fields.some((e) => e.masked) && SIGN_IN.test(text) && !CHANGE_PASSWORD.test(text)) {
     return "sign_in";
   }
+  if (fields.length > 0 && ONE_TIME_CODE.test(text)) return "one_time_code";
   if (passwordlessSignIn(screen, fields)) return "sign_in";
   return null;
 }

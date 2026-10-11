@@ -305,7 +305,12 @@ export class ModeTracker {
         // name (Habo's sync intro and sync sign-in, both "Sync", run 59785198) is another view.
         const isForm = screen.elements.some((e) => e.role === "text_field");
         for (const e of isForm ? screen.elements : []) {
+          // A control without id, label or text is known only by its position, which changes
+          // when the form moves up for the keyboard: it would look gone while it is still shown
+          // (Jerboa 398fa898: the password field's eye icon).
+          const identified = Boolean(e.stableId || e.label || e.text);
           if (
+            identified &&
             CONTROL.has(e.role) &&
             e.enabled &&
             !inBottomNavigation(e, screen.elements, screen.heightPx)
