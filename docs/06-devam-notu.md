@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 245 birim testi (shared 9, adapters 6, runner 119, web 111; 11 Ekim gecesi) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 249 birim testi (shared 9, adapters 6, runner 123, web 111; 12 Ekim gecesi) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -146,9 +146,19 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
   - Kalıcılıkta, tam metin olarak kaydedilen değer tam metin olarak aranır (`6049766`).
 - **A2 süre etkisi ölçüldü:** eylem başına süre Android −%12, iOS −%14 (artış yok).
 
+### 12 Ekim gecesi, ölçüm setinde altıncı tur (`05` §23)
+
+- Altı Android uygulaması; turun toplamında 28 bulgu, 2 yanlış pozitif (%7,1; düzeltildi), son koşularda %0. FieldNotes seeded Android `e88b141a` 6/6.
+- **Düzeltmeler:**
+  - Dil ayarı satırına ve dil listesindeki her seçeneğe dokunulmaz; Jerboa Norveççeye geçmişti (`f2cc784`).
+  - Yeni oturumla tekrar 25 eyleme kadar (planner bütçesinin en çok üçte biri harcandıysa) (`52dc6ec`).
+  - Açılış sırasındaki cihaz hatası da tekrara düşer (`e66a72d`).
+  - Android klavye kontrolü kimliksiz kontrolleri karşılaştırmaz; 2FA alanlı şifre formu giriş duvarıdır (`625f532`).
+- **Açık:** Jerboa kapsamı 2/6–4/6 dalgalı (içerikte kalıp erken duruyor); Tusky giriş ekranının adı "Screen 1" ve duvar iki kez yazılıyor.
+
 ### Hemen sıradaki
 
-1. **Ölçüm setinde bir doğrulama turu** (kredi var): Jerboa (kapsam 2/6; sık çöküyor), Tusky, Read You, Habo, AntennaPod, Jitsi. Son düzeltmelerle koşulur; özellikle okuma doğrulaması ve kalıcılıktaki tam metin kuralı gerçek uygulamalarda yanlış pozitif ya da yanlış negatif üretiyor mu, ona bakılır. Hükümsüz bulgular `quality/benchmark/<app>.json`'a.
+1. **Jerboa kapsamı:** içerik ekranlarında (gönderi, kullanıcı profili) "10 eylemdir yeni ekran yok" ile erken durmak yerine çekmece/ayarlar gibi denenmemiş ana girişlere dönmek. Ardından ölçüm setinde kısa bir tur.
 2. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
 3. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
 4. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
@@ -163,4 +173,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§22'yi oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 "Hemen sıradaki": ölçüm setinde son düzeltmelerle bir doğrulama turu. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§23'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur da bitti (`05` §23; son koşularda YP %0). Sıradaki iş `06` §7 "Hemen sıradaki": Jerboa kapsamı, sonra gerçek kullanıcı build'iyle uçtan uca deneme. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.

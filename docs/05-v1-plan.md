@@ -562,3 +562,36 @@ Bu koşuların hiçbirinde reddedilen bir öneri uygulanmadı; reddedilenler rep
 | iOS | 12,02 dk ort., 14,14 sn/eylem | 10,31 dk ort., 12,17 sn/eylem (−%14) |
 
 Arada başka değişiklikler de girdi (B7, kapsam turları), bu yüzden fark tek başına A2'ye ait değil. Ama süre artmadı; **hedef (<%10 artış) karşılandı.** A2 sonrası FieldNotes koşularının hiçbirinde "Still loading" notu yok, beklemenin üst sınırı hiç dolmadı. Okuma doğrulaması (`b8487b7`) da süreyi uzatmadı: `9a50d038` Android 5,35, iOS 12,0 sn/eylem.
+
+## 23. Ölçüm setinde altıncı tur (12 Ekim 2026, gece)
+
+G3 sonrası runner'la (okuma doğrulaması, kalıcılıkta tam metin kuralı) altı Android uygulaması koşuldu. Tur iki agent hatası, iki altyapı açığı ve bir yanlış pozitif kaynağı çıkardı; hepsi düzeltildi ve etkilenen uygulamalar yeniden koşuldu.
+
+| Uygulama | Koşu | Ana ekran | Bulgu | YP | Not |
+|---|---|---|---|---|---|
+| Tusky | `55038e69` | 2/3 | 1 (1 doğru) | %0 | "Sign-in required" doğru |
+| Read You | `595019b1` | 4/7 | 3 (2 doğru, 1 emin değilim) | %0 | |
+| AntennaPod | `71fe346e` | 7/10 | 0 | — | Settings'e bu sefer ulaşılmadı (önceki 8/10) |
+| Jerboa | `a306bbdb` | 3/6 | 4 (2 doğru, 2 emin değilim) | %0 | **Dil Norveççeye çevrildi** → düzeltildi |
+| Jerboa | `398fa898` | **4/6** | 7 (3 doğru, 2 emin değilim) | %29 | 2 YP klavye kontrolünden → düzeltildi; giriş "kod duvarı" sanıldı → düzeltildi |
+| Jerboa | `259e74f4` | 2/6 | 3 (3 doğru) | %0 | Dil İngilizce kaldı; agent kullanıcı profili içeriğinde kalıp erken `goals_exhausted` |
+| Habo | `1840d27f` | — | — | — | 12. eylemde adb koptu → düzeltildi |
+| Habo | `b2751fec` | 6/8 | 6 (4 doğru, 2 emin değilim) | %0 | |
+| Jitsi Meet | `723816ca` | — | — | — | Açılışta adb koptu, yeniden deneme atlandı → düzeltildi |
+| Jitsi Meet | `5578cd7f` | 3/5 | 4 (4 doğru) | %0 | Ön katılım ve toplantı ekranına bu sefer girilmedi (önceki 5/5) |
+
+Turun toplamı (tamamlanan koşular): 28 bulgu, 2 yanlış pozitif (%7,1; ikisi de düzeltilen klavye hatasından), 7 "emin değilim". Son koşularda yanlış pozitif %0. **Kabul ölçütü (<%10) korunuyor.** Okuma doğrulaması ve kalıcılıktaki tam metin kuralı gerçek uygulamalarda yanlış sonuç üretmedi. FieldNotes gerilemesi: seeded Android `e88b141a` **6/6**.
+
+**Düzeltmeler** (koşu → sebep → düzeltme):
+
+| Koşu | Ne oldu | Düzeltme |
+|---|---|---|
+| Jerboa `a306bbdb` | Planner "Language English" satırına, sonra listede olmayan "norsk nynorsk" ve "davvisámegiella"ya dokundu. Kapsam turu Norveççe "Språk" satırına dönmeye devam etti; oturumun kalanı okunamayan ayarlarda geçti | Dil ayarı satırı ("language/språk/sprache/dil…" kelimesi) hiç dokunulmaz. 3+ dil adı görünen ekranda listede olmayanlar dahil her seçenek dokunulmaz. Planner doğrulayıcısı ve kapsam turu ekranla birlikte karar verir (`f2cc784`) |
+| Habo `1840d27f` | Boot'tan ~2 dk sonra adb koptu (iki `adb shell` aynı anda 255), instrumentation düştü. Yeni oturumla tekrar yalnız ilk 5 eylemde vardı | Tekrar, 25 eyleme kadar ve planner bütçesinin en çok üçte biri harcandıysa (`52dc6ec`) |
+| Jitsi `723816ca` | Açılış beklemesindeki `app_state` adb hatası, agent'ın cihaz hatası dönüşümünün dışındaydı; hata tekrar mantığını atlayıp oturumu bitirdi | Açılış beklemesi de cihaz hatasını altyapı sonu olarak döndürür, tekrar devreye girer (`e66a72d`) |
+| Jerboa `398fa898` | Klavye açılınca form yukarı kaydı; şifre alanının etiketsiz göz ikonu konum kimliğiyle "kayboldu" sanıldı (2 YP). Giriş ekranındaki isteğe bağlı 2FA alanı yüzünden ekran "tek kullanımlık kod" duvarı sayıldı | Android klavye kontrolü yalnız kimliği (id, etiket, metin) olan kontrolleri karşılaştırır. Şifreli giriş formu, 2FA alanı da olsa giriş duvarıdır (`625f532`) |
+
+**Açık gözlemler:**
+- Jerboa ana ekran kapsamı 2/6–4/6 arasında dalgalanıyor. Agent içerik (gönderi, kullanıcı profili) ağırlıklı ekranlarda kalıp "10 eylemdir yeni ekran yok" ile duruyor.
+- Tusky'de giriş ekranının adı "Screen 1" çıkıyor. Aynı giriş duvarı "Invalid domain entered" ekranı yüzünden ikinci kez engel yazılıyor.
+- adb kopmaları GitHub emülatöründen geliyor (bu turda 2/12 oturum). Kök sebep çözülmedi; runner artık bunlardan toparlanıyor.
