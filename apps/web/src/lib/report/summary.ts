@@ -124,6 +124,9 @@ export function summaryInput(report: Report): { labels: Map<string, Finding>; da
   return { labels, data };
 }
 
+const DATA_WORDS =
+  /\b(?:notCovered|findingCount|problemCount|seenOn|stopReason|overallStatus|occurrences)\b|\b[a-z0-9]+\.[a-z]+_[a-z_]+\b/;
+
 const COUNT_WORDS = ["two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
 const SEVERITY_WORD = /\bcritical\b|\b(critical|high|medium|low)[- ]severity\b/gi;
@@ -192,6 +195,9 @@ export function validateSummary(
     return { ok: false, reason: `${repeated} is used twice; mention each problem once` };
   }
   if (/\bbug[- ]free\b/i.test(text)) return { ok: false, reason: "the summary claims bug-free" };
+  // Data field names and raw check ids ("the notCovered items", run 6af17ed2) are not prose.
+  const jargon = DATA_WORDS.exec(text);
+  if (jargon) return { ok: false, reason: `"${jargon[0]}" is a data field name; use plain words` };
   // Pass claims are left to the deterministic check list (see summaryInput).
   if (/\bpass(ed|es|ing)?\b/i.test(text)) {
     return { ok: false, reason: "do not write about passed checks" };

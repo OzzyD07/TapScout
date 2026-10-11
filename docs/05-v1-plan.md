@@ -458,3 +458,16 @@ Kalan risk anlamsal: küçük model crash'i "data-loss" diye adlandırabiliyor. 
 **Test hesabı.** Yükleme formunda isteğe bağlı kullanıcı adı + şifre. API bunları AES-256-GCM ile (anahtar `APP_CREDENTIALS_ENCRYPTION_KEY`, build id ek doğrulanmış veri) şifreler ve `build_test_accounts` tablosuna yazar (migration `20261010223426`; RLS açık, politika yok, istemci rolleri okuyamaz; `app_builds.has_test_account` yalnız bayrak). Bootstrap, değeri yalnız o oturumun lease'ini tutan cihaz runner'ına çözerek verir. Planner yalnız hesabın var olduğunu bilir ve `{"kind":"credential_ref","key":"username"|"password"}` yazar; şifre yalnız maskeli alana, maskeli alana başka hiçbir şey girmez. Runner değeri çözer ve iki değeri her hierarchy, prompt ve olaydan `[test account]` ile değiştirir (testte prompt, kanıt ve olaylarda değer geçmediği doğrulanıyor). Appium logu yazılan metni farklı biçimlerde tuttuğu için, hesaplı oturumda runner işaret dosyası bırakır ve workflow logu public artifact yüklemesinden önce siler. Giriş formları stres probuna girmez.
 
 Doğrulama: birim ve sahte cihaz testleri (hesapsız → `access_blocked` + "Sign-in required", hesapla → giriş geçildi, değerler hiçbir çıktıda yok); gerçek veritabanında şifreli yazma/çözme, istemci rolüyle okumanın `42501` ile reddi ve build silinince sırrın silinmesi. Gerçek cihazda giriş isteyen bir uygulamayla koşu henüz yapılmadı (örnek uygulamada giriş yok).
+
+## 20. Örnek uygulama `login` varyantı ve giriş doğrulaması (11 Ekim 2026)
+
+`EXPO_PUBLIC_APP_VARIANT=login`: sağlıklı FieldNotes, önünde "Sign in" ekranı (e-posta + maskeli şifre, yanlış hesapta hata, yalnız yardım gösteren "Forgot password?"). Oturum AsyncStorage'da tutulur (yeniden başlatmada kalır); Sign out ve Delete account oturumu kapatır. Alanlar autofill'i kapatır, şifre yöneticisi diyaloğu uygulamanın üstüne çıkmaz. Public demo hesabı `apps/sample-app/src/lib/demo-account.json`'da (gerçek sır değil). Bilerek konmuş hata yok; değerlendirmede `fixed` gibi sayılır.
+
+`publish-sample` login build'ini iki kez kaydeder: demo hesabı şifreli test hesabı olarak (`has_test_account`) ve hesapsız. `dev-run --variant login [--no-account]` birini seçer; `quality/evaluate-run.mjs` giriş sonucunu da denetler (hesaplıda "signed in", hesapsızda "Sign-in required"). Migration `20261011080251` varyantı kabul eder.
+
+| Run | Build | Android | iOS |
+|---|---|---|---|
+| `7ccf0723` | login, test hesaplı, beş mod | Giriş geçildi ("with the test account"), 17 ekran, 0 bulgu | Giriş geçildi, 20 ekran, 0 bulgu |
+| `6af17ed2` | login, hesapsız, beş mod | `access_blocked`, "Sign-in required", 2 ekran, 0 bulgu | `access_blocked`, "Sign-in required", 4 ekran, 0 bulgu |
+
+Sızıntı denetimi: demo e-posta ve şifresi olaylarda, oturum kayıtlarında, raporda ve indirilen `run-android` artifact'inde yok; artifact'te Appium logu yerine `appium.log.removed` var. Hesapsız koşunun özeti "notCovered" alan adını metne taşıdı; özet doğrulayıcısı artık veri alan adlarını ve ham check id'lerini reddediyor.
