@@ -126,6 +126,8 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
+**11 Ekim akşamı durumu:** A5 ilk iki tur (Android), A1, A9 ve A4'ün büyük kısmı yapıldı (`07` §7, `05` §21). Üçüncü tur koşuları gönderildi (Read You, Jitsi, AntennaPod, Tusky, Jerboa, Habo, FieldNotes login + seeded); ilk iş bunları `quality/evaluate-run.mjs --run <id>` ile değerlendirmek, yeni bulgulara `quality/benchmark/<app>.json` içinde hüküm yazmak ve `05` §21'e ikinci/üçüncü tur tablosunu eklemek. Run id'leri: `test_runs` tablosunda 11 Ekim ~11:10 UTC sonrası, sahibi `tester@tapscout.com`. iOS benchmark Supabase Pro'yu bekliyor (Habo 65 MB, Ice Cubes 80 MB zip).
+
 **Ana iş: `docs/07-gercek-uygulama-plani.md`** — TapScout'u rastgele, ortalama bir uygulamada da doğru sonuç verecek hale getirmek. Sıra: A5 (gerçek uygulama ölçüm seti, ilk tur) → A1 kesintiler → A2 yükleme beklemesi → A3 ekran kimliği → A4 yanlış pozitif sertleştirme → A9 build netliği → A5 ikinci tur; zaman kalırsa B ve C grupları. Ayrıntı, dosya yerleri ve kabul ölçütleri `07`'de.
 
 Bununla paralel:
