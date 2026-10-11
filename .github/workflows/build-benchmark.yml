@@ -173,8 +173,9 @@ jobs:
         with:
           node-version-file: .nvmrc
       # The upstream README requires a local xcconfig; signing is off for a Simulator build.
-      # Debug configuration: the Xcode 26.6 optimizer crashes (swift-frontend segfault) on the
-      # MediaUI and DesignSystem packages in Release.
+      # Release without Swift optimisation: the Xcode 26.6 optimizer crashes (swift-frontend
+      # segfault) on the MediaUI and DesignSystem packages, and a Debug build (debug dylib) is
+      # too large for the builds bucket.
       - name: Build for iOS Simulator (arm64)
         working-directory: upstream
         run: |
