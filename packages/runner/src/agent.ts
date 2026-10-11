@@ -1466,17 +1466,6 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   ) {
     const record: CrashRecord = { afterAction, screenLabel, detail, artifactId, step };
     modeTracker.crashes.push(record);
-    // B10: the stack trace is what a developer needs first. Test-account values and e-mail
-    // addresses are masked before it is stored.
-    try {
-      const log = await ports.crashLog?.();
-      if (log?.trim()) {
-        const masked = scrub(log).replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]");
-        record.logArtifactId = await ports.saveEvidence(`crash-${step}`, "log", masked, step);
-      }
-    } catch (error) {
-      ports.log(`crash log not captured: ${(error as Error).message}`);
-    }
     ports.emit({
       type: "note",
       payload: {
@@ -1484,6 +1473,23 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         message: `The app stopped after ${afterAction}. ${detail}`.slice(0, 500),
       },
     });
+    record.logArtifactId = await captureCrashLog();
+  }
+
+  /**
+   * B10: the stack trace is what a developer needs first (Android logcat crash buffer).
+   * Test-account values and e-mail addresses are masked before it is stored.
+   */
+  async function captureCrashLog(): Promise<string | undefined> {
+    try {
+      const log = await ports.crashLog?.();
+      if (!log?.trim()) return undefined;
+      const masked = scrub(log).replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]");
+      return await ports.saveEvidence(`crash-${step}`, "log", masked, step);
+    } catch (error) {
+      ports.log(`crash log not captured: ${(error as Error).message}`);
+      return undefined;
+    }
   }
 
   /** UI/UX clipping candidates from the vision model, kept only when the hierarchy agrees. */
@@ -1547,6 +1553,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         "deterministic",
       );
       evidence.push({ artifactId: current.shot, role: r.crashed ? "symptom" : "after" });
+      if (r.crashed && !evidence.some((e) => e.role === "log")) {
+        const log = await captureCrashLog();
+        if (log) evidence.push({ artifactId: log, role: "log" });
+      }
       return r.crashed ? "crash" : "survived";
     };
 
