@@ -4,10 +4,7 @@
   "stack": "Flutter",
   "source": "https://github.com/xpavle00/Habo (v4.0.0-foss, built from source; iOS Simulator build is Flutter debug mode)",
   "license": "GPL-3.0",
-  "platforms": [
-    "android",
-    "ios"
-  ],
+  "platforms": ["android", "ios"],
   "android": {
     "package": "com.pavlenko.Habo"
   },
@@ -23,69 +20,44 @@
     {
       "id": "onboarding",
       "name": "Onboarding",
-      "any": [
-        "Define your habits",
-        "Get Started",
-        "~Habit contract"
-      ]
+      "any": ["Define your habits", "Get Started", "~Habit contract"]
     },
     {
       "id": "home",
       "name": "Habit list",
-      "any": [
-        "Create your first habit.",
-        "Habits:"
-      ]
+      "any": ["Create your first habit.", "Habits:"]
     },
     {
       "id": "create",
       "name": "Create habit",
-      "all": [
-        "Create Habit"
-      ]
+      "all": ["Create Habit"]
     },
     {
       "id": "edit",
       "name": "Edit habit",
-      "all": [
-        "Edit Habit"
-      ]
+      "all": ["Edit Habit"]
     },
     {
       "id": "statistics",
       "name": "Statistics",
-      "any": [
-        "There is no data about habits.",
-        "Top streak",
-        "Current streak"
-      ]
+      "any": ["There is no data about habits.", "Top streak", "Current streak"]
     },
     {
       "id": "settings",
       "name": "Settings",
-      "all": [
-        "~First day of the week"
-      ],
+      "all": ["~First day of the week"],
       "markerNote": "Flutter merges a row's label and value into one description ('First day of the week' + value, run 59785198)."
     },
     {
       "id": "archive",
       "name": "Archived habits",
-      "any": [
-        "No archived habits"
-      ],
-      "all": [
-        "Archived Habits"
-      ]
+      "any": ["No archived habits"],
+      "all": ["Archived Habits"]
     },
     {
       "id": "sync",
       "name": "Sync & backup",
-      "any": [
-        "Create an account to backup & sync.",
-        "Sync & Backup",
-        "Sync and backup your data"
-      ]
+      "any": ["Create an account to backup & sync.", "Sync & Backup", "Sync and backup your data"]
     }
   ],
   "knownIssues": [],

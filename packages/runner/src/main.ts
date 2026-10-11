@@ -208,6 +208,14 @@ try {
     }
     device = await openDevice();
   }
+  if (platform === "android") {
+    // Crash evidence starts from this session (B10): clear what earlier processes left behind.
+    try {
+      execFileSync("adb", ["logcat", "-b", "crash", "-c"], { stdio: "ignore", timeout: 15_000 });
+    } catch {
+      // Without it the log may also show older crashes; the finding still stands on its own.
+    }
+  }
   const caps = device.driver.capabilities as Record<string, unknown>;
   deviceProfile = {
     platform,
@@ -242,11 +250,19 @@ try {
         emit: (event) => sink.emit(event),
         flush: () => sink.flush(),
         async saveEvidence(name, kind, data, stepIndex) {
-          const file = join(outDir, `${name}.${kind === "screenshot" ? "png" : "xml"}`);
+          const ext = kind === "screenshot" ? "png" : kind === "log" ? "txt" : "xml";
+          const file = join(outDir, `${name}.${ext}`);
           await writeFile(file, data);
           return uploads.start(file, kind, stepIndex);
         },
         evidenceReady: (artifactId) => uploads.ready(artifactId),
+        crashLog:
+          platform === "android"
+            ? async () =>
+                execFileSync("adb", ["logcat", "-b", "crash", "-d", "-t", "300"], {
+                  timeout: 15_000,
+                }).toString("utf8")
+            : undefined,
         plan: (messages, purpose) =>
           api.relayPlan({
             purpose,

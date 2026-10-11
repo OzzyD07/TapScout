@@ -70,6 +70,8 @@ export interface CrashRecord {
   screenLabel: string;
   detail: string;
   artifactId?: string;
+  /** Android crash log (logcat crash buffer) stored as evidence. */
+  logArtifactId?: string;
   step: number;
 }
 
@@ -812,7 +814,10 @@ export function buildModeChecks(
           verification: "observed",
           severity: "high",
           rationale: "An unexpected process exit interrupts the user and can lose data.",
-          evidence: c.artifactId ? [{ artifactId: c.artifactId, role: "symptom" }] : [],
+          evidence: [
+            ...(c.artifactId ? [{ artifactId: c.artifactId, role: "symptom" as const }] : []),
+            ...(c.logArtifactId ? [{ artifactId: c.logArtifactId, role: "log" as const }] : []),
+          ],
         }),
       );
     }

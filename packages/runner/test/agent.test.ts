@@ -383,6 +383,37 @@ describe("runAgent", () => {
     );
   });
 
+  it("attaches the masked Android crash log to a crash finding (B10)", async () => {
+    const device = fakeDevice();
+    let dead = false;
+    const tap = device.tap;
+    device.tap = async (t) => {
+      await tap(t);
+      dead = true; // the process dies after the first tap
+    };
+    device.appState = async () => (dead ? 1 : 4);
+    device.relaunch = async () => {
+      dead = false;
+    };
+    const h = harness(device, scriptedPlanner(), 2);
+    const logs: string[] = [];
+    const save = h.ports.saveEvidence;
+    h.ports.saveEvidence = async (name, kind, data, at) => {
+      if (kind === "log") logs.push(String(data));
+      return save(name, kind, data, at);
+    };
+    h.ports.crashLog = async () =>
+      "FATAL EXCEPTION: main\njava.lang.IllegalStateException: user alex@example.com\n\tat dev.Foo.bar(Foo.kt:12)";
+    const out = await runAgent(h.ports, { ...h.config, modes: ["stress"] });
+    expect(logs.length).toBeGreaterThan(0);
+    for (const log of logs) {
+      expect(log).toContain("FATAL EXCEPTION");
+      expect(log).not.toContain("alex@example.com");
+    }
+    const crash = out.findings.find((f) => f.checkId === "stress.crash");
+    expect(crash?.evidence.some((e) => e.role === "log")).toBe(true);
+  });
+
   it("leaves a share sheet with Back before relaunching (benchmark run 5a5a1b40)", async () => {
     const device = fakeDevice();
     let sheet = false;

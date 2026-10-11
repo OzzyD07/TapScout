@@ -23,7 +23,13 @@ import {
 } from "@tapscout/shared";
 import { AccessTracker, gateOf } from "./access.js";
 import { RunnerApiError } from "./api.js";
-import { buildModeChecks, groundClipping, ModeTracker, type StressProbe } from "./checks.js";
+import {
+  buildModeChecks,
+  type CrashRecord,
+  groundClipping,
+  ModeTracker,
+  type StressProbe,
+} from "./checks.js";
 import {
   ControlLedger,
   type FrontierControl,
@@ -92,10 +98,12 @@ export interface AgentPorts {
   /** Stores evidence and returns its artifact id. */
   saveEvidence(
     name: string,
-    kind: "screenshot" | "hierarchy",
+    kind: "screenshot" | "hierarchy" | "log",
     data: Buffer | string,
     step: number,
   ): Promise<string>;
+  /** Android: the system crash log since the session started (logcat crash buffer); optional. */
+  crashLog?(): Promise<string | null>;
   plan(messages: ChatMessage[], purpose: "plan" | "repair"): Promise<RelayResponse>;
   vision(artifactId: string, prompt: string): Promise<RelayResponse>;
   /** Waits until a background evidence upload is complete (optional). */
@@ -914,7 +922,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       let created: PersistenceCandidate[] = [];
 
       if (pending?.interrupted && pending.crashDialog) {
-        recordCrash(
+        await recordCrash(
           pending.summary,
           pending.fromLabel,
           `The system reported "${pending.crashDialog}".`,
@@ -952,7 +960,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           snap.appState <= 1 &&
           !["relaunch", "background"].includes(pending.actionType)
         ) {
-          recordCrash(
+          await recordCrash(
             pending.summary,
             pending.fromLabel,
             "The app process was not running afterwards.",
@@ -1450,13 +1458,25 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return { ok: !error, crashed, crashDialog };
   }
 
-  function recordCrash(
+  async function recordCrash(
     afterAction: string,
     screenLabel: string,
     detail: string,
     artifactId: string,
   ) {
-    modeTracker.crashes.push({ afterAction, screenLabel, detail, artifactId, step });
+    const record: CrashRecord = { afterAction, screenLabel, detail, artifactId, step };
+    modeTracker.crashes.push(record);
+    // B10: the stack trace is what a developer needs first. Test-account values and e-mail
+    // addresses are masked before it is stored.
+    try {
+      const log = await ports.crashLog?.();
+      if (log?.trim()) {
+        const masked = scrub(log).replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]");
+        record.logArtifactId = await ports.saveEvidence(`crash-${step}`, "log", masked, step);
+      }
+    } catch (error) {
+      ports.log(`crash log not captured: ${(error as Error).message}`);
+    }
     ports.emit({
       type: "note",
       payload: {
