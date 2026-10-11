@@ -36,6 +36,28 @@ describe("gateOf", () => {
     expect(gateOf(screen("Check", [el({ text: "I'm not a robot" })]))).toBe("captcha");
   });
 
+  it("recognises a sign-in that starts without a password (f142b47c, Tusky)", () => {
+    const instance = el({ role: "text_field", label: "Which instance?" });
+    const go = el({ role: "button", text: "Login with Tusky" });
+    const t = new AccessTracker();
+    expect(
+      t.observe(
+        "Login",
+        screen("Login", [instance, go, el({ role: "link", text: "What's an instance?" })]),
+        "s",
+      ),
+    ).toBe("sign_in");
+    expect(t.blockers(false)[0]).toMatch(
+      /^Sign-in required: "Login" asks to sign in and no test account/,
+    );
+    // A search screen with a "Log in" link among many controls is no wall.
+    const search = el({ role: "text_field", label: "Search" });
+    const many = Array.from({ length: 7 }, (_, i) => el({ role: "button", text: `Item ${i}` }));
+    expect(
+      gateOf(screen("Home", [search, el({ role: "button", text: "Log in" }), ...many])),
+    ).toBeNull();
+  });
+
   it("does not take a change-password form or a plain form for a wall", () => {
     expect(gateOf(screen("Security", [el({ text: "Change password" }), password]))).toBeNull();
     expect(

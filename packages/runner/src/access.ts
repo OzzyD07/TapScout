@@ -40,7 +40,29 @@ export function gateOf(screen: NormalizedScreen): GateKind | null {
   if (fields.some((e) => e.masked) && SIGN_IN.test(text) && !CHANGE_PASSWORD.test(text)) {
     return "sign_in";
   }
+  if (passwordlessSignIn(screen, fields)) return "sign_in";
   return null;
+}
+
+/** A sign-in action: "Log in", "Login with Tusky", "Sign in with e-mail", "Continue with …". */
+const SIGN_IN_ACTION = /^(log ?in|login|sign ?in|continue with|giriş yap)\b/i;
+const CONTROL_ROLES = new Set(["button", "link", "switch", "checkbox", "tab", "cell"]);
+
+/**
+ * A sign-in that starts without a password: an e-mail, phone or server field and a sign-in
+ * button on an otherwise plain screen (benchmark run f142b47c: Tusky asks "Which instance?",
+ * then signs in on the server's page).
+ */
+function passwordlessSignIn(screen: NormalizedScreen, fields: UiElement[]): boolean {
+  if (fields.length === 0 || fields.length > 2 || fields.some((e) => e.masked)) return false;
+  const controls = screen.elements.filter((e) => CONTROL_ROLES.has(e.role));
+  if (controls.length > 6) return false;
+  return controls.some((e) => SIGN_IN_ACTION.test((e.label ?? e.text ?? "").trim()));
+}
+
+/** Whether a sign-in screen asks for a password (for the wording of its blocker). */
+function asksPassword(screen: NormalizedScreen): boolean {
+  return screen.elements.some((e) => e.role === "text_field" && e.masked);
 }
 
 interface Gate {
@@ -52,6 +74,8 @@ interface Gate {
    * optional sign-in inside it (benchmark run 5f2a097d: Habo's sync account).
    */
   entry: boolean;
+  /** The sign-in asks for a password (false: an e-mail, phone or server comes first). */
+  password: boolean;
   /** The test account was typed on this screen at least once. */
   accountUsed: boolean;
 }
@@ -73,6 +97,7 @@ export class AccessTracker {
         passed: false,
         accountUsed: false,
         entry: this.elsewhere.size <= MAX_SCREENS_BEFORE_ENTRY,
+        password: asksPassword(screen),
       });
     }
     return kind;
@@ -135,7 +160,7 @@ export class AccessTracker {
         );
       } else if (!accountProvided) {
         out.push(
-          `Sign-in required: ${screen} asks for a password and no test account was provided, so the screens behind sign-in were not tested. Add a test account to the build to test them.`,
+          `Sign-in required: ${screen} ${gate.password ? "asks for a password" : "asks to sign in"} and no test account was provided, so the screens behind sign-in were not tested. Add a test account to the build to test them.`,
         );
       } else {
         out.push(
