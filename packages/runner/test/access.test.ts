@@ -92,6 +92,22 @@ describe("AccessTracker", () => {
     expect(t.blockers(false)).toEqual([]);
   });
 
+  it("ends the app only for a wall in front of it, not for an optional sign-in inside it", () => {
+    const entry = new AccessTracker();
+    entry.observe("Welcome", screen("Welcome", []), "s0");
+    entry.observe("Log in", login, "s1");
+    expect(entry.entryBlocked()).toBe(true);
+
+    // Habo (benchmark run 5f2a097d): the habit list works without an account; only sync needs one.
+    const optional = new AccessTracker();
+    for (const label of ["Onboarding", "Habits", "Statistics"]) {
+      optional.observe(label, screen(label, []), "s");
+    }
+    optional.observe("Sync sign-in", login, "s4");
+    expect(optional.entryBlocked()).toBe(false);
+    expect(optional.blockers(false)[0]).toMatch(/^Sign-in required/);
+  });
+
   it("tells a failed sign-in apart from an unused test account", () => {
     const t = new AccessTracker();
     t.observe("Log in", login, "shot");

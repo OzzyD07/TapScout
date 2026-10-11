@@ -47,19 +47,43 @@ interface Gate {
   kind: GateKind;
   artifactId: string;
   passed: boolean;
+  /**
+   * Seen before the session got anywhere else in the app: a wall in front of the app, not an
+   * optional sign-in inside it (benchmark run 5f2a097d: Habo's sync account).
+   */
+  entry: boolean;
   /** The test account was typed on this screen at least once. */
   accountUsed: boolean;
 }
 
+/** Other app screens seen before a wall for it to still count as the app's entry. */
+const MAX_SCREENS_BEFORE_ENTRY = 2;
+
 export class AccessTracker {
   readonly gates = new Map<string, Gate>();
+  private readonly elsewhere = new Set<string>();
 
   observe(screenLabel: string, screen: NormalizedScreen, artifactId: string): GateKind | null {
     const kind = gateOf(screen);
-    if (kind && !this.gates.has(screenLabel)) {
-      this.gates.set(screenLabel, { kind, artifactId, passed: false, accountUsed: false });
+    if (!kind) this.elsewhere.add(screenLabel);
+    else if (!this.gates.has(screenLabel)) {
+      this.gates.set(screenLabel, {
+        kind,
+        artifactId,
+        passed: false,
+        accountUsed: false,
+        entry: this.elsewhere.size <= MAX_SCREENS_BEFORE_ENTRY,
+      });
     }
     return kind;
+  }
+
+  /** A wall in front of the app was never passed: everything behind it is out of reach. */
+  entryBlocked(): boolean {
+    const signedIn = [...this.gates.values()].some((g) => g.kind === "sign_in" && g.passed);
+    return [...this.gates.values()].some(
+      (g) => g.entry && !g.passed && !(signedIn && g.kind === "sign_in"),
+    );
   }
 
   noteAccountTyped(screenLabel: string): void {

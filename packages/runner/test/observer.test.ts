@@ -79,6 +79,14 @@ describe("normalizeHierarchy", () => {
     expect(normalizeHierarchy("ios", own, { scale: 3 }).interruption).toBeNull();
   });
 
+  it("names a Flutter screen by the content description in the app bar (5f2a097d)", () => {
+    const xml = `<hierarchy width="1080" height="2400">
+      <android.view.View class="android.view.View" package="com.pavlenko.Habo" text="" content-desc="Statistics" clickable="false" enabled="true" bounds="[189,140][620,250]" displayed="true"/>
+      <android.widget.Button class="android.widget.Button" package="com.pavlenko.Habo" text="" content-desc="Back" clickable="true" enabled="true" bounds="[21,140][147,266]" displayed="true"/>
+    </hierarchy>`;
+    expect(normalizeHierarchy("android", xml, { scale: 1 }).title).toBe("Statistics");
+  });
+
   it("masks secret fields and never forwards their value", () => {
     const xml = `<hierarchy width="1080" height="2400">
       <android.widget.EditText class="android.widget.EditText" package="p" text="••••" content-desc="Password" password="true" enabled="true" clickable="true" bounds="[0,100][500,200]" displayed="true"/>

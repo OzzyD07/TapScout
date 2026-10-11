@@ -378,7 +378,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     }
     // A wall that was never passed limits everything after it; say so before anything else.
     const walls = access.blockers(Boolean(account));
-    const limited = walls.length > 0 && end.stopReason === "goals_exhausted";
+    // Only a wall in front of the app ends it as access-blocked; an optional sign-in inside a
+    // usable app stays a blocker line for the screens behind it.
+    const limited = access.entryBlocked() && end.stopReason === "goals_exhausted";
     return {
       ...end,
       stopReason: limited ? "access_blocked" : end.stopReason,

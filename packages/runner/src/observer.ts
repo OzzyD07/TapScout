@@ -230,8 +230,11 @@ function androidCandidates(root: XmlNode) {
     const password = a.password === "true";
     // The app bar title (a plain text in the top band) names the screen like iOS's navigation
     // bar does; in-page headings often contain user data ("Hi, Alex").
-    if (!title && text && !clickable && role === "text" && heightPx > 0) {
-      if (bounds.y + bounds.height <= heightPx * 0.13) title = text;
+    // Flutter exposes its texts as content descriptions (benchmark run 5f2a097d: every Habo
+    // screen was "Screen N"), so a plain labelled view in the band names the screen as well.
+    const named = text ?? (role === "text" || role === "other" ? label : undefined);
+    if (!title && named && !clickable && (role === "text" || role === "other") && heightPx > 0) {
+      if (bounds.y + bounds.height <= heightPx * 0.13) title = named;
     }
     if (!heading && a.heading === "true" && text) heading = text;
     candidates.push({
