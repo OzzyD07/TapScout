@@ -1,7 +1,7 @@
 # TapScout — Gerçek Uygulamalara Dayanıklılık Planı
 
 Tarih: 11 Ekim 2026  
-Durum: **Sıradaki iş.** Bu belge, `06` §7'deki "Hemen sıradaki" listesinin yerini alır.  
+Durum: **Devam ediyor.** 11 Ekim akşamı A5 ilk tur, A1, A9 ve A4'ün ilk kısmı yapıldı (§7). Bu belge, `06` §7'deki "Hemen sıradaki" listesinin yerini alır.  
 Amaç: TapScout'u kendi örnek uygulamamızın (FieldNotes) dışında, jürinin veya bir geliştiricinin yükleyeceği **rastgele, ortalama bir uygulamada** da doğru ve beklenen sonuçları verecek hale getirmek.
 
 ## 1. Neden bu iş, neden şimdi
@@ -145,3 +145,49 @@ Android'de çökme anında `adb logcat -b crash` kesiti (FATAL EXCEPTION, yığ�
 
 - FieldNotes: seeded 6/6 (iki platform), fixed ve login 0 yanlış pozitif, login hesaplı/hesapsız doğru erişim sonucu — gerilemesiz.
 - Ölçüm seti: her uygulamada oturum ilk ekranlarda takılmıyor; yanlış pozitif oranı < %10; takıldığı yerde rapor sebebi dürüstçe söylüyor (engel/kapsam), "sorun yok" demiyor.
+
+## 7. İlerleme (11 Ekim 2026, akşam)
+
+Ayrıntı ve tablolar `05` §21'de.
+
+- **A5 ilk tur yapıldı (Android).** 7 uygulamalık set (`scripts/benchmark/apps.json`, `quality/benchmark/`), `build-benchmark.yml`, `publish-benchmark.mjs`, `dev-run --app`. `evaluate-run`'a benchmark modu eklendi: ana ekranlar hierarchy işaretleriyle sayılır; erişim sonucu, durma yeri, kesinti ve yükleme sıklığı ve bölge eşlemeli elle hükümler raporlanır. **iOS:** Habo (Flutter debug, 65 MB) ve Ice Cubes (80 MB) küçültmeye rağmen Free plandaki 50 MB nesne sınırını aşıyor; iOS ölçümü Supabase Pro'yu bekliyor.
+- **Ölçümün gösterdiği sıra:**
+  1. En sık ve en ağır engel kesintiler ve açılış: 5 uygulamanın 3'ünde oturum ya hiç açılmadı ya da ilk adımlar boşa gitti.
+  2. Sonra yanlış pozitifler: AntennaPod %73, Jitsi %29.
+  3. Sonra durma ve erişim raporunun doğruluğu.
+
+  Yükleme göstergesi (A2) yalnız Tusky'de, 52 gözlemin 3'ünde görüldü; durum sayıları (A3) makul (11–25). Bu yüzden A2 ve A3 sona kaldı.
+- **A1 yapıldı:**
+  - Android ve iOS izin diyalogları "Allow" ile geçilir.
+  - Açılıştan sonraki 10 adımda uygulama içi diyalog, tanıtım ve onay ekranları planner'sız cevaplanır (`interruptions.ts`).
+  - Appium uygulamayı kendisi başlatmaz ve activity beklemez (`autoLaunch: false`).
+  - Android'de arkada çalışan uygulamanın ekranı da okunur; paylaşım sayfasından önce Geri ile çıkılır.
+- **A4'ün ilk kısmı yapıldı:**
+  - Etiketsiz kontrol içindeki metinle adlandırılır.
+  - Kırpılmış ya da ekran kenarında kesilmiş kontroller ölçülmez.
+  - Alt gezinme klavye örtmesi sayılmaz.
+  - Bulgular ekran ve kontrol türü başına gruplanır.
+  - Kırpılma doğrulamasında tam cümle kuralı var.
+  - Oturum başına en çok 50 bulgu raporlanır.
+
+  Kayıtlı kanıtla çevrimdışı tekrar: AntennaPod 44 → 1, Jitsi 35 → 4 bulgu; kalanlar doğru.
+- **Agent sağlamlığı** (planda yoktu, ölçümden çıktı):
+  - Dil seçeneklerine dokunulmaz (prompt v3).
+  - Ulaşılamayan bir ekrana tur yapılmaz.
+  - Hesap yokken şifre duvarını yalnız misafir yolu aşar.
+  - Yalnız uygulamanın girişindeki duvar oturumu `access_blocked` yapar.
+  - Flutter ekran başlıkları `content-desc`'ten alınır.
+- **A9 yapıldı (ARM ölçümü hariç).** `.aab`, split APK ve `.ipa` için yüklemede açıklamalı ret (istemci + API) ve "How do I get these files?" bölümü. Arayüz tarayıcıda görsel olarak kontrol edilmedi. ARM çevirisini ölçmek için arm64-only Jitsi APK'sı sete eklendi.
+- **FieldNotes gerilemesi:** seeded `4d53f5f4` iki platformda **6/6**, yanlış pozitif 0. iOS'taki ek kalıcılık bulgusu aynı tohumun ikinci alanı; değerlendirici bunu artık ayrı sayıyor.
+
+**Kalan işler (sırayla):**
+1. A5 ikinci tur (`05` §21).
+2. Yanlış pozitif oranının hedefin (<%10) altında olduğunu doğrulamak.
+3. A2 (yükleme beklemesi) ve A3 (ekran kimliği).
+4. iOS benchmark (Pro sonrası).
+5. B grubu.
+
+**Açık gözlemler:**
+- Flutter'da (Habo) planner bütçesi tanıtım ve sync akışlarına gidiyor (ana ekranlar 3/8).
+- Jitsi'de toplantıya hiç katılınmadı.
+- Uygulama içi kesinti cevaplama ilk 10 adımla sınırlı.
