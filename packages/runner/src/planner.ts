@@ -10,6 +10,7 @@ import {
   type TestMode,
   type UiElement,
 } from "@tapscout/shared";
+import { gateOf } from "./access.js";
 import { isLanguageOption } from "./coverage.js";
 import type { NormalizedScreen, Platform } from "./observer.js";
 import type { ScreenState, StateGraph } from "./state.js";
@@ -239,6 +240,15 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
     return {
       ok: false,
       reason: `${action.targetRef} switches the app's language, which would change every text for the rest of the run; leave language options alone`,
+    };
+  }
+  // Without an account a sign-in cannot be passed; typing invented credentials only spends the
+  // budget (benchmark run 614e2419: Habo's optional sync sign-in took a third of the run).
+  if (action.type === "type" && !ctx.testAccount && gateOf(ctx.screen) === "sign_in") {
+    return {
+      ok: false,
+      reason:
+        "this sign-in needs an account that was not provided; go back or look for a way in without an account, and explore the rest of the app",
     };
   }
   switch (action.type) {

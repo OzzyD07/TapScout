@@ -205,7 +205,8 @@ describe("validatePlannerAnswer", () => {
       ok: false,
       reason: expect.stringContaining("credential_ref"),
     });
-    expect(at(false).ok).toBe(true);
+    // Without an account nothing is typed into a sign-in form at all (614e2419).
+    expect(at(false)).toMatchObject({ ok: false, reason: expect.stringContaining("not provided") });
   });
 
   it("builds a repair turn with the reason", () => {
