@@ -47,7 +47,26 @@ describe("safeToTry / iconOnly", () => {
     for (const text of ["Afrikaans", "Deutsch", "Türkçe", "English (US)", "日本語"]) {
       expect(safeToTry(control({ text }))).toBe(false);
     }
-    expect(safeToTry(control({ text: "Language English" }))).toBe(true);
+  });
+
+  it("leaves the language setting and every option of a language list alone (a306bbdb, Jerboa)", () => {
+    // The row that opens the choice, in English and after the switch to Norwegian.
+    expect(safeToTry(control({ text: "Language Language English" }))).toBe(false);
+    expect(safeToTry(control({ text: "Språk Språk norsk nynorsk" }))).toBe(false);
+    expect(safeToTry(control({ text: "norsk nynorsk" }))).toBe(false);
+    // A language the list does not know is caught by the list around it.
+    const picker = ["English", "français", "español", "dansk", "davvisámegiella", "Kernewek"].map(
+      (text) => control({ text }),
+    );
+    const unknown = control({ text: "Kernewek" });
+    expect(safeToTry(unknown)).toBe(true);
+    expect(safeToTry(unknown, picker)).toBe(false);
+    expect(safeToTry(back, [...picker, back])).toBe(false);
+    // Ordinary settings stay open to the coverage tour.
+    const settings = ["Theme", "Post view Card", "Dilbert comics", "Dil seçimi yok"].map((text) =>
+      control({ text }),
+    );
+    for (const e of settings.slice(0, 3)) expect(safeToTry(e, settings)).toBe(true);
   });
 });
 

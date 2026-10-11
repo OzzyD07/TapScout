@@ -243,7 +243,7 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
       };
     }
   }
-  if (action.type === "tap" && target && isLanguageOption(target)) {
+  if (action.type === "tap" && target && isLanguageOption(target, ctx.screen.elements)) {
     return {
       ok: false,
       reason: `${action.targetRef} switches the app's language, which would change every text for the rest of the run; leave language options alone`,

@@ -662,7 +662,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   /** Controls never tapped on this state that the agent may try on its own (see safeToTry). */
   function untriedControls(screen: NormalizedScreen, fp: string): UiElement[] {
     const tried = graph.get(fp)?.tried;
-    return controlsOf(screen).filter((e) => safeToTry(e) && !tried?.has(actionKey("tap", e)));
+    return controlsOf(screen).filter(
+      (e) => safeToTry(e, screen.elements) && !tried?.has(actionKey("tap", e)),
+    );
   }
 
   /** Untried controls the open keyboard covers: still part of this screen, just not reachable yet. */
@@ -697,7 +699,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     const back = tried?.get(actionKey("back"));
     if (back?.results.at(-1) !== "same screen") return { action: { type: "back" } };
     const least = controlsOf(screen)
-      .filter(safeToTry)
+      .filter((e) => safeToTry(e, screen.elements))
       .sort(
         (a, b) =>
           (tried?.get(actionKey("tap", a))?.count ?? 0) -
@@ -1397,7 +1399,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             // Everything here was tried: the least tried safe control still beats leaving.
             const tried = graph.get(fp)?.tried;
             const least = controlsOf(snap.screen)
-              .filter(safeToTry)
+              .filter((e) => safeToTry(e, snap.screen.elements))
               .sort(
                 (a, b) =>
                   (tried?.get(actionKey("tap", a))?.count ?? 0) -

@@ -20,19 +20,43 @@ const nameOf = (e: Pick<UiElement, "label" | "text" | "stableId">) =>
  * Afrikaans and spent half its actions on a screen it could no longer find).
  */
 export const LANGUAGE_OPTION =
-  /^(english|deutsch|español|espanol|français|francais|italiano|português|portugues|nederlands|türkçe|turkce|polski|русский|українська|日本語|中文|简体中文|繁體中文|한국어|العربية|עברית|हिन्दी|svenska|norsk( bokmål)?|dansk|suomi|čeština|slovenčina|magyar|română|ελληνικά|български|hrvatski|srpski|српски|slovenščina|català|euskara|galego|afrikaans|bahasa indonesia|bahasa melayu|tiếng việt|ไทย|فارسی|eesti|latviešu|lietuvių|esperanto|gaeilge|íslenska|shqip|беларуская|қазақ тілі|oʻzbekcha|azərbaycan|ქართული|հայերեն|বাংলা|தமிழ்|తెలుగు|kiswahili|filipino)( \(.*\))?$/i;
+  /^(english|deutsch|español|espanol|français|francais|italiano|português|portugues|nederlands|türkçe|turkce|polski|русский|українська|日本語|中文|简体中文|繁體中文|한국어|العربية|עברית|हिन्दी|svenska|norsk( bokmål| nynorsk)?|nynorsk|bokmål|dansk|suomi|čeština|slovenčina|magyar|română|ελληνικά|български|hrvatski|srpski|српски|slovenščina|català|euskara|galego|afrikaans|bahasa indonesia|bahasa melayu|tiếng việt|ไทย|فارسی|eesti|latviešu|lietuvių|esperanto|gaeilge|íslenska|shqip|беларуская|қазақ тілі|oʻzbekcha|azərbaycan|ქართული|հայերեն|বাংলা|தமிழ்|తెలుగు|kiswahili|filipino|[\p{L} ]*sámegiella|cymraeg|føroyskt|lëtzebuergesch|malti|occitan|brezhoneg|interlingua|toki pona)( \(.*\))?$/iu;
 
-export function isLanguageOption(e: Pick<UiElement, "label" | "text">): boolean {
-  const name = (e.label ?? e.text ?? "").trim();
-  return LANGUAGE_OPTION.test(name);
+/**
+ * The settings row that opens the language choice ("Language English", Jerboa's "Språk norsk
+ * nynorsk"): run a306bbdb opened it and picked Norwegian, then Northern Sami, and spent the rest
+ * of the session in settings it could no longer read. The word for "language" in common app
+ * languages, as a whole word of the control's name.
+ */
+const LANGUAGE_SETTING =
+  /(^|[\s,:/|·-])(language|languages|app language|sprache|idioma|langue|lingua|taal|språk|sprog|kieli|język|jazyk|nyelv|limbă|γλώσσα|язык|мова|dil|語言|语言|言語|언어|اللغة|שפה|भाषा|bahasa|ngôn ngữ|ภาษา|زبان)($|[\s,:/|·-])/iu;
+
+const displayName = (e: Pick<UiElement, "label" | "text">) => (e.label ?? e.text ?? "").trim();
+
+/** A screen that lists several languages: every option on it switches the app's language. */
+export function isLanguagePicker(screen: Pick<UiElement, "label" | "text">[]): boolean {
+  return screen.filter((e) => LANGUAGE_OPTION.test(displayName(e))).length >= 3;
+}
+
+/**
+ * A control that changes the app's language or opens that choice. With the screen, any option of
+ * a language list counts too, also languages the list above does not know.
+ */
+export function isLanguageOption(
+  e: UiElement,
+  screen?: Pick<UiElement, "label" | "text">[],
+): boolean {
+  const name = displayName(e);
+  if (LANGUAGE_OPTION.test(name) || LANGUAGE_SETTING.test(name)) return true;
+  return Boolean(screen && isLanguagePicker(screen) && !isBackControl(e));
 }
 
 /**
  * A control the agent may tap on its own: not destructive, not a plain back button and not an
  * option that switches the app's language.
  */
-export function safeToTry(e: UiElement): boolean {
-  return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e) && !isLanguageOption(e);
+export function safeToTry(e: UiElement, screen?: Pick<UiElement, "label" | "text">[]): boolean {
+  return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e) && !isLanguageOption(e, screen);
 }
 
 /**
@@ -96,7 +120,7 @@ export class ControlLedger {
   note(screenLabel: string, controls: UiElement[], screenHeight = 0) {
     const byKey = this.seen.get(screenLabel) ?? new Map();
     for (const e of controls) {
-      if (!safeToTry(e)) continue;
+      if (!safeToTry(e, controls)) continue;
       byKey.set(actionKey("tap", e), {
         element: e,
         nav: navigationEntry(e, controls, screenHeight),
