@@ -257,6 +257,19 @@ describe("clipping grounding (real model answers)", () => {
     ).toEqual(["Notes stay on this device. Delete this one from its do"]);
   });
 
+  it("drops a whole sentence of a longer multi-line text (benchmark run 5cf50571)", () => {
+    const rules = el({
+      role: "text",
+      text: "• Sexually explicit or violent media must be marked as sensitive or with a content warning • No racism, sexism, homophobia, transphobia, ableism, xenophobia, or casteism. • No incitement of violence",
+    });
+    expect(
+      groundClipping(
+        ["No racism, sexism, homophobia, transphobia, ableism, xenophobia, or casteism."],
+        [rules],
+      ),
+    ).toEqual([]);
+  });
+
   it("drops an intentional ellipsis (fixed, run 4cc0a298) and unsupported text", () => {
     expect(groundClipping(["Delete this one from its de..."], [row])).toEqual([]);
     expect(groundClipping(["Something that is not on screen at all"], [row])).toEqual([]);

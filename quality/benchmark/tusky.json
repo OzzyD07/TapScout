@@ -5,7 +5,9 @@
   "source": "https://codeberg.org/tusky/Tusky (F-Droid 33.0)",
   "license": "GPL-3.0-only",
   "platforms": ["android"],
-  "android": { "package": "com.keylesspalace.tusky" },
+  "android": {
+    "package": "com.keylesspalace.tusky"
+  },
   "access": "sign_in_required",
   "traits": [
     "login wall without a password field (instance domain, then OAuth in a WebView or the browser)",
@@ -13,7 +15,11 @@
   ],
   "screensSource": "app/src/main/res/values/strings.xml at v33.0: everything except the login screen needs a Mastodon account.",
   "screens": [
-    { "id": "login", "name": "Login (instance)", "any": ["Which instance?", "Login with Tusky"] },
+    {
+      "id": "login",
+      "name": "Login (instance)",
+      "any": ["Which instance?", "Login with Tusky"]
+    },
     {
       "id": "instance_help",
       "name": "What's an instance?",
@@ -27,6 +33,21 @@
     }
   ],
   "knownIssues": [],
-  "verdicts": [],
+  "verdicts": [
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "What's an instance?",
+      "verdict": "true_positive",
+      "reason": "A standalone (not inline) text link 250×27dp below the instance field.",
+      "firstSeen": "5cf50571"
+    },
+    {
+      "check": "ui.text_clipping",
+      "titleIncludes": "mastodon.social rules",
+      "verdict": "false_positive",
+      "reason": "The reported rule is complete on the screenshot; it is one sentence of the dialog's longer rules text.",
+      "firstSeen": "5cf50571"
+    }
+  ],
   "notes": "Expected result: the report says the app needs an account (Sign-in required) and does not claim the app was tested. Account creation on a real instance must not be attempted."
 }

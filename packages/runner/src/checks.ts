@@ -344,6 +344,10 @@ export function groundClipping(reported: unknown, elements: UiElement[]): string
     if (typeof raw !== "string") continue;
     const visible = raw.trim();
     if (/(\.\.\.|…)$/.test(visible)) continue;
+    // A whole sentence inside a longer text is one item of a multi-line message, not cut off
+    // (benchmark run 5cf50571: one rule of a server's rules list).
+    const whole = visible.toLowerCase();
+    if (/[.!?。:;]$/.test(visible) && texts.some((t) => t.includes(whole))) continue;
     const words = visible.split(/\s+/);
     const stem = (words.length > 3 ? words.slice(0, -1).join(" ") : visible).toLowerCase();
     if (stem.length < 12) continue;
