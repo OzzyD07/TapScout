@@ -1,7 +1,7 @@
 # TapScout — Devam Notu (yeni oturum için)
 
 Tarih: 11 Ekim 2026  
-Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir. Bu not durum özeti ve çalışma kurallarıdır.
+Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir, sıradaki işin planı `07`'dedir. Bu not durum özeti ve çalışma kurallarıdır.
 
 ## 1. Proje ve takvim
 
@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 137 birim testi (shared 9, adapters 5, runner 62, web 61) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 204 birim testi (shared 9, adapters 5, runner 83, web 107; 11 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -126,9 +126,13 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki
 
-- **Kapsam ölçümü:** turlu ve satır-aileli runner ile beş modlu `seeded` + `fixed` koşuları; `quality/evaluate-run.mjs` ile 6/6 kararlılığı ve yanlış pozitif kontrolü (özellikle iOS). G3 (16 Ekim) ölçümü bu koşularla yazılır.
+**Ana iş: `docs/07-gercek-uygulama-plani.md`** — TapScout'u rastgele, ortalama bir uygulamada da doğru sonuç verecek hale getirmek. Sıra: A5 (gerçek uygulama ölçüm seti, ilk tur) → A1 kesintiler → A2 yükleme beklemesi → A3 ekran kimliği → A4 yanlış pozitif sertleştirme → A9 build netliği → A5 ikinci tur; zaman kalırsa B ve C grupları. Ayrıntı, dosya yerleri ve kabul ölçütleri `07`'de.
+
+Bununla paralel:
+- **G3 (16 Ekim):** son runner ile FieldNotes seeded + fixed beş modlu koşular; sonuç `05`'e. A işleri sırasında da her değişiklikten sonra FieldNotes gerilemesi kontrol edilir (seeded 6/6, fixed/login 0 yanlış pozitif).
+- **Model kredisi:** A5 koşuları için $25'lik hackathon kredisi gerekli (proje sahibi, §6); gelene kadar az modlu, tek platform koşular.
 - **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli).
-- **Özet kalitesi:** küçük model ara sıra anlamsal kaymalar yapıyor (crash'i "data-loss" diye anmak gibi); doğrulayıcı etiket/platform/severity/oran/pass iddialarını yakalıyor, anlamı yakalamıyor. Gerekirse daha sıkı şablon.
+- **Özet kalitesi:** küçük model ara sıra anlamsal kaymalar yapıyor; doğrulayıcı etiket/platform/severity/sayı/oran/pass/alan adı iddialarını yakalıyor, anlamı yakalamıyor.
 
 ### Açık borçlar
 
@@ -139,4 +143,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md` ve `docs/05-v1-plan.md` §16–20'yi oku. `docs/01`–`04`'e yalnız gerektiğinde bak. F2, beş modun kontrolleri, ground-truth değerlendirmesi, iOS hızlandırması, Nemotron rapor özeti, rapor UI'ı, kapsam turları, build yükleme, giriş duvarı raporlama ve şifreli test hesabı bitti. Sırada §7 "Hemen sıradaki": kapsam ölçümü ve G3. Çalışma kuralları notun §5'inde; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi, sonra sıradaki işin planı `docs/07-gercek-uygulama-plani.md`'yi ve `docs/05-v1-plan.md` §16–20'yi oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2 ve F3 işleri bitti (beş mod, ground-truth değerlendirmesi, Nemotron rapor özeti, rapor UI'ı, kapsam turları, build yükleme, giriş duvarı + şifreli test hesabı, örnek uygulamanın `login` varyantı, CI'da actionlint); takvimin ~9 gün önündeyiz. Sıradaki iş `07`: rastgele, ortalama bir uygulamada doğru sonuç için önce A5 (gerçek uygulama ölçüm seti), sonra A1–A4 ve A9. Çalışma kuralları `06` §5'te; özellikle commit'lere hiçbir AI atfı ekleme ve `pnpm check` geçmeden commit atma.
