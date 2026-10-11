@@ -72,6 +72,9 @@ const ANDROID_ALLOW = [
   "permission_allow_button",
   "permission_allow_one_time_button",
 ];
+/** Content descriptions of navigation icons; never a screen's title (benchmark run ca26b0b3). */
+const NAV_LABEL =
+  /^(back|close|navigate up|menu|more options|search|cancel|open navigation drawer|done|share)$/i;
 const PERMISSION_PACKAGE = /^com\.(google\.)?android\.permissioncontroller$/;
 
 /** Title of an iOS system permission alert (an app's own alerts are app behaviour, not this). */
@@ -232,7 +235,8 @@ function androidCandidates(root: XmlNode) {
     // bar does; in-page headings often contain user data ("Hi, Alex").
     // Flutter exposes its texts as content descriptions (benchmark run 5f2a097d: every Habo
     // screen was "Screen N"), so a plain labelled view in the band names the screen as well.
-    const named = text ?? (role === "text" || role === "other" ? label : undefined);
+    const plain = role === "text" || role === "other";
+    const named = text ?? (plain && label && !NAV_LABEL.test(label) ? label : undefined);
     if (!title && named && !clickable && (role === "text" || role === "other") && heightPx > 0) {
       if (bounds.y + bounds.height <= heightPx * 0.13) title = named;
     }

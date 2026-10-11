@@ -132,6 +132,21 @@ describe("accessibility on real apps (benchmark runs f86858fd, e24b2ce6)", () =>
     expect(r.findings[0]?.evidence[0]?.region).toEqual(tile.bounds);
   });
 
+  it("does not measure inline links of web content (ca26b0b3: release notes)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const web = el({
+      role: "web_view",
+      clickable: false,
+      bounds: { x: 0, y: 300, width: 1080, height: 1800 },
+    });
+    const mention = el({
+      label: "@NatsuCamellia",
+      bounds: { x: 464, y: 1083, width: 376, height: 60 },
+    });
+    t.observe("Release notes", screen([web, mention]), "s", 1);
+    expect(buildModeChecks(t, ctx(["accessibility"])).findings).toEqual([]);
+  });
+
   it("treats a non-clickable checkbox inside a labelled row as part of the row", () => {
     const t = new ModeTracker("android", 2.625);
     const row = el({ label: "Sort by date", bounds: { x: 545, y: 556, width: 525, height: 126 } });
@@ -232,8 +247,18 @@ describe("android keyboard occlusion", () => {
   it("reports a control that disappears from the hierarchy while the keyboard is open", () => {
     const t = new ModeTracker("android", 2.625);
     const field = el({ role: "text_field", label: "Name", stableId: "register-name" });
-    const cont = el({ stableId: "register-continue", label: "Continue" });
-    t.observe("Create profile", screen([field, cont]), "closed", 1);
+    const cont = el({
+      stableId: "register-continue",
+      label: "Continue",
+      bounds: { x: 63, y: 2050, width: 954, height: 147 },
+    });
+    // A list row under the form is content, not the form's action (c522e6d1).
+    const row = el({
+      label:
+        "Recent Your recent list is currently empty. Chat with your team and you will find all your recent meetings here.",
+      bounds: { x: 0, y: 1400, width: 1080, height: 300 },
+    });
+    t.observe("Create profile", screen([field, cont, row]), "closed", 1);
     t.observe("Create profile", screen([field], true), "open", 2);
     const r = buildModeChecks(t, ctx(["ui_ux"]));
     valid(r);

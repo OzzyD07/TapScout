@@ -12,6 +12,7 @@ import type {
   UiElement,
   VersionStamp,
 } from "@tapscout/shared";
+import { familyOf } from "./coverage.js";
 import type { NormalizedScreen } from "./observer.js";
 
 const INTERACTIVE = new Set(["button", "link", "switch", "checkbox", "tab", "text_field", "cell"]);
@@ -190,6 +191,17 @@ function groupEvidence(group: ScreenSighting[]): EvidenceRef[] {
   }));
 }
 
+/** Longest name of a form action (Save, Continue, Create account …) for the keyboard check. */
+const MAX_ACTION_NAME = 30;
+
+/**
+ * Links inside web content (show notes, release notes) are inline text links, which the
+ * touch-target rules exempt (WCAG 2.5.8); they are not measured (e.g. "@user", "#1176").
+ */
+function inWebContent(e: UiElement, elements: UiElement[]): boolean {
+  return elements.some((w) => w.role === "web_view" && w !== e && within(e.bounds, w.bounds));
+}
+
 function key(e: UiElement, screenLabel: string): string {
   return (
     e.stableId ?? `${screenLabel}|${e.role}|${e.label ?? e.text ?? `${e.bounds.x},${e.bounds.y}`}`
@@ -257,7 +269,8 @@ export class ModeTracker {
       if (
         e.role !== "text_field" &&
         !partOfRow &&
-        !clippedByScroll(e, screen.elements, screen.heightPx)
+        !clippedByScroll(e, screen.elements, screen.heightPx) &&
+        !inWebContent(e, screen.elements)
       ) {
         const w = e.bounds.width / this.unitScale;
         const h = e.bounds.height / this.unitScale;
@@ -284,8 +297,23 @@ export class ModeTracker {
         }
         this.withoutKeyboard.set(screenLabel, known);
       } else if (screen.elements.some((e) => e.role === "text_field")) {
+        // The IME removes everything under it from the hierarchy; only a form's own actions
+        // count: short-named controls below the lowest field in the keyboard's half of the
+        // screen. List rows and other content scrolled out of view do not (benchmark runs
+        // c522e6d1, ca26b0b3).
+        const fieldsBottom = Math.max(
+          ...screen.elements
+            .filter((e) => e.role === "text_field")
+            .map((e) => e.bounds.y + e.bounds.height),
+        );
         for (const [k, sighting] of known) {
-          if (!present.has(k)) this.covered.set(k, { ...sighting, artifactId, step });
+          const e = sighting.element;
+          const action =
+            name(e).length <= MAX_ACTION_NAME &&
+            familyOf(e) === null &&
+            e.bounds.y >= fieldsBottom &&
+            e.bounds.y >= screen.heightPx * 0.5;
+          if (!present.has(k) && action) this.covered.set(k, { ...sighting, artifactId, step });
         }
       }
     }

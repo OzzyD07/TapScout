@@ -261,6 +261,22 @@ describe("FunctionalTracker", () => {
     ]);
   });
 
+  it("does not take joining or searching with the typed text for saving it (c522e6d1)", () => {
+    const t = new FunctionalTracker();
+    t.noteTyped("Alex Doe", field, "Jitsi Meet", 1);
+    t.noteOutcome({
+      type: "tap",
+      target: el({ role: "button", label: "Tap to join" }),
+      fromLabel: "Jitsi Meet",
+      fromElements: [field],
+      toLabel: "Join meeting",
+      toElements: [el({ text: "Alex Doe" })],
+      step: 2,
+      artifactId: "a",
+    });
+    expect(t.candidates).toHaveLength(0);
+  });
+
   it("does not treat a back/up control as a save and drops the unsaved input", () => {
     const t = new FunctionalTracker();
     t.noteTyped("Alex Doe", field, "Edit profile", 1);

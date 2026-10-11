@@ -101,6 +101,14 @@ function texts(elements: UiElement[]): Set<string> {
   );
 }
 
+/**
+ * Submits that run an action with the typed text instead of saving it: the screen they open
+ * shows the value, but nothing promises to keep it (benchmark run c522e6d1: joining a Jitsi room
+ * by name was reported as data loss).
+ */
+const TRANSIENT_SUBMIT =
+  /\b(join|search|go|find|look ?up|call|dial|start|open|send|play|connect|scan|share|translate|filter)\b/i;
+
 export class FunctionalTracker {
   private writes: WriteRecord[] = [];
   candidates: PersistenceCandidate[] = [];
@@ -158,7 +166,7 @@ export class FunctionalTracker {
           control: o.type === "back" ? "system back" : displayName(o.target),
           step: o.step,
         });
-      } else if (o.type === "tap" && o.target) {
+      } else if (o.type === "tap" && o.target && !TRANSIENT_SUBMIT.test(displayName(o.target))) {
         for (const w of this.writes.filter((x) => x.formLabel === o.fromLabel)) {
           if (!valueVisible(w.value, o.toElements)) continue;
           this.candidates = this.candidates.filter(

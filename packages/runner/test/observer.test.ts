@@ -85,6 +85,9 @@ describe("normalizeHierarchy", () => {
       <android.widget.Button class="android.widget.Button" package="com.pavlenko.Habo" text="" content-desc="Back" clickable="true" enabled="true" bounds="[21,140][147,266]" displayed="true"/>
     </hierarchy>`;
     expect(normalizeHierarchy("android", xml, { scale: 1 }).title).toBe("Statistics");
+    // A navigation icon's description is no title (ca26b0b3: Read You screens named "Back").
+    const icon = xml.replace('content-desc="Statistics"', 'content-desc="Back"');
+    expect(normalizeHierarchy("android", icon, { scale: 1 }).title).not.toBe("Back");
   });
 
   it("masks secret fields and never forwards their value", () => {
