@@ -1,0 +1,128 @@
+{
+  "key": "jitsi-meet-arm64",
+  "app": "Jitsi Meet (arm64 only)",
+  "stack": "React Native",
+  "source": "https://github.com/jitsi/jitsi-meet (F-Droid 26.0.0, arm64-v8a only)",
+  "license": "Apache-2.0",
+  "platforms": ["android"],
+  "android": {
+    "package": "org.jitsi.meet"
+  },
+  "access": "open",
+  "traits": [
+    "arm64-only native code on the x86_64 emulator (ARM translation, docs/07 A9)",
+    "camera/microphone/notification permissions when joining",
+    "backend (meet.jit.si)",
+    "side drawer"
+  ],
+  "screensSource": "lang/main.json (welcomepage, settingsView, prejoin). Help, Terms and Privacy open the browser and are not app screens.",
+  "screens": [
+    {
+      "id": "welcome",
+      "name": "Welcome (room name)",
+      "any": ["Enter room name", "Start meeting"]
+    },
+    {
+      "id": "recent",
+      "name": "Recent meetings",
+      "any": ["~Your recent list is currently empty"]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "all": ["Hide self view"],
+      "any": ["Language", "Conference", "Taal", "Konferensie"],
+      "markerNote": "v26 shows Settings as a tab without 'Display name'/'Server URL' labels (run f86858fd); markers corrected to the tab's own rows."
+    },
+    {
+      "id": "prejoin",
+      "name": "Pre-join",
+      "any": ["Join meeting"]
+    },
+    {
+      "id": "conference",
+      "name": "In the meeting",
+      "any": [
+        "~only one in the meeting",
+        "~Leave the meeting",
+        "~Hang up",
+        "~waiting for",
+        "~Log-in"
+      ]
+    }
+  ],
+  "knownIssues": [],
+  "verdicts": [
+    {
+      "check": "ui.keyboard_occlusion",
+      "verdict": "false_positive",
+      "reason": "The bottom tab bar goes behind the keyboard on Android by design; it is not the form's action.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "region": {
+        "height": 33
+      },
+      "verdict": "false_positive",
+      "reason": "Switch clipped by the tab bar; the measured height is the visible part only.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "switch",
+      "verdict": "true_positive",
+      "reason": "Switches measure 46×27dp; the sibling row text is not part of their hit area.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "width": 122
+      },
+      "verdict": "true_positive",
+      "reason": "Settings switches have no label; the row text beside them is a separate, unlinked TextView.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 42,
+        "y": 157
+      },
+      "verdict": "true_positive",
+      "reason": "Header back button without a content description.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 63,
+        "y": 346
+      },
+      "verdict": "true_positive",
+      "reason": "Profile row with only an avatar image and a chevron while no display name is set: nothing to announce.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "y": 819
+      },
+      "verdict": "false_positive",
+      "reason": "Language row with its current value as child text.",
+      "firstSeen": "f86858fd"
+    },
+    {
+      "check": "a11y.control_labels",
+      "region": {
+        "x": 0,
+        "y": 584
+      },
+      "verdict": "false_positive",
+      "reason": "Full-screen touchable container (keyboard dismiss area), not a control.",
+      "firstSeen": "f86858fd"
+    }
+  ],
+  "notes": "Same app as jitsi-meet.json with only arm64 native libraries; measures whether ARM translation lets such builds install and run. Joining a room uses the public meet.jit.si service; it may ask a moderator to sign in, which is an access wall for the meeting only, not for the app."
+}
