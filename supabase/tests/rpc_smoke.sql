@@ -46,7 +46,10 @@ begin
   insert into ctx values ('run', v_run);
 
   assert (select count(*) from public.platform_sessions where run_id = v_run) = 2, 'two sessions';
-  assert (select count(*) from public.model_budgets where run_id = v_run) = 4, 'planner+vision budgets per session';
+  assert (select count(*) from public.model_budgets where run_id = v_run) = 6, 'planner+vision+triage budgets per session';
+  -- A config without the triage fields (older budget versions) gets the default triage budget.
+  assert (select limit_requests from public.model_budgets where run_id = v_run and role = 'triage' limit 1) = 2,
+    'default triage budget';
   assert (select status from public.dispatch_outbox where run_id = v_run) = 'pending', 'outbox pending';
 end $$;
 
