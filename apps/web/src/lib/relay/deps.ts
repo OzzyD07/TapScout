@@ -11,7 +11,11 @@ export function createRelayDeps(): RelayDeps {
   const admin = createAdminClient();
   return {
     signingKey: serverEnv.runnerTokenSigningKey(),
-    models: { planner: serverEnv.plannerModel(), vision: serverEnv.visionModel() },
+    models: {
+      planner: serverEnv.plannerModel(),
+      vision: serverEnv.visionModel(),
+      triage: serverEnv.triageModel(),
+    },
     chat: createTokenFactoryChat({
       apiKey: serverEnv.tokenFactoryApiKey(),
       baseUrl: serverEnv.tokenFactoryBaseUrl(),

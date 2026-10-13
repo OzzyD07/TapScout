@@ -8,10 +8,26 @@ export const ReportSummaryOutput = z.object({
 });
 export type ReportSummaryOutput = z.infer<typeof ReportSummaryOutput>;
 
+/** One review per finding id of the request (docs/07 B11). */
+export const FindingTriageOutput = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string().max(10),
+        /** First, so the verdict follows from the stated evidence. */
+        reason: z.string().max(300),
+        verdict: z.enum(["likely_true", "likely_false", "needs_review"]),
+      }),
+    )
+    .max(20),
+});
+export type FindingTriageOutput = z.infer<typeof FindingTriageOutput>;
+
 /** Server-registered response schemas the relay may request (docs/02 §8: no arbitrary schemas). */
 export const RESPONSE_SCHEMAS = {
   planner_output_v1: PlannerOutput,
   report_summary_v1: ReportSummaryOutput,
+  finding_triage_v1: FindingTriageOutput,
 } as const;
 export type ResponseSchemaName = keyof typeof RESPONSE_SCHEMAS;
 

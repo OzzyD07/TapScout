@@ -69,7 +69,7 @@ const LOADING = [
 ];
 
 /** Downloads (or reuses) the session's stored hierarchies, ordered by step. */
-async function sessionHierarchies(db, runId, sessionId, cacheDir) {
+export async function sessionHierarchies(db, runId, sessionId, cacheDir) {
   const { data: rows, error } = await db
     .from("artifacts")
     .select("id, object_key, step_index, created_at")
@@ -102,7 +102,7 @@ function regionMatches(want, finding) {
   return Boolean(got) && Object.entries(want).every(([k, v]) => got[k] === v);
 }
 
-function verdictFor(spec, platform, finding) {
+export function verdictFor(spec, platform, finding) {
   const v = (spec.verdicts ?? []).find(
     (x) =>
       x.check === finding.check_id &&

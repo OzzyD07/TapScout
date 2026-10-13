@@ -435,6 +435,58 @@ describe("runAgent", () => {
     expect(crash?.evidence.some((e) => e.role === "log")).toBe(true);
   });
 
+  it("has the model review heuristic findings at the end and lowers a likely-false one (B11)", async () => {
+    const device = fakeDevice();
+    // An icon button without a label on the welcome screen: an a11y.control_labels finding.
+    const icon =
+      '<android.widget.ImageButton index="9" package="dev.tapscout.fieldnotes" class="android.widget.ImageButton" text="" clickable="true" enabled="true" focusable="true" password="false" bounds="[900,150][1020,270]" displayed="true" />';
+    const page = device.pageSource;
+    device.pageSource = async () => (await page()).replace("</hierarchy>", `${icon}</hierarchy>`);
+    const h = harness(device, scriptedPlanner(), 3);
+    const reviews: string[] = [];
+    h.ports.triage = vi.fn(async (messages: ChatMessage[]) => {
+      reviews.push(messages.map((m) => m.content).join("\n"));
+      return {
+        model: "nvidia/nemotron-3-super-120b-a12b",
+        content: JSON.stringify({
+          items: [{ id: "T1", reason: "It is decorative.", verdict: "likely_false" }],
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const out = await runAgent(h.ports, { ...h.config, modes: ["accessibility"] });
+
+    const reviewed = out.findings.find((f) => f.checkId === "a11y.control_labels");
+    expect(reviews[0]).toContain("[T1] check=a11y.control_labels");
+    expect(reviewed).toMatchObject({
+      verification: "manual_review_required",
+      triage: { verdict: "likely_false", reason: "It is decorative." },
+    });
+    expect(
+      h.events.some(
+        (e) =>
+          e.type === "finding_updated" &&
+          (e.payload as { findingId: string }).findingId === reviewed?.findingId,
+      ),
+    ).toBe(true);
+    expect(h.events.some((e) => message(e).startsWith("Finding review ("))).toBe(true);
+
+    // A failed review leaves the findings as they were.
+    const again = harness(fakeDevice(), scriptedPlanner(), 3);
+    const d2 = again.ports.device as ReturnType<typeof fakeDevice>;
+    d2.pageSource = device.pageSource;
+    again.ports.triage = vi.fn(async () => {
+      throw new Error("budget_exhausted");
+    });
+    const out2 = await runAgent(again.ports, { ...again.config, modes: ["accessibility"] });
+    expect(out2.findings.find((f) => f.checkId === "a11y.control_labels")?.verification).toBe(
+      "potential_issue",
+    );
+    expect(again.events.some((e) => message(e).startsWith("Finding review skipped"))).toBe(true);
+  });
+
   it("opens each main section of a bottom bar once without the planner (B7)", async () => {
     const device = fakeDevice();
     let section = "Home";

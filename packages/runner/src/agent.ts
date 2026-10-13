@@ -50,6 +50,15 @@ import {
   validatePlannerAnswer,
 } from "./planner.js";
 import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
+import {
+  applyTriage,
+  MAX_TRIAGE_ITEMS,
+  parseTriage,
+  type TriageScreen,
+  triageable,
+  triageItem,
+  triageMessages,
+} from "./triage.js";
 
 /** The subset of DeviceSession the loop uses; a fake implements it in tests. */
 export interface AgentDevice {
@@ -100,6 +109,8 @@ export interface AgentPorts {
   crashLog?(): Promise<string | null>;
   plan(messages: ChatMessage[], purpose: "plan" | "repair"): Promise<RelayResponse>;
   vision(artifactId: string, prompt: string): Promise<RelayResponse>;
+  /** Finding review by the model at the end of the session (docs/07 B11); optional. */
+  triage?(messages: ChatMessage[]): Promise<RelayResponse>;
   /** Waits until a background evidence upload is complete (optional). */
   evidenceReady?(artifactId: string): Promise<void>;
   /** Throws when the run was cancelled or the lease was lost. */
@@ -366,6 +377,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return out;
   }
   let unitScaleKnown = false;
+  /** Screenshot pixels per dp/pt, once known. */
+  let unitScale = 1;
+  /** The screen behind each evidence screenshot, for the finding review. */
+  const screensByShot = new Map<string, TriageScreen>();
   let failedActions = 0;
 
   /** Check results (selected modes only) and the session outcome. */
@@ -540,6 +555,13 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     }
     if (snap.xml) {
       await timed("evidence", () => ports.saveEvidence(name, "hierarchy", snap.xml, at));
+      screensByShot.set(shot, {
+        title: snap.screen.title,
+        elements: snap.screen.elements,
+        widthPx: snap.screen.widthPx,
+        heightPx: snap.screen.heightPx,
+        unitScale,
+      });
     }
     lastShot = shot;
     return shot;
@@ -967,7 +989,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (!unitScaleKnown) {
         unitScaleKnown = true;
         const dpi = platform === "android" ? await device.displayDensity?.() : undefined;
-        modeTracker.setUnitScale(platform === "ios" ? snap.scale : dpi ? dpi / 160 : 2.625);
+        unitScale = platform === "ios" ? snap.scale : dpi ? dpi / 160 : 2.625;
+        modeTracker.setUnitScale(unitScale);
       }
       if (snap.appForeground) {
         modeTracker.observe(state.label, snap.screen, shot, step);
@@ -2133,6 +2156,63 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     return probe;
   }
 
+  /**
+   * Finding review (docs/07 B11): the model judges each heuristic finding with the hierarchy
+   * around it. A likely-false one is lowered to manual review with the reason; nothing is
+   * removed, reproduced findings are never touched, and a failed review changes nothing.
+   */
+  async function reviewFindings(outcome: AgentOutcome): Promise<AgentOutcome> {
+    if (!ports.triage) return outcome;
+    const candidates = outcome.findings.filter(triageable).slice(0, MAX_TRIAGE_ITEMS);
+    if (candidates.length === 0) return outcome;
+    const items = candidates.map((f, i) => {
+      const shot = f.evidence.find((e) => e.role === "symptom")?.artifactId;
+      return triageItem(`T${i + 1}`, f, shot ? screensByShot.get(shot) : undefined);
+    });
+    let res: RelayResponse;
+    try {
+      res = await ports.triage(triageMessages(platform, items));
+    } catch (error) {
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "warn",
+          message:
+            `Finding review skipped: ${(error as Error).message ?? "model call failed"}`.slice(
+              0,
+              300,
+            ),
+        },
+      });
+      return outcome;
+    }
+    const verdicts = parseTriage(res.content, items);
+    const findings = applyTriage(outcome.findings, items, verdicts, res.model);
+    const lowered = findings.filter(
+      (f, i) =>
+        f.verification === "manual_review_required" &&
+        outcome.findings[i]?.verification !== f.verification,
+    );
+    for (const f of lowered) {
+      ports.emit({
+        type: "finding_updated",
+        payload: {
+          findingId: f.findingId,
+          verification: f.verification,
+          reproductionLabel: "Lowered to manual review by the model",
+        },
+      });
+    }
+    ports.emit({
+      type: "note",
+      payload: {
+        level: "info",
+        message: `Finding review (${res.model}): ${verdicts.size} of ${candidates.length} findings reviewed, ${lowered.length} lowered to manual review.`,
+      },
+    });
+    return { ...outcome, findings };
+  }
+
   let ending: Ending;
   try {
     ending = await explore();
@@ -2145,15 +2225,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     }
   }
 
-  return finalize(
-    ending,
-    probes.length > 0
-      ? probes
-      : {
-          skipped:
-            probeSkipped ??
-            "No saved value was seen on another screen during exploration, so nothing could be re-checked after a relaunch.",
-        },
-    findings,
+  return reviewFindings(
+    finalize(
+      ending,
+      probes.length > 0
+        ? probes
+        : {
+            skipped:
+              probeSkipped ??
+              "No saved value was seen on another screen during exploration, so nothing could be re-checked after a relaunch.",
+          },
+      findings,
+    ),
   );
 }

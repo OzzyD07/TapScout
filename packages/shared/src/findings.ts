@@ -81,6 +81,18 @@ export const EvidenceRef = z.object({
 });
 export type EvidenceRef = z.infer<typeof EvidenceRef>;
 
+/**
+ * Model review of a heuristic finding (docs/07 B11). It never removes a finding; a likely-false
+ * verdict only lowers it to manual review, with the reason shown next to it.
+ */
+export const FindingTriage = z.object({
+  verdict: z.enum(["likely_true", "likely_false", "needs_review"]),
+  reason: z.string().max(300),
+  model: z.string().max(120),
+  promptVersion: z.string().max(60),
+});
+export type FindingTriage = z.infer<typeof FindingTriage>;
+
 export const Finding = z.object({
   findingId: Id,
   runId: Id,
@@ -102,6 +114,7 @@ export const Finding = z.object({
   conditions: z.array(z.string().max(120)).default([]),
   replay: ReplayDefinition.optional(),
   evidence: z.array(EvidenceRef),
+  triage: FindingTriage.optional(),
   versions: VersionStamp,
   createdAt: Timestamp,
 });

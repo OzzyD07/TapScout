@@ -24,6 +24,13 @@ const CHECK_STATUS: Record<string, { label: string; tone: Tone }> = {
   unsupported: { label: "Unsupported", tone: "neutral" },
 };
 
+/** Model review of a heuristic finding (docs/07 B11). */
+const REVIEW: Record<string, { label: string; tone: Tone }> = {
+  likely_true: { label: "Model review: likely real", tone: "ok" },
+  needs_review: { label: "Model review: unsure", tone: "neutral" },
+  likely_false: { label: "Model review: likely not a problem — check manually", tone: "warn" },
+};
+
 const STORE_STATUS: Record<string, { label: string; tone: Tone }> = {
   evidence_found: { label: "Evidence found", tone: "ok" },
   potential_risk: { label: "Potential risk", tone: "warn" },
@@ -145,6 +152,9 @@ function FindingCard(props: {
         <span className="font-mono text-xs font-semibold text-muted">{f.label}</span>
         <Badge tone={SEVERITY_TONE[f.severity] ?? "neutral"}>{f.severity}</Badge>
         <span className="font-medium">{f.title}</span>
+        {f.verification === "manual_review_required" ? (
+          <Badge tone="warn">needs manual check</Badge>
+        ) : null}
       </div>
       <p className="text-xs text-muted">
         {platformName(f.platform)} · {modeLabel(f.mode)} · {f.reproduction}
@@ -163,6 +173,14 @@ function FindingCard(props: {
       <p className="text-xs text-muted">
         Why {f.severity}: {f.severityRationale}
       </p>
+      {f.review ? (
+        <p className="flex flex-wrap items-baseline gap-1.5 text-xs text-muted">
+          <Badge tone={REVIEW[f.review.verdict]?.tone ?? "neutral"}>
+            {REVIEW[f.review.verdict]?.label ?? f.review.verdict}
+          </Badge>
+          <span>{f.review.reason}</span>
+        </p>
+      ) : null}
       {f.replay ? (
         <details className="rounded-lg bg-bg/60 px-3 py-2 text-xs">
           <summary className="cursor-pointer font-medium text-text">

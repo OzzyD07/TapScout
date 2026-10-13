@@ -27,7 +27,11 @@ const artifactId = "55555555-5555-4555-8555-555555555555";
 function deps(overrides: Partial<RelayDeps> = {}): RelayDeps {
   return {
     signingKey,
-    models: { planner: "nvidia/Nemotron-3_5-Lightning", vision: "openbmb/MiniCPM-V-4_5" },
+    models: {
+      planner: "nvidia/Nemotron-3_5-Lightning",
+      vision: "openbmb/MiniCPM-V-4_5",
+      triage: "nvidia/nemotron-3-super-120b-a12b",
+    },
     chat: vi.fn(async () => ({
       ok: true as const,
       content: '{"ok":true}',
@@ -187,6 +191,39 @@ describe("relayPlan", () => {
       p_report_attempt_id: report.reportAttemptId,
       p_role: "report",
     });
+  });
+
+  it("charges finding review to its own session budget, with its model and schema (B11)", async () => {
+    const d = deps();
+    await relayPlan(d, await tokenFor(device), {
+      ...planBody,
+      purpose: "finding_triage",
+      responseSchema: "finding_triage_v1",
+    });
+    expect(vi.mocked(d.rpc).mock.calls[0]?.[1]).toMatchObject({
+      p_session_id: device.sessionId,
+      p_role: "triage",
+    });
+    const request = vi.mocked(d.chat).mock.calls[0]?.[0];
+    expect(request?.model).toBe("nvidia/nemotron-3-super-120b-a12b");
+    expect(request?.jsonSchema?.name).toBe("finding_triage_v1");
+    // A review cannot use the planner schema, and a planner call cannot use the review schema.
+    await expect(
+      relayPlan(deps(), await tokenFor(device), { ...planBody, purpose: "finding_triage" }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      relayPlan(deps(), await tokenFor(device), {
+        ...planBody,
+        responseSchema: "finding_triage_v1",
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      relayPlan(deps(), await tokenFor(report), {
+        ...planBody,
+        purpose: "finding_triage",
+        responseSchema: "finding_triage_v1",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("rejects arbitrary response schemas", async () => {

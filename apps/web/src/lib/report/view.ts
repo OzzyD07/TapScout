@@ -36,6 +36,8 @@ export interface FindingView {
     observe: string;
   } | null;
   evidence: { artifactId: string; role: string }[];
+  /** Model review of a heuristic finding (docs/07 B11), if one ran. */
+  review: { verdict: string; reason: string; model: string } | null;
 }
 
 export interface SummaryView {
@@ -124,6 +126,9 @@ export function reportView(data: unknown): ReportView {
         }
       : null,
     evidence: f.evidence.map((e) => ({ artifactId: e.artifactId, role: e.role })),
+    review: f.triage
+      ? { verdict: f.triage.verdict, reason: f.triage.reason, model: f.triage.model }
+      : null,
   }));
   const summary = ReportSummary.safeParse(stored.data.summary);
   const known = new Set(findings.map((f) => f.findingId));

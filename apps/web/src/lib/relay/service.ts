@@ -21,6 +21,10 @@ export const IMAGE_TOKEN_ESTIMATE = 1_200;
 const PRICES: Record<string, { input: number; output: number }> = {
   "nvidia/Nemotron-3_5-Lightning": { input: 0.06, output: 0.24 },
   "openbmb/MiniCPM-V-4_5": { input: 0.658, output: 1.11 },
+  // Finding review candidates (docs/07 B11); third-party listings of Token Factory prices,
+  // not yet confirmed on Nebius's own page.
+  "nvidia/Nemotron-3-Ultra-550b-a55b": { input: 1.0, output: 3.0 },
+  "nvidia/nemotron-3-super-120b-a12b": { input: 0.3, output: 0.9 },
 };
 
 export interface UsageRow {
@@ -39,7 +43,7 @@ export interface UsageRow {
 /** Everything the relay needs from the outside world; injected so the rules can be tested. */
 export interface RelayDeps {
   signingKey: string;
-  models: { planner: string; vision: string };
+  models: { planner: string; vision: string; triage: string };
   chat: ChatFn;
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<RpcResult>;
   deviceLeaseIsCurrent(scope: DeviceScope): Promise<boolean>;
@@ -80,7 +84,7 @@ function estimateCost(model: string, input: number | null, output: number | null
 
 interface CallSpec {
   scope: RunnerScope;
-  role: "planner" | "vision" | "report";
+  role: "planner" | "vision" | "report" | "triage";
   purpose: string;
   request: ProviderRequest;
   estimatedInput: number;
@@ -158,7 +162,10 @@ async function callWithBudget(deps: RelayDeps, spec: CallSpec): Promise<RelayRes
   };
 }
 
-/** Planner (device token) or report summary (report token) call to Nemotron. */
+/**
+ * Planner and finding review (device token) or report summary (report token) call to Nemotron.
+ * Each purpose has its own registered schema and budget role.
+ */
 export async function relayPlan(
   deps: RelayDeps,
   token: string,
@@ -170,10 +177,16 @@ export async function relayPlan(
   const req = parsed.data;
 
   const isReport = req.purpose === "report_summary";
+  const isTriage = req.purpose === "finding_triage";
   if (isReport !== (scope.kind === "report")) {
     throw new HttpError(403, "forbidden", `purpose ${req.purpose} is not allowed for this token`);
   }
-  if ((req.responseSchema === "report_summary_v1") !== isReport) {
+  const schemaFor = isReport
+    ? "report_summary_v1"
+    : isTriage
+      ? "finding_triage_v1"
+      : "planner_output_v1";
+  if (req.responseSchema !== schemaFor) {
     throw new HttpError(400, "invalid_request", "response schema does not match the purpose");
   }
 
@@ -184,11 +197,11 @@ export async function relayPlan(
   const prompt = req.messages.map((m) => m.content).join("");
   return callWithBudget(deps, {
     scope,
-    role: isReport ? "report" : "planner",
+    role: isReport ? "report" : isTriage ? "triage" : "planner",
     purpose: req.purpose,
     estimatedInput: estimateTokens(prompt) + 16 * messages.length,
     request: {
-      model: deps.models.planner,
+      model: isTriage ? deps.models.triage : deps.models.planner,
       messages,
       maxTokens: req.maxOutputTokens,
       temperature: 0.2,

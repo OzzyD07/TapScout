@@ -23,4 +23,6 @@ export const serverEnv = {
     process.env.TOKEN_FACTORY_BASE_URL || "https://api.tokenfactory.nebius.com/v1/",
   plannerModel: () => process.env.NEMOTRON_MODEL_ID || "nvidia/Nemotron-3_5-Lightning",
   visionModel: () => process.env.VISION_MODEL_ID || "openbmb/MiniCPM-V-4_5",
+  /** Finding review (docs/07 B11); chosen by quality/triage-eval.mjs, see docs/05. */
+  triageModel: () => process.env.TRIAGE_MODEL_ID || "nvidia/Nemotron-3-Ultra-550b-a55b",
 };
