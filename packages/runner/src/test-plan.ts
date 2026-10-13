@@ -8,7 +8,7 @@
 import type { ChatMessage } from "@tapscout/shared";
 import { unsafeName } from "./coverage.js";
 
-export const TEST_PLAN_PROMPT_VERSION = "test-plan-2026-10-13.v1";
+export const TEST_PLAN_PROMPT_VERSION = "test-plan-2026-10-13.v2";
 
 export interface PlanGoal {
   goalId: string;
@@ -59,7 +59,8 @@ export function testPlanMessages(
 
 const GOAL_ID = /^[a-z0-9][a-z0-9-]{1,40}$/;
 /** Things that reach real servers and real people; a plan never heads for them (Jerboa: "report"). */
-const OUTWARD = /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate)\b/i;
+const OUTWARD =
+  /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate|compose|reply|replies|boost|favou?rite|follow|comment|toot|post)\b/i;
 
 /**
  * Model answer → plan, or null when it is not usable (fewer than 2 goals with a target). Targets

@@ -216,6 +216,17 @@ function key(e: UiElement, screenLabel: string): string {
   );
 }
 
+/**
+ * A field that belongs to a form with an action to reach. A search or filter box is not one: the
+ * keyboard then covers content rows, not a submit button (AntennaPod fb926f25: six settings rows
+ * under the search box of Settings were reported as hidden form actions).
+ */
+function formField(e: UiElement): boolean {
+  if (e.role !== "text_field") return false;
+  const text = `${e.label ?? ""} ${e.text ?? ""} ${e.stableId ?? ""}`;
+  return !/\bsearch|\bfilter\b|\bfind\b|\bquery\b/i.test(text);
+}
+
 export class ModeTracker {
   readonly screens = new Set<string>();
   /** Interactive controls seen (by identity) — the scope of the accessibility checks. */
@@ -303,7 +314,7 @@ export class ModeTracker {
       if (!screen.keyboardVisible) {
         // Only a form's controls are compared: a screen without fields that shares the form's
         // name (Habo's sync intro and sync sign-in, both "Sync", run 59785198) is another view.
-        const isForm = screen.elements.some((e) => e.role === "text_field");
+        const isForm = screen.elements.some(formField);
         for (const e of isForm ? screen.elements : []) {
           // A control without id, label or text is known only by its position, which changes
           // when the form moves up for the keyboard: it would look gone while it is still shown
@@ -319,7 +330,7 @@ export class ModeTracker {
           }
         }
         this.withoutKeyboard.set(screenLabel, known);
-      } else if (screen.elements.some((e) => e.role === "text_field")) {
+      } else if (screen.elements.some(formField)) {
         // The IME removes everything under it from the hierarchy; only a form's own actions
         // count: short-named controls below the lowest field in the keyboard's half of the
         // screen. List rows and other content scrolled out of view do not (benchmark runs

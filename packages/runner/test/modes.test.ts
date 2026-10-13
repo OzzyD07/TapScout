@@ -228,7 +228,7 @@ describe("ui/ux keyboard occlusion", () => {
 
   it("does not count bottom navigation that Android hides behind the keyboard (f86858fd)", () => {
     const t = new ModeTracker("android", 2.625);
-    const field = el({ role: "text_field", label: "Search", stableId: "search" });
+    const field = el({ role: "text_field", label: "Name", stableId: "profile-name" });
     const tabs = ["Recent", "Calendar", "Settings"].map((label, i) =>
       el({ label, bounds: { x: i * 360, y: 2272, width: 360, height: 128 } }),
     );
@@ -284,6 +284,23 @@ describe("android keyboard occlusion", () => {
       '"Continue" is hidden by the keyboard on "Create profile"',
     ]);
     expect(r.findings[0]?.evidence[0]?.artifactId).toBe("open");
+  });
+
+  it("does not compare a search screen: the keyboard covers rows, not a form's action (fb926f25)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const search = el({ role: "text_field", label: "Search…", stableId: "search_src_text" });
+    const row = (label: string, y: number) =>
+      el({ label, bounds: { x: 0, y, width: 1080, height: 150 } });
+    t.observe(
+      "Settings",
+      screen([search, row("Notifications", 1700), row("About", 1900)]),
+      "closed",
+      1,
+    );
+    t.observe("Settings", screen([search], true), "open", 2);
+    const r = buildModeChecks(t, ctx(["ui_ux"]));
+    valid(r);
+    expect(r.findings.filter((f) => f.checkId === "ui.keyboard_occlusion")).toEqual([]);
   });
 
   it("does not take an unnamed icon that moved up with the form for a hidden one (398fa898)", () => {

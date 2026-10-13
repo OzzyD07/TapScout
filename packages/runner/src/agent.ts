@@ -51,6 +51,7 @@ import {
 } from "./planner.js";
 import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
 import {
+  goalReached,
   openTargets,
   parseTestPlan,
   planLines,
@@ -236,6 +237,10 @@ const LOADING_POLL_MS = 1_000;
 const MAX_TOUR_ATTEMPTS = 6;
 /** The test plan is asked for once two named screens are known, or at this step at the latest. */
 const PLAN_AFTER_STEPS = 8;
+/** Planner steps without reaching a new plan goal before it is pointed at the next one. */
+const PLAN_STALL_STEPS = 8;
+/** Controls that leave a dialog without choosing anything. */
+const CLOSE_CONTROL = /\b(cancel|close|dismiss|back|done|ok|save|apply|confirm)\b/i;
 /** Typed values up to this length are read back and retyped once if they did not arrive. */
 const MAX_VERIFIED_TEXT = 100;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
@@ -345,6 +350,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const graph = new StateGraph(budget.loopDetectionRepeats);
   const goals: ProposedGoal[] = [];
   let testPlan: TestPlan | null = null;
+  /** Screen label → the screen whose tap first opened it. */
+  const openedFrom = new Map<string, string>();
+  /** Choice lists: one choice was tried and it led back to the screen that opened the list. */
+  const pickers = new Set<string>();
+  let goalsReached = 0;
+  let lastGoalStep = 0;
   let planAsked = false;
   let appId = device.appIdFromCapabilities();
   let lastShot: string | undefined;
@@ -719,6 +730,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
   /** Controls never tapped on this state that the agent may try on its own (see safeToTry). */
   function untriedControls(screen: NormalizedScreen, fp: string): UiElement[] {
+    // The other choices of a choice list say little more than the one that was tried.
+    if (pickers.has(graph.get(fp)?.label ?? "")) return [];
     const tried = graph.get(fp)?.tried;
     return controlsOf(screen).filter(
       (e) => safeToTry(e, screen.elements) && !tried?.has(actionKey("tap", e)),
@@ -1049,6 +1062,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? { type: pending.actionType, target: pending.target }
             : undefined,
         );
+        if (pending.outcome === "ok" && pending.actionType === "tap" && snap.appForeground) {
+          notePicker(pending.fromLabel, pending.fromElements, pending.target, state.label);
+        }
         if (
           pending.outcome === "ok" &&
           snap.appState <= 1 &&
@@ -1315,6 +1331,21 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           }
           let warning: string | undefined = escapeWarning ?? undefined;
           escapeWarning = null;
+          // B11-2: a plan goal reached is progress; long stretches without one mean the session is
+          // deep in one area (Jerboa 14833cfd stayed in theme settings for 30 planner calls).
+          if (testPlan) {
+            const seen = seenNames();
+            const reachedNow = testPlan.goals.filter((g) => goalReached(g, seen)).length;
+            if (reachedNow > goalsReached) {
+              goalsReached = reachedNow;
+              lastGoalStep = step;
+            }
+            const next = testPlan.goals.find((g) => !goalReached(g, seen));
+            if (next && !warning && step - lastGoalStep >= PLAN_STALL_STEPS) {
+              warning = `${step - lastGoalStep} steps without reaching a new goal of the test plan. Leave this area and head for the next open goal: ${next.description} (${next.targets.map((t) => `"${t}"`).join(", ")}).`;
+              lastGoalStep = step;
+            }
+          }
           if (graph.stuckFor(4)) {
             stuckWarnings += 1;
             if (stuckWarnings > 3) {
@@ -1370,6 +1401,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               plan: testPlan ? planLines(testPlan, seenNames()) : undefined,
               frontier: ledger
                 .frontier(graph, state.label, config.modes, planTargets())
+                .filter((c) => !pickers.has(c.screenLabel))
                 .slice(0, 5)
                 .map((c) => c.description),
             };
@@ -1912,6 +1944,33 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
    * Heads for the best untried control on another screen along observed paths, without a planner
    * call; the loop taps it on arrival. False when nothing untried is reachable from here.
    */
+  /**
+   * Choice lists (theme, colour, sort order…): a settings row opens a short list and picking any
+   * choice returns to the settings. Trying every choice spent a whole Jerboa session (14833cfd:
+   * 30 planner calls and 60 tour actions on theme colours). A list counts once one of its
+   * choices, not a back or close control, led straight back to the screen that opened it; forms
+   * with fields never count (Edit profile → Save → Profile).
+   */
+  function notePicker(
+    fromLabel: string,
+    fromElements: UiElement[],
+    target: UiElement | undefined,
+    toLabel: string,
+  ): void {
+    if (toLabel === fromLabel) return;
+    if (!openedFrom.has(toLabel)) openedFrom.set(toLabel, fromLabel);
+    if (
+      openedFrom.get(fromLabel) === toLabel &&
+      target &&
+      !isBackControl(target) &&
+      !CLOSE_CONTROL.test(displayName(target) ?? "") &&
+      !fromElements.some((e) => e.role === "text_field") &&
+      fromElements.filter((e) => e.clickable).length >= 2
+    ) {
+      pickers.add(fromLabel);
+    }
+  }
+
   /** Screens visited and controls tapped, by name: what the test plan's goals are matched with. */
   function seenNames(): string[] {
     const tapped = graph.history.flatMap((h) => {
@@ -1938,6 +1997,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     try {
       const res = await ports.testPlan(testPlanMessages(platform, appId, screens));
       testPlan = parseTestPlan(res.content, screens[0]?.label);
+      lastGoalStep = step;
       ports.emit({
         type: "note",
         payload: {
@@ -1970,7 +2030,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       .frontier(graph, from, config.modes, planTargets())
       .filter(
         (c) =>
-          !toured.has(c.id) && !unreachable.has(c.screenLabel) && !(noLinks && c.role === "link"),
+          !pickers.has(c.screenLabel) &&
+          !toured.has(c.id) &&
+          !unreachable.has(c.screenLabel) &&
+          !(noLinks && c.role === "link"),
       );
     // Several candidates can sit on one unreachable screen (benchmark run aa5045dc gave up after
     // two buttons of a dialog while the main screen still had untried controls): keep going until

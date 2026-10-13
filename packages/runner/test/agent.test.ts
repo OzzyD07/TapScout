@@ -535,6 +535,37 @@ describe("runAgent", () => {
     expect(again.events.some((e) => message(e).startsWith("Finding review skipped"))).toBe(true);
   });
 
+  it("tries one choice of a choice list, not all of them (14833cfd, Jerboa theme colours)", async () => {
+    const device = fakeDevice();
+    let screen: "settings" | "colours" = "settings";
+    const btn = (id: string, text: string, y: number) =>
+      `<android.widget.Button class="android.widget.Button" package="dev.tapscout.fieldnotes" text="${text}" resource-id="${id}" clickable="true" enabled="true" bounds="[42,${y}][1038,${y + 150}]" displayed="true"/>`;
+    const colours = ["Beach", "Blue", "Crimson", "Green", "Grey", "Pink"];
+    device.pageSource = async () =>
+      `<hierarchy width="1080" height="2400"><android.widget.FrameLayout class="android.widget.FrameLayout" package="dev.tapscout.fieldnotes" bounds="[0,0][1080,2400]" displayed="true">
+        <android.widget.TextView class="android.widget.TextView" package="dev.tapscout.fieldnotes" text="${screen === "settings" ? "Look and feel" : "Theme colour"}" clickable="false" enabled="true" bounds="[42,160][600,240]" displayed="true"/>
+        ${
+          screen === "settings"
+            ? btn("theme-colour", "Theme colour", 400) + btn("post-view", "Post view", 600)
+            : colours.map((c, i) => btn(`colour-${c.toLowerCase()}`, c, 400 + i * 160)).join("")
+        }
+      </android.widget.FrameLayout></hierarchy>`;
+    const tapped: string[] = [];
+    device.tap = async (t) => {
+      tapped.push(t.elementId);
+      if (t.elementId === "theme-colour") screen = "colours";
+      else if (t.elementId.startsWith("colour-")) screen = "settings";
+    };
+    device.back = async () => {
+      screen = "settings";
+    };
+    // No planner calls: the deterministic exploration and the tours decide alone.
+    const h = harness(device, scriptedPlanner(), 1);
+    await runAgent(h.ports, { ...h.config, budget: { ...h.config.budget, maxDeviceActions: 30 } });
+    expect(tapped.filter((id) => id.startsWith("colour-"))).toHaveLength(1);
+    expect(tapped).toContain("post-view");
+  });
+
   it("opens each main section of a bottom bar once without the planner (B7)", async () => {
     const device = fakeDevice();
     let section = "Home";

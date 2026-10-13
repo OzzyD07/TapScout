@@ -155,6 +155,9 @@ export async function evaluateBenchmarkSession({ db, run, session, findings, spe
         e.type === "note" && /covered the app|System dialog|interruption/i.test(e.payload.message),
     )
     .map((e) => ({ step: e.step_index, message: e.payload.message }));
+  const testPlan = (events ?? []).find(
+    (e) => e.type === "note" && /^Test plan/.test(e.payload.message),
+  )?.payload.message;
   const stopped = (events ?? []).find((e) => e.type === "stopped")?.payload;
   const last = hierarchies.at(-1);
 
@@ -205,6 +208,7 @@ export async function evaluateBenchmarkSession({ db, run, session, findings, spe
     foreignWindowSteps: foreign,
     loadingSteps: loading,
     interruptions,
+    testPlan,
     warnings: notes.slice(0, 20),
     lastActions: actions.slice(-5).map((a) => ({
       step: a.step_index,
@@ -231,6 +235,7 @@ export function printBenchmark(p) {
       `  ${s.reached ? "reached " : "missed  "}          ${s.name}${s.reached ? ` (step ${s.firstStep})` : ""}`,
     );
   }
+  if (p.testPlan) console.log(`  test plan         ${p.testPlan}`);
   if (p.interruptions.length) {
     for (const i of p.interruptions)
       console.log(`  interruption      step ${i.step}: ${i.message}`);
