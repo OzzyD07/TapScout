@@ -25,4 +25,6 @@ export const serverEnv = {
   visionModel: () => process.env.VISION_MODEL_ID || "openbmb/MiniCPM-V-4_5",
   /** Finding review (docs/07 B11); chosen by quality/triage-eval.mjs, see docs/05. */
   triageModel: () => process.env.TRIAGE_MODEL_ID || "nvidia/Nemotron-3-Ultra-550b-a55b",
+  /** App-level test plan (docs/07 B11-2). */
+  testPlanModel: () => process.env.TEST_PLAN_MODEL_ID || "nvidia/Nemotron-3-Ultra-550b-a55b",
 };

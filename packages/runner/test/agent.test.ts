@@ -435,6 +435,54 @@ describe("runAgent", () => {
     expect(crash?.evidence.some((e) => e.role === "log")).toBe(true);
   });
 
+  it("asks for a test plan once two screens are known and shows it to the planner (B11-2)", async () => {
+    const device = fakeDevice();
+    const prompts: string[] = [];
+    const planner = scriptedPlanner();
+    const h = harness(device, planner, 6);
+    h.ports.plan = async (messages) => {
+      prompts.push(messages.map((m) => m.content).join("\n"));
+      return planner(messages);
+    };
+    const asked: string[] = [];
+    h.ports.testPlan = vi.fn(async (messages: ChatMessage[]) => {
+      asked.push(messages.map((m) => m.content).join("\n"));
+      return {
+        model: "nvidia/Nemotron-3-Ultra-550b-a55b",
+        content: JSON.stringify({
+          appType: "note-taking app",
+          goals: [
+            { goalId: "create-profile", description: "Create a profile.", targets: ["Continue"] },
+            { goalId: "open-settings", description: "Open settings.", targets: ["Settings"] },
+          ],
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    await runAgent(h.ports, h.config);
+
+    expect(h.ports.testPlan).toHaveBeenCalledTimes(1);
+    expect(asked[0]).toContain("Screens seen so far:");
+    expect(h.events.some((e) => message(e).startsWith("Test plan (nvidia/Nemotron-3-Ultra"))).toBe(
+      true,
+    );
+    const withPlan = prompts.filter((p) => p.includes("Test plan for this note-taking app:"));
+    expect(withPlan.length).toBeGreaterThan(0);
+    expect(withPlan[0]).toContain('[open] open-settings: Open settings. (head for: "Settings")');
+  });
+
+  it("explores on when the test plan call fails (B11-2)", async () => {
+    const h = harness(fakeDevice(), scriptedPlanner(), 6);
+    h.ports.testPlan = vi.fn(async () => {
+      throw new Error("budget_exhausted");
+    });
+    const out = await runAgent(h.ports, h.config);
+    expect(out.phase).toBe("completed");
+    expect(h.events.some((e) => message(e).startsWith("Test plan skipped"))).toBe(true);
+  });
+
   it("has the model review heuristic findings at the end and lowers a likely-false one (B11)", async () => {
     const device = fakeDevice();
     // An icon button without a label on the welcome screen: an a11y.control_labels finding.

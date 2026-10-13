@@ -51,6 +51,13 @@ import {
 } from "./planner.js";
 import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
 import {
+  openTargets,
+  parseTestPlan,
+  planLines,
+  type TestPlan,
+  testPlanMessages,
+} from "./test-plan.js";
+import {
   applyTriage,
   MAX_TRIAGE_ITEMS,
   parseTriage,
@@ -111,6 +118,8 @@ export interface AgentPorts {
   vision(artifactId: string, prompt: string): Promise<RelayResponse>;
   /** Finding review by the model at the end of the session (docs/07 B11); optional. */
   triage?(messages: ChatMessage[]): Promise<RelayResponse>;
+  /** App-level test plan once the first screens are known (docs/07 B11-2); optional. */
+  testPlan?(messages: ChatMessage[]): Promise<RelayResponse>;
   /** Waits until a background evidence upload is complete (optional). */
   evidenceReady?(artifactId: string): Promise<void>;
   /** Throws when the run was cancelled or the lease was lost. */
@@ -225,6 +234,8 @@ const MAX_LOADING_POLLS = 5;
 const LOADING_POLL_MS = 1_000;
 /** Screens a coverage tour may try to reach before it gives up. */
 const MAX_TOUR_ATTEMPTS = 6;
+/** The test plan is asked for once two named screens are known, or at this step at the latest. */
+const PLAN_AFTER_STEPS = 8;
 /** Typed values up to this length are read back and retyped once if they did not arrive. */
 const MAX_VERIFIED_TEXT = 100;
 /** In-app interruptions are answered only this many steps after a (re)launch … */
@@ -333,6 +344,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   const { platform, budget, counters } = config;
   const graph = new StateGraph(budget.loopDetectionRepeats);
   const goals: ProposedGoal[] = [];
+  let testPlan: TestPlan | null = null;
+  let planAsked = false;
   let appId = device.appIdFromCapabilities();
   let lastShot: string | undefined;
   const timing = new Map<string, { total: number; count: number }>();
@@ -1336,6 +1349,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               }
             }
 
+            await maybePlan();
             const ctx: PlanningContext = {
               platform,
               modes: config.modes,
@@ -1353,8 +1367,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                 .filter((e) => navigationEntry(e, controlsOf(snap.screen), snap.screen.heightPx))
                 .map((e) => `${e.ref} ${JSON.stringify(displayName(e))}`),
               testAccount: Boolean(account),
+              plan: testPlan ? planLines(testPlan, seenNames()) : undefined,
               frontier: ledger
-                .frontier(graph, state.label, config.modes)
+                .frontier(graph, state.label, config.modes, planTargets())
                 .slice(0, 5)
                 .map((c) => c.description),
             };
@@ -1897,12 +1912,62 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
    * Heads for the best untried control on another screen along observed paths, without a planner
    * call; the loop taps it on arrival. False when nothing untried is reachable from here.
    */
+  /** Screens visited and controls tapped, by name: what the test plan's goals are matched with. */
+  function seenNames(): string[] {
+    const tapped = graph.history.flatMap((h) => {
+      const m = /"([^"]+)"/.exec(h.summary);
+      return m?.[1] ? [m[1]] : [];
+    });
+    return [...graph.visited().map((s) => s.label), ...tapped];
+  }
+
+  function planTargets(): string[] {
+    return testPlan ? openTargets(testPlan, seenNames()) : [];
+  }
+
+  /**
+   * B11-2: once two named screens are known (or a few steps passed), the model names the kind of
+   * app and the goals a tester would cover. Asked once; without a usable answer exploration goes
+   * on as before.
+   */
+  async function maybePlan(): Promise<void> {
+    if (planAsked || !ports.testPlan) return;
+    const screens = ledger.screens().filter((s) => s.label && s.label !== "Outside the app");
+    if (screens.length < 2 && step < PLAN_AFTER_STEPS) return;
+    planAsked = true;
+    try {
+      const res = await ports.testPlan(testPlanMessages(platform, appId, screens));
+      testPlan = parseTestPlan(res.content, screens[0]?.label);
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "info",
+          message: (testPlan
+            ? `Test plan (${res.model}) for this ${testPlan.appType}: ${testPlan.goals.map((g) => g.description).join(" · ")}`
+            : "Test plan: the model's answer was not usable; exploring without one."
+          ).slice(0, 500),
+        },
+      });
+    } catch (error) {
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "warn",
+          message: `Test plan skipped: ${(error as Error).message ?? "model call failed"}`.slice(
+            0,
+            300,
+          ),
+        },
+      });
+    }
+  }
+
   async function startTour(): Promise<boolean> {
     const from = current?.label;
     if (!from) return false;
     const noLinks = relaunches >= MAX_RELAUNCHES - 1;
     const candidates = ledger
-      .frontier(graph, from, config.modes)
+      .frontier(graph, from, config.modes, planTargets())
       .filter(
         (c) =>
           !toured.has(c.id) && !unreachable.has(c.screenLabel) && !(noLinks && c.role === "link"),

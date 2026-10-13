@@ -188,10 +188,15 @@ export const ChatMessage = z.object({
 export type ChatMessage = z.infer<typeof ChatMessage>;
 
 export const RelayPlanRequest = z.object({
-  purpose: z.enum(["plan", "repair", "report_summary", "finding_triage"]),
+  purpose: z.enum(["plan", "repair", "report_summary", "finding_triage", "test_plan"]),
   messages: z.array(ChatMessage).min(1).max(20),
   /** Name of a server-side registered JSON schema; arbitrary schemas are not accepted. */
-  responseSchema: z.enum(["planner_output_v1", "report_summary_v1", "finding_triage_v1"]),
+  responseSchema: z.enum([
+    "planner_output_v1",
+    "report_summary_v1",
+    "finding_triage_v1",
+    "test_plan_v1",
+  ]),
   maxOutputTokens: z.number().int().positive().max(4_000),
 });
 export type RelayPlanRequest = z.infer<typeof RelayPlanRequest>;

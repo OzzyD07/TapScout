@@ -51,6 +51,12 @@ export function isLanguageOption(
   return Boolean(screen && isLanguagePicker(screen) && !isBackControl(e));
 }
 
+/** A name the agent never heads for on its own: destructive, or about the app's language. */
+export function unsafeName(name: string): boolean {
+  const n = name.trim();
+  return DESTRUCTIVE.test(n) || LANGUAGE_OPTION.test(n) || LANGUAGE_SETTING.test(n);
+}
+
 /**
  * A control the agent may tap on its own: not destructive, not a plain back button and not an
  * option that switches the app's language.
@@ -129,13 +135,35 @@ export class ControlLedger {
     this.seen.set(screenLabel, byKey);
   }
 
+  /** Named screens and the names of their controls, in the order first seen (test plan input). */
+  screens(): { label: string; controls: string[] }[] {
+    return [...this.seen].map(([label, controls]) => ({
+      label,
+      controls: [
+        ...new Set(
+          [...controls.values()].flatMap(({ element: e }) => {
+            const n = (e.label ?? e.text ?? "").trim();
+            return n ? [n] : [];
+          }),
+        ),
+      ],
+    }));
+  }
+
   /**
    * Untried controls on other screens that an observed path reaches, best first: main navigation
    * entries, account and settings entry points (strongly when Store Readiness or Accessibility is
    * selected), icon-only buttons, then the nearest.
    */
-  frontier(graph: StateGraph, currentLabel: string, modes: TestMode[]): FrontierControl[] {
+  frontier(
+    graph: StateGraph,
+    currentLabel: string,
+    modes: TestMode[],
+    /** Names the open goals of the test plan head for (B11-2); matching controls come first. */
+    planTargets: string[] = [],
+  ): FrontierControl[] {
     const storeOrA11y = modes.includes("store_readiness") || modes.includes("accessibility");
+    const targets = planTargets.map((t) => t.toLowerCase().trim()).filter((t) => t.length >= 3);
     const out: FrontierControl[] = [];
     for (const [screenLabel, controls] of this.seen) {
       if (screenLabel === currentLabel) continue;
@@ -158,6 +186,8 @@ export class ControlLedger {
         if (family) families.add(family);
         const icon = iconOnly(e);
         const hint = ACCOUNT_HINT.test(nameOf(e));
+        const name = `${e.label ?? ""} ${e.text ?? ""}`.toLowerCase();
+        const planned = targets.some((t) => name.includes(t));
         const what = icon
           ? `icon ${e.role}${e.stableId ? ` id=${e.stableId}` : ""}`
           : `${e.role} ${JSON.stringify(e.label ?? e.text)}`;
@@ -169,7 +199,11 @@ export class ControlLedger {
           description: `${JSON.stringify(screenLabel)}: ${what}`,
           hops: path.length,
           score:
-            (nav ? 4 : 0) + (hint ? (storeOrA11y ? 3 : 1) : 0) + (icon ? 2 : 0) - path.length * 0.5,
+            (planned ? 6 : 0) +
+            (nav ? 4 : 0) +
+            (hint ? (storeOrA11y ? 3 : 1) : 0) +
+            (icon ? 2 : 0) -
+            path.length * 0.5,
         });
       }
     }

@@ -55,6 +55,8 @@ class Stop extends Error {
 const PLANNER_MAX_OUTPUT_TOKENS = 500;
 /** One review answer for up to 12 findings is ~0,3–1k tokens; room for the reasons. */
 const TRIAGE_MAX_OUTPUT_TOKENS = 2_000;
+/** A plan of up to six goals measured at ~200–450 tokens. */
+const TEST_PLAN_MAX_OUTPUT_TOKENS = 1_200;
 /**
  * A device failure within this many actions, with at most a third of the planner budget spent,
  * gets one retry with a new Appium session. The emulator drops off adb now and then a minute or two
@@ -303,6 +305,13 @@ try {
           }),
         vision: (artifactId, prompt) =>
           api.relayVision({ artifactId, prompt, maxOutputTokens: 200 }),
+        testPlan: (messages) =>
+          api.relayPlan({
+            purpose: "test_plan",
+            messages,
+            responseSchema: "test_plan_v1",
+            maxOutputTokens: TEST_PLAN_MAX_OUTPUT_TOKENS,
+          }),
         triage: (messages) =>
           api.relayPlan({
             purpose: "finding_triage",

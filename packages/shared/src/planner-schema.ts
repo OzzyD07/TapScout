@@ -23,11 +23,27 @@ export const FindingTriageOutput = z.object({
 });
 export type FindingTriageOutput = z.infer<typeof FindingTriageOutput>;
 
+/** App-level test plan (docs/07 B11-2): what the app is and the goals a tester would cover. */
+export const TestPlanOutput = z.object({
+  appType: z.string().max(80),
+  goals: z
+    .array(
+      z.object({
+        goalId: z.string().max(42),
+        description: z.string().max(200),
+        targets: z.array(z.string().max(60)).max(4),
+      }),
+    )
+    .max(6),
+});
+export type TestPlanOutput = z.infer<typeof TestPlanOutput>;
+
 /** Server-registered response schemas the relay may request (docs/02 §8: no arbitrary schemas). */
 export const RESPONSE_SCHEMAS = {
   planner_output_v1: PlannerOutput,
   report_summary_v1: ReportSummaryOutput,
   finding_triage_v1: FindingTriageOutput,
+  test_plan_v1: TestPlanOutput,
 } as const;
 export type ResponseSchemaName = keyof typeof RESPONSE_SCHEMAS;
 

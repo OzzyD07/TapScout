@@ -31,6 +31,7 @@ function deps(overrides: Partial<RelayDeps> = {}): RelayDeps {
       planner: "nvidia/Nemotron-3_5-Lightning",
       vision: "openbmb/MiniCPM-V-4_5",
       triage: "nvidia/nemotron-3-super-120b-a12b",
+      plan: "nvidia/Nemotron-3-Ultra-550b-a55b",
     },
     chat: vi.fn(async () => ({
       ok: true as const,
@@ -224,6 +225,23 @@ describe("relayPlan", () => {
         responseSchema: "finding_triage_v1",
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("charges the test plan to its own session budget with its model (B11-2)", async () => {
+    const d = deps();
+    await relayPlan(d, await tokenFor(device), {
+      ...planBody,
+      purpose: "test_plan",
+      responseSchema: "test_plan_v1",
+    });
+    expect(vi.mocked(d.rpc).mock.calls[0]?.[1]).toMatchObject({
+      p_session_id: device.sessionId,
+      p_role: "test_plan",
+    });
+    expect(vi.mocked(d.chat).mock.calls[0]?.[0]?.model).toBe("nvidia/Nemotron-3-Ultra-550b-a55b");
+    await expect(
+      relayPlan(deps(), await tokenFor(device), { ...planBody, purpose: "test_plan" }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it("rejects arbitrary response schemas", async () => {

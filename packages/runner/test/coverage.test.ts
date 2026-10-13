@@ -71,6 +71,18 @@ describe("safeToTry / iconOnly", () => {
 });
 
 describe("ControlLedger.frontier", () => {
+  it("heads first for a control an open test-plan goal names (B11-2)", () => {
+    const ledger = new ControlLedger();
+    ledger.note("Profile", [edit, gear, del, back]);
+    ledger.note("Notes", [add]);
+    const out = ledger.frontier(graph(), "Home", ["store_readiness"], ["Add note"]);
+    expect(out[0]?.description).toBe('"Notes": button "Add note"');
+    expect(ledger.screens()).toEqual([
+      { label: "Profile", controls: ["Edit profile"] },
+      { label: "Notes", controls: ["Add note"] },
+    ]);
+  });
+
   it("puts an untried settings icon first when Store Readiness is selected", () => {
     const ledger = new ControlLedger();
     ledger.note("Profile", [edit, gear, del, back]);

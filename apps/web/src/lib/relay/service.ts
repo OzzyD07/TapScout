@@ -43,7 +43,7 @@ export interface UsageRow {
 /** Everything the relay needs from the outside world; injected so the rules can be tested. */
 export interface RelayDeps {
   signingKey: string;
-  models: { planner: string; vision: string; triage: string };
+  models: { planner: string; vision: string; triage: string; plan: string };
   chat: ChatFn;
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<RpcResult>;
   deviceLeaseIsCurrent(scope: DeviceScope): Promise<boolean>;
@@ -84,7 +84,7 @@ function estimateCost(model: string, input: number | null, output: number | null
 
 interface CallSpec {
   scope: RunnerScope;
-  role: "planner" | "vision" | "report" | "triage";
+  role: "planner" | "vision" | "report" | "triage" | "test_plan";
   purpose: string;
   request: ProviderRequest;
   estimatedInput: number;
@@ -163,9 +163,25 @@ async function callWithBudget(deps: RelayDeps, spec: CallSpec): Promise<RelayRes
 }
 
 /**
- * Planner and finding review (device token) or report summary (report token) call to Nemotron.
- * Each purpose has its own registered schema and budget role.
+ * Per purpose: the only response schema it may ask for, the budget it is charged to and the
+ * model it uses. Report summaries take the report token; every other purpose a device token.
  */
+const PURPOSES: Record<
+  RelayPlanRequest["purpose"],
+  {
+    schema: RelayPlanRequest["responseSchema"];
+    role: CallSpec["role"];
+    model: keyof RelayDeps["models"];
+  }
+> = {
+  plan: { schema: "planner_output_v1", role: "planner", model: "planner" },
+  repair: { schema: "planner_output_v1", role: "planner", model: "planner" },
+  report_summary: { schema: "report_summary_v1", role: "report", model: "planner" },
+  finding_triage: { schema: "finding_triage_v1", role: "triage", model: "triage" },
+  test_plan: { schema: "test_plan_v1", role: "test_plan", model: "plan" },
+};
+
+/** Planner, finding review and test plan (device token) or report summary (report token). */
 export async function relayPlan(
   deps: RelayDeps,
   token: string,
@@ -176,17 +192,11 @@ export async function relayPlan(
   if (!parsed.success) throw fromZodError(parsed.error);
   const req = parsed.data;
 
-  const isReport = req.purpose === "report_summary";
-  const isTriage = req.purpose === "finding_triage";
-  if (isReport !== (scope.kind === "report")) {
+  const spec = PURPOSES[req.purpose];
+  if ((spec.role === "report") !== (scope.kind === "report")) {
     throw new HttpError(403, "forbidden", `purpose ${req.purpose} is not allowed for this token`);
   }
-  const schemaFor = isReport
-    ? "report_summary_v1"
-    : isTriage
-      ? "finding_triage_v1"
-      : "planner_output_v1";
-  if (req.responseSchema !== schemaFor) {
+  if (req.responseSchema !== spec.schema) {
     throw new HttpError(400, "invalid_request", "response schema does not match the purpose");
   }
 
@@ -197,11 +207,11 @@ export async function relayPlan(
   const prompt = req.messages.map((m) => m.content).join("");
   return callWithBudget(deps, {
     scope,
-    role: isReport ? "report" : isTriage ? "triage" : "planner",
+    role: spec.role,
     purpose: req.purpose,
     estimatedInput: estimateTokens(prompt) + 16 * messages.length,
     request: {
-      model: isTriage ? deps.models.triage : deps.models.planner,
+      model: deps.models[spec.model],
       messages,
       maxTokens: req.maxOutputTokens,
       temperature: 0.2,

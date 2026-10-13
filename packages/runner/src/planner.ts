@@ -93,6 +93,8 @@ export interface PlanningContext {
   frontier?: string[];
   /** Refs of untried main navigation entries on this screen (tabs, bottom bar, app-bar icons). */
   untriedNavigation?: string[];
+  /** The app-level test plan with each goal's status (docs/07 B11-2), when one was made. */
+  plan?: string[];
   /** A test account exists for this build; the model only ever names it, never sees it. */
   testAccount?: boolean;
 }
@@ -142,7 +144,9 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
   if (ctx.frontier && ctx.frontier.length > 0) {
     lines.push(`Untried controls on other screens: ${ctx.frontier.join("; ")}`);
   }
-  if (ctx.goals.length > 0) {
+  if (ctx.plan && ctx.plan.length > 0) {
+    lines.push(...ctx.plan);
+  } else if (ctx.goals.length > 0) {
     lines.push(
       `Goals noted so far: ${ctx.goals.map((g) => `${g.goalId} (${g.description})`).join("; ")}`,
     );

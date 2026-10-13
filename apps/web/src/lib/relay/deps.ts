@@ -15,6 +15,7 @@ export function createRelayDeps(): RelayDeps {
       planner: serverEnv.plannerModel(),
       vision: serverEnv.visionModel(),
       triage: serverEnv.triageModel(),
+      plan: serverEnv.testPlanModel(),
     },
     chat: createTokenFactoryChat({
       apiKey: serverEnv.tokenFactoryApiKey(),
