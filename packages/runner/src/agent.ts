@@ -208,6 +208,8 @@ export function fragments(secret: string): string[] {
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
 /** "No new screen" stops overridden once while enough planner budget remains. */
 const MAX_ESCAPES = 1;
+/** Times a session stuck on one screen steps back out of it instead of ending. */
+const MAX_STUCK_EXITS = 3;
 const MIN_PLANNER_CALLS_FOR_ESCAPE = 6;
 /** The exception line of a crash log ("java.lang.IllegalStateException: …"), for grouping. */
 export function crashSignature(log: string): string | undefined {
@@ -935,6 +937,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let loadingPolls = 0;
   /** Times the planner was sent elsewhere instead of ending on "no new screen". */
   let escapes = 0;
+  let stuckExits = 0;
   let escapeWarning: string | null = null;
   /** Main navigation entries already opened by the sweep, by visible name. */
   const swept = new Set<string>();
@@ -1351,6 +1354,23 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             if (stuckWarnings > 3) {
               if (await startTour()) {
                 stuckWarnings = 0;
+                continue;
+              }
+              // With planner budget left, step out of the screen instead of ending the session
+              // (AntennaPod b9c33676 stopped on a theme list after 22 of 60 planner calls).
+              if (
+                !plannerDone &&
+                stuckExits < MAX_STUCK_EXITS &&
+                counters.actionsExecuted < budget.maxDeviceActions
+              ) {
+                stuckExits += 1;
+                stuckWarnings = 0;
+                await act(
+                  { type: "back" },
+                  undefined,
+                  "Leave this screen: the last actions did not change it.",
+                  "deterministic",
+                );
                 continue;
               }
               return {

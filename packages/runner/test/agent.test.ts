@@ -535,6 +535,62 @@ describe("runAgent", () => {
     expect(again.events.some((e) => message(e).startsWith("Finding review skipped"))).toBe(true);
   });
 
+  it("steps back out of a screen where nothing changes instead of ending (b9c33676)", async () => {
+    const device = fakeDevice();
+    let screen: "theme" | "home" = "theme";
+    const btn = (id: string, text: string, y: number) =>
+      `<android.widget.Button class="android.widget.Button" package="dev.tapscout.fieldnotes" text="${text}" resource-id="${id}" clickable="true" enabled="true" bounds="[42,${y}][1038,${y + 150}]" displayed="true"/>`;
+    device.pageSource = async () =>
+      `<hierarchy width="1080" height="2400"><android.widget.FrameLayout class="android.widget.FrameLayout" package="dev.tapscout.fieldnotes" bounds="[0,0][1080,2400]" displayed="true">
+        <android.widget.TextView class="android.widget.TextView" package="dev.tapscout.fieldnotes" text="${screen === "theme" ? "Theme" : "Home"}" clickable="false" enabled="true" bounds="[42,160][600,240]" displayed="true"/>
+        ${screen === "theme" ? btn("light", "Light", 400) + btn("dark", "Dark", 600) : btn("item", "Episodes", 400)}
+      </android.widget.FrameLayout></hierarchy>`;
+    const tapped: string[] = [];
+    device.tap = async (t) => {
+      tapped.push(t.elementId);
+    };
+    device.back = async () => {
+      screen = "home";
+    };
+    // A planner that keeps choosing the same option: the screen never changes.
+    const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
+      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1] ?? "obs-0";
+      const ref = (id: string) =>
+        new RegExp(`(el-\\d+) [a-z_]+ (?:"[^"]*" )?id=${id}`).exec(prompt)?.[1];
+      const targetRef = ref("light") ?? ref("item");
+      return {
+        model: "m",
+        content: JSON.stringify({
+          schemaVersion: "1",
+          goalId: "theme",
+          observationId: obs,
+          nextAction: { type: "tap", targetRef },
+          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+          decisionSummary: "Pick a theme.",
+        }),
+        usage: { inputTokens: 1, outputTokens: 1, reported: true },
+        latencyMs: 1,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
+      };
+    });
+    const h = harness(device, plan as ReturnType<typeof scriptedPlanner>, 40);
+    const out = await runAgent(h.ports, {
+      ...h.config,
+      budget: { ...h.config.budget, maxDeviceActions: 40 },
+    });
+    expect(
+      h.events.some(
+        (e) =>
+          e.type === "action_planned" &&
+          (e.payload as { decisionSummary: string }).decisionSummary.startsWith(
+            "Leave this screen",
+          ),
+      ),
+    ).toBe(true);
+    expect(tapped).toContain("item");
+  });
+
   it("tries one choice of a choice list, not all of them (14833cfd, Jerboa theme colours)", async () => {
     const device = fakeDevice();
     let screen: "settings" | "colours" = "settings";
