@@ -179,6 +179,7 @@ export async function evaluateBenchmarkSession({ db, run, session, findings, spe
     title: f.title,
     verification: f.verification,
     severity: f.severity,
+    triage: f.data?.triage?.verdict,
     ...verdictFor(spec, platform, f),
   }));
   const durationMin =
@@ -248,7 +249,9 @@ export function printBenchmark(p) {
   }
   console.log(`  last screen       ${p.lastScreenTexts.join(" | ")}`);
   for (const f of p.findings) {
-    console.log(`  finding [${f.verdict}] ${f.check} (${f.verification}): ${f.title}`);
+    console.log(
+      `  finding [${f.verdict}] ${f.check} (${f.verification}${f.triage ? `, review ${f.triage}` : ""}): ${f.title}`,
+    );
   }
   const n = (v) => p.findings.filter((f) => f.verdict === v).length;
   if (p.findings.length) {

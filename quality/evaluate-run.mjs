@@ -92,6 +92,7 @@ for (const s of sessions ?? []) {
       mode: seed.mode,
       result: !testable ? "mode not selected" : hit ? "detected" : "missed",
       verification: hit?.verification,
+      triage: hit?.data?.triage?.verdict,
       reproduction: hit?.data?.reproduction
         ? `${hit.data.reproduction.symptom}/${hit.data.reproduction.valid}`
         : undefined,
@@ -161,7 +162,7 @@ for (const p of report.platforms) {
   }
   for (const r of p.seeds) {
     console.log(
-      `  ${r.result.padEnd(17)} ${r.seed}${r.verification ? ` — ${r.verification}${r.reproduction ? ` ${r.reproduction}` : ""}` : ""}`,
+      `  ${r.result.padEnd(17)} ${r.seed}${r.verification ? ` — ${r.verification}${r.reproduction ? ` ${r.reproduction}` : ""}` : ""}${r.triage ? ` (review: ${r.triage})` : ""}`,
     );
   }
   for (const f of p.sameSeed) console.log(`  same seed again   ${f.check}: ${f.title}`);

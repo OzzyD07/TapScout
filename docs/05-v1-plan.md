@@ -595,3 +595,55 @@ Turun toplamı (tamamlanan koşular): 28 bulgu, 2 yanlış pozitif (%7,1; ikisi 
 - Jerboa ana ekran kapsamı 2/6–4/6 arasında dalgalanıyor. Agent içerik (gönderi, kullanıcı profili) ağırlıklı ekranlarda kalıp "10 eylemdir yeni ekran yok" ile duruyor.
 - Tusky'de giriş ekranının adı "Screen 1" çıkıyor. Aynı giriş duvarı "Invalid domain entered" ekranı yüzünden ikinci kez engel yazılıyor.
 - adb kopmaları GitHub emülatöründen geliyor (bu turda 2/12 oturum). Kök sebep çözülmedi; runner artık bunlardan toparlanıyor.
+
+## 24. B11 bulgu triyajı: Nemotron bulguları gözden geçiriyor (13 Ekim 2026)
+
+**Ne yapıyor.** Oturum sonunda, sezgisel bir kuraldan çıkan bulgular (`a11y.control_labels`, `a11y.touch_targets`, `ui.keyboard_occlusion`, `ui.text_clipping`) tek bir model çağrısıyla gözden geçirilir. Bir çağrıda en çok 12 bulgu gider (`packages/runner/src/triage.ts`). Model her bulgu için gerekçe ve ardından `likely_true / likely_false / needs_review` döndürür (`finding_triage_v1` şeması; gerekçe önce yazılır).
+
+**Sınırlar** (model önerir, sistem karar verir):
+- Model bulgu silemez.
+- `likely_false` yalnız bulguyu `manual_review_required` + düşük güvene indirir; gerekçe bulguya yazılır.
+- Tekrar üretilmiş (`reproduced`) bulgulara dokunulmaz.
+- Çağrı başarısızsa hiçbir şey değişmez.
+- Rapor indirilen bulguyu "needs manual check" rozetiyle listenin sonunda gösterir; her kartta modelin hükmü ve gerekçesi görünür.
+- Özet modeli indirilen bulguyu doğrulanmış sorun gibi yazmaz.
+
+**Altyapı.**
+- Relay'de yeni `finding_triage` amacı (yalnız cihaz token'ı).
+- Oturum başına ayrı `triage` bütçesi: 24k girdi / 6k çıktı / 2 istek (migration `20261013152702`). Planner bütçesi bitmiş olsa da triyaj çalışır, planner'dan çağrı almaz.
+- Model `TRIAGE_MODEL_ID` ile seçilir; varsayılan `nvidia/Nemotron-3-Ultra-550b-a55b`, düşünme kapalı.
+
+**Girdi.** Modele ekranın ham listesi değil, kuralın tartamadığı olgular verilir:
+- Ölçülen öğe (rol, ad, boyut dp).
+- Çevresinde tıklanabilir bir kap var mı ve öğenin kendisi tıklanabilir mi. Kendisi tıklanabilen öğeyi kap adlandırmaz; ekran okuyucu ona ayrı odaklanır.
+- İçinde metin var mı.
+- Yakındaki ayrı metinler. "Ekran okuyucu bunları ayrı okur, öğeyi adlandırmaz" diye etiketli.
+- Klavye bulgusunda öğenin hierarchy'de olmaması belirtinin kendisidir; Android klavyenin örttüğünü hierarchy'den siler.
+
+**Çevrimdışı ölçüm** (`quality/triage-eval.mjs`): elle hüküm verilmiş benchmark bulguları ve FieldNotes seeded'ın bilinen doğru bulguları. Toplam 210 örnek: 100 doğru, 94 yanlış pozitif, 16 emin değilim. Bulgular kayıtlı hierarchy'den runner'la aynı fonksiyonla kurulup modele gönderildi.
+
+| Model, prompt | Yanlış pozitif indirildi | Doğru bulgu indirildi (düşük olmalı) |
+|---|---|---|
+| Lightning, ilk prompt (yakındaki metin bağlam olarak) | 64/94 | **69/100** |
+| Lightning, olgularla | 51/94 | 47/100 (22 cevapsız) |
+| Lightning, gerekçe önce | 40/94 | 16/100 |
+| Super 120B, aynı prompt | 53/94 | 7/100 |
+| Super 120B, **düşünme açık** | 35/94 | 21/100 (5× çıktı token'ı, çok yavaş) |
+| Ultra 550B, aynı prompt | 66/94 | 9/100 |
+| Super, v2 (kendisi tıklanabilen öğeyi kap adlandırmaz) | 75/94 | 5/100 |
+| Ultra, v2 | 64/94 | **1/100** |
+| Super, v3 (klavye olgusu) | 46/94 | 3/100 |
+| **Ultra, v3** (iki koşu) | 59–61/94 (%63–65) | **1/100** |
+
+Ultra seçildi: koşudan koşuya tutarlı ve doğru bulguları neredeyse hiç indirmiyor. Super daha çok yanlış pozitif yakalayabiliyor ama koşudan koşuya %49–80 arasında oynuyor ve FieldNotes'un bilerek konmuş klavye hatasını indirebiliyor. Düşünmeyi açmak bu işte kötüleştirdi. Tek indirilen "doğru" bulgu tartışmalı: Jitsi'de içinde "AD Alex Doe" metni olan avatar butonu. Ultra ölçümde çağrı başına 2,2 sn.
+
+**Dürüstlük notu.** Prompt aynı etiketli set üzerinde ayarlandı (ayrı test seti yok); kurallar uygulamaya özgü değil, ekran okuyucu davranışına dayanıyor. Yanlış pozitiflerin çoğu eski kural sürümlerinden: güncel kurallar bunları zaten üretmiyor (son turda 28 bulguda 2). Triyajın asıl değeri artık kalan sınır durumlarını işaretlemek ve doğru bulguları "modelce de doğrulandı" diye desteklemek.
+
+**Canlı doğrulama:**
+
+| Run | Build | Sonuç |
+|---|---|---|
+| `8e77605c` | FieldNotes seeded, iki platform | İki platformda **6/6**. Triyaja giren her seed (etiketsiz ikon, klavye altında Continue, kırpılma) `likely_true`; hiçbiri indirilmedi. Çağrı: 971–1039 girdi / 138–145 çıktı token'ı, 1,3–1,4 sn, ≈ $0,0014 |
+| `613d10af` | Jerboa | 3 bulgu, üçü de `likely_true` ve elle doğru. 1.955 / 156 token, 1,9 sn, ≈ $0,0024 |
+
+iOS seeded'da kalıcılık hatası bu koşuda tekrar üretilmeden "observed" kaldı (önceki koşularda 2/2). Triyaj bu kontrole dokunmuyor; ayrıca izlenecek.

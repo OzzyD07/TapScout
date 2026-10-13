@@ -177,6 +177,13 @@
       "verdict": "true_positive",
       "reason": "The password visibility toggle (eye) and the Instance dropdown arrow are clickable icons without a description.",
       "firstSeen": "398fa898"
+    },
+    {
+      "check": "a11y.control_labels",
+      "titleIncludes": "Control without an accessibility label on \"asklemmy@lemmy.ml\"",
+      "verdict": "true_positive",
+      "reason": "The bookmark icon of a post row (partly under the + button): a clickable icon without a description, like the other post-row icons.",
+      "firstSeen": "613d10af"
     }
   ],
   "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not. First launch shows two in-app dialogs (changelog 'Done'; an announcement with DETAILS / SOLUTION / OK where the first two open the browser)."

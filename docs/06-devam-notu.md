@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 249 birim testi (shared 9, adapters 6, runner 123, web 111; 12 Ekim gecesi) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 258 birim testi (shared 9, adapters 6, runner 131, web 112; 13 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -156,13 +156,21 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
   - Android klavye kontrolü kimliksiz kontrolleri karşılaştırmaz; 2FA alanlı şifre formu giriş duvarıdır (`625f532`).
 - **Açık:** Jerboa kapsamı 2/6–4/6 dalgalı (içerikte kalıp erken duruyor); Tusky giriş ekranının adı "Screen 1" ve duvar iki kez yazılıyor.
 
+### 13 Ekim, B11 bulgu triyajı (`05` §24)
+
+- Oturum sonunda Nemotron Ultra 550B (düşünme kapalı) sezgisel bulguları hierarchy olgularıyla gözden geçirir. "Muhtemelen yanlış" olan elle incelemeye iner, silinmez; tekrar üretilmiş bulgulara dokunulmaz. Ayrı relay amacı, şema ve oturum bütçesi var (migration `20261013152702`). Rapor hükmü ve gerekçeyi gösterir.
+- Çevrimdışı ölçüm `quality/triage-eval.mjs` (210 elle hükümlü örnek): yanlış pozitiflerin %63–65'i, doğru bulguların %1'i indirildi.
+- Canlıda seeded `8e77605c` iki platformda 6/6; Jerboa `613d10af`'teki 3 doğru bulgu `likely_true`. Çağrı ≈ 1,3–1,9 sn, ≈ $0,001–0,002.
+- Model kodda varsayılan; Vercel'de `TRIAGE_MODEL_ID` ile değiştirilebilir (eklenmesi gerekmiyor).
+
 ### Hemen sıradaki
 
-1. **Jerboa kapsamı:** içerik ekranlarında (gönderi, kullanıcı profili) "10 eylemdir yeni ekran yok" ile erken durmak yerine çekmece/ayarlar gibi denenmemiş ana girişlere dönmek. Ardından ölçüm setinde kısa bir tur.
-2. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
-3. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
-4. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
-5. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
+1. **B11-2 uygulama düzeyinde test planı:** açılışta uygulamanın türü ve 4–6 hedef; planner hedefleri bunlarla başlar. Ölçüm: ana ekran kapsamı önce/sonra (özellikle Jerboa 2/6–4/6). Ardından ölçüm setinde kısa bir tur.
+2. **Jerboa kapsamı:** içerik ekranlarında (gönderi, kullanıcı profili) "10 eylemdir yeni ekran yok" ile erken durmak yerine çekmece/ayarlar gibi denenmemiş ana girişlere dönmek (B11-2 bunu da çözebilir).
+3. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
+4. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
+5. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
+6. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ### Açık borçlar
 
@@ -173,4 +181,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§23'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur da bitti (`05` §23; son koşularda YP %0). Sıradaki iş `06` §7 "Hemen sıradaki": Jerboa kapsamı, sonra gerçek kullanıcı build'iyle uçtan uca deneme. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§24'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur (`05` §23; son koşularda YP %0) ve B11 bulgu triyajı (`05` §24; Nemotron Ultra bulguları gözden geçiriyor) bitti. Sıradaki iş `06` §7 "Hemen sıradaki": B11-2 uygulama düzeyinde test planı, sonra gerçek kullanıcı build'iyle uçtan uca deneme. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
