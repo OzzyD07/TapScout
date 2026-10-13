@@ -143,7 +143,7 @@ Android'de çökme anında `adb logcat -b crash` kesiti (FATAL EXCEPTION, yığ�
 
 **Bitti sayılır.** Triyajın benchmark hükümleriyle uyumu ve test planının kapsam etkisi `05`'e tablo olarak yazılmış; FieldNotes seeded 6/6 ve fixed 0 yanlış pozitif gerilemesiz.
 
-**Durum (13 Ekim):** 1. madde (bulgu triyajı) **yapıldı** (`05` §24). Model Ultra 550B, düşünme kapalı. 210 elle hükümlü örnekte yanlış pozitiflerin %63–65'i, doğru bulguların %1'i indirildi. Canlıda seeded iki platformda 6/6, hiçbir seed indirilmedi. 2–4. maddeler (uygulama düzeyinde test planı, ekran sınıflandırma, alan türüne göre veri) bekliyor.
+**Durum (13 Ekim):** 1. madde (bulgu triyajı) **yapıldı** (`05` §24). Model Ultra 550B, düşünme kapalı. 210 elle hükümlü örnekte yanlış pozitiflerin %63–65'i, doğru bulguların %1'i indirildi. Canlıda seeded iki platformda 6/6, hiçbir seed indirilmedi. 2. madde (uygulama düzeyinde test planı) **yapıldı** (`05` §25). Plan doğru üretiliyor, ama Lightning planner onu izlemiyor. Kapsam kazancı küçük (önceki ~25/39 → 26/39); asıl artışı bütçe (60 çağrı) ve seçim penceresi kuralı getirdi. 3–4. maddeler (ekran sınıflandırma, alan türüne göre veri) bekliyor.
 
 ### C — Zaman kalırsa
 

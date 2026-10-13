@@ -286,6 +286,17 @@ describe("android keyboard occlusion", () => {
     expect(r.findings[0]?.evidence[0]?.artifactId).toBe("open");
   });
 
+  it("does not take the text-selection toolbar for a form's action (510e336f)", () => {
+    const t = new ModeTracker("android", 2.625);
+    const field = el({ role: "text_field", label: "Name", stableId: "group-name" });
+    const paste = el({ label: "Paste", bounds: { x: 300, y: 1500, width: 200, height: 120 } });
+    t.observe("Name", screen([field, paste]), "closed", 1);
+    t.observe("Name", screen([field], true), "open", 2);
+    const r = buildModeChecks(t, ctx(["ui_ux"]));
+    valid(r);
+    expect(r.findings.filter((f) => f.checkId === "ui.keyboard_occlusion")).toEqual([]);
+  });
+
   it("does not compare a search screen: the keyboard covers rows, not a form's action (fb926f25)", () => {
     const t = new ModeTracker("android", 2.625);
     const search = el({ role: "text_field", label: "Search…", stableId: "search_src_text" });

@@ -128,6 +128,13 @@
       "verdict": "false_positive",
       "reason": "Bottom navigation hidden behind the keyboard on the search screen, by Android design.",
       "firstSeen": "e24b2ce6"
+    },
+    {
+      "check": "ui.text_clipping",
+      "titleIncludes": "Text appears cut off on \"Add podcast\"",
+      "verdict": "false_positive",
+      "reason": "\"Suggestions by Apple Podcasts\" is shown in full on the screenshot; the vision model read it as cut off.",
+      "firstSeen": "89cbec9e"
     }
   ],
   "notes": "Lists filled after subscribing lose their empty-state marker; such a session can under-count Queue/Inbox/Episodes."

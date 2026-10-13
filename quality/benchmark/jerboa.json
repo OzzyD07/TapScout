@@ -184,6 +184,13 @@
       "verdict": "true_positive",
       "reason": "The bookmark icon of a post row (partly under the + button): a clickable icon without a description, like the other post-row icons.",
       "firstSeen": "613d10af"
+    },
+    {
+      "check": "a11y.touch_targets",
+      "titleIncludes": "@lemmy.",
+      "verdict": "unsure",
+      "reason": "Community links in post bylines (name@instance) are small text links; arguably inline text, like the other byline links.",
+      "firstSeen": "980310b4"
     }
   ],
   "notes": "Login is optional: a 'Sign-in required' blocker for the screens behind it is fair, stopping the whole app as access-blocked is not. First launch shows two in-app dialogs (changelog 'Done'; an announcement with DETAILS / SOLUTION / OK where the first two open the browser)."

@@ -647,3 +647,82 @@ Ultra seçildi: koşudan koşuya tutarlı ve doğru bulguları neredeyse hiç in
 | `613d10af` | Jerboa | 3 bulgu, üçü de `likely_true` ve elle doğru. 1.955 / 156 token, 1,9 sn, ≈ $0,0024 |
 
 iOS seeded'da kalıcılık hatası bu koşuda tekrar üretilmeden "observed" kaldı (önceki koşularda 2/2). Triyaj bu kontrole dokunmuyor; ayrıca izlenecek.
+
+## 25. B11-2 test planı ve keşif derinliği (13 Ekim 2026)
+
+**Test planı** (`packages/runner/src/test-plan.ts`). İki adlı ekran görüldükten (ya da 8. adımdan) sonra, planner'ın ilk çağrısından önce bir kez Nemotron Ultra 550B'ye (düşünme kapalı) o ana kadarki ekranlar ve kontrol adları verilir. Model şunları döndürür (`test_plan_v1`):
+- uygulamanın türü,
+- 4–6 hedef; her hedefin kısa açıklaması ve yöneleceği 1–3 ekran/kontrol adı.
+
+Planın kullanımı:
+- Planner her adımda hedefleri `[reached]/[open]` durumuyla görür.
+- Planner bütçesi bittikten sonra çalışan kapsam turu, açık hedeflerin adlarına uyan kontrolleri önce dener.
+- 8 adım boyunca yeni bir hedefe ulaşılmazsa planner'a ilk açık hedef hatırlatılır.
+
+Hedef adlarındaki filtreler:
+- Başlangıç ekranının adı ve birden fazla hedefte geçen adlar atılır; bunlar ilerleme göstermez.
+- Yıkıcı, dil ve dışa dönük adlar (report, block, post, reply, follow, vote, buy…) atılır.
+- Hedefin "ulaşıldı" sayılması için ad, 60 karakterden kısa ekran ve kontrol adlarında tam kelime olarak geçmeli.
+
+Ayrı relay amacı, şema ve oturum bütçesi var (migration `20261013163756`). Ön izlemede altı benchmark uygulaması doğru tanındı: Lemmy istemcisi, RSS okuyucu, podcast yöneticisi, alışkanlık takibi, görüntülü görüşme, Mastodon istemcisi.
+
+**İlk tur, yalnız plan:** kapsam artmadı (aşağıdaki tablo). Koşu kayıtları üç neden gösterdi:
+1. Planner (Lightning) planı izlemiyor. Jerboa'da 30 çağrının hepsi tema ayarlarında geçti. Habo'da kendi uydurduğu `set-up-cloud-sync` hedefiyle giriş ekranlarında kaldı.
+2. Seçim pencereleri (tema rengi, sıralama…) her biri yeni ekran sayılıyor ve kapsam turu her seçeneği tek tek deniyordu (Jerboa: 60 eylem tema renklerinde).
+3. 30 planner çağrısı ~40 eylemde, ~4 dakikada bitiyor; 17 dakikalık sürenin çoğu kullanılmıyor.
+
+**Düzeltmeler:**
+- **Seçim penceresi:** bir ekrandaki bir seçenek (geri/kapat/tamam değil), o ekranı açan ekrana geri götürüyorsa ve ekranda metin alanı yoksa, ekran seçim penceresi sayılır. Kalan seçenekler planner'a `[untried]` gösterilmez ve turda denenmez (`7e1332e`).
+- **Plan uyarısı:** 8 adımdır yeni hedefe ulaşılmadıysa planner'a "bu alandan çık, sıradaki açık hedefe git" denir.
+- **Planner kuralı:** başkalarına ulaşan hiçbir şey yayımlanmaz, gönderilmez, yanıtlanmaz, takip edilmez, oylanmaz, şikâyet edilmez; satın alma yapılmaz.
+- **Bütçe:** 60 planner çağrısı (önce 30), 150 cihaz eylemi (önce 120). Bütçe sürümü `2026-10-13.v4`.
+- **Takılma çıkışı:** son eylemler ekranı değiştirmiyorsa ve tur da yoksa, planner bütçesi varken oturum bitmez; en çok 3 kez "geri" ile ekrandan çıkılır (`f7852d7`).
+- **Klavye kontrolü:**
+  - Yalnız arama/filtre alanı olan ekran form sayılmaz (AntennaPod Settings'te 6 yanlış pozitif; triyaj altısını da indirmişti).
+  - Metin seçme araç çubuğu ("Paste", "Copy"…) formun eylemi sayılmaz.
+
+**Ana ekran kapsamı** (Android, aynı ölçüm seti):
+
+| Uygulama | Önceki (§23) | Yalnız plan | 2. tur (hepsi) | 3. tur (hepsi + takılma çıkışı) |
+|---|---|---|---|---|
+| Jerboa | 2–4/6 | `14833cfd` 2/6 | `5571ebf0` **4/6** | `980310b4` 3/6 |
+| Habo | 6/8 | `c03a708b` 5/8 | `4dad53dc` 6/8 | `66ee6a94` 6/8 (50. eylemde altyapı hatası) |
+| Read You | 4/7 | `317d1a56` 3/7 | `92681ad7` 3/7 | `510e336f` 3/7 |
+| AntennaPod | 7/10 | `fb926f25` 7/10 | `b9c33676` 6/10 (erken durdu → takılma çıkışı) | `89cbec9e` **7/10** ("Add podcast" ilk kez) |
+| Jitsi Meet | 3/5 | `20c7964e` 3/5 | `7db2e5d2` **5/5** (toplantıya 61. adımda) | — |
+| Tusky | 2/3 | `f8b59e33` 2/3 | `73d197fe` 2/3 | — |
+
+**Dürüst değerlendirme.** Toplamda kazanç küçük ve koşudan koşuya oynamanın içinde: önceki ~25/39, 2. tur 26/39. Açık kazançlar:
+- Jitsi: 5/5. Toplantı akışı yalnız büyük bütçeyle ulaşılabilir.
+- Jerboa: 3–4/6. Arama, topluluk sayfası ve giriş artık ulaşılıyor.
+- AntennaPod: "Add podcast" ilk kez ulaşıldı.
+
+Gerilemeler ve açık noktalar:
+- Read You üç turdur 3/7 (önce 4–5/7); sebebine bakılmadı.
+- Habo'nun ana özelliği "alışkanlık oluştur" hâlâ kaçıyor. Plan bunu ilk hedef olarak veriyor, ama planner hedefi beyan edip başka yere dokunuyor.
+
+Sonuç: plan doğru şeyi söylüyor, ama Lightning planner onu izlemiyor. Kapsamı asıl artıran daha büyük bütçe ve seçim penceresi kuralı oldu.
+
+**Yanlış pozitifler** (2. ve 3. tur, 42 bulgu):
+- 5 yanlış pozitif (%12). Triyaj bunların 2'sini indirdi; indirilmeden görünen yanlış pozitif 3/40 (%7,5).
+- Bulunan kaynaklardan ikisi (arama ekranı, metin araç çubuğu) düzeltildi.
+- Kalanlar: AntennaPod'da 12 dp yüksekliğinde görünmez bir öğe (etiket kontrolü) ve vision modelin tam görünen bir metni kırpılmış okuması ("Suggestions by Apple Podcasts").
+- Triyaj bu ikisini kaçırdı: ilkinde boyut olgusu yetmiyor, ikincisinde görüntüyü görmüyor.
+
+**FieldNotes** büyük bütçeyle:
+- Seeded `9d845c86`: iOS 6/6. Android 4/6, çünkü 29. eylemde adb koptu ve 25 eylemlik tekrar penceresi geçilmişti.
+- Fixed `276c92a3`: iki platformda 0 yanlış pozitif.
+- iOS süre sınırı yüzünden 21–29 planner çağrısı kullanabiliyor.
+
+**Maliyet.** 2. turun 11 platform oturumu: $0,122, oturum başına ≈ $0,011.
+
+| Çağrı | Adet | Maliyet | Ort. süre |
+|---|---|---|---|
+| Planner | 401 | $0,055 | 0,8 sn |
+| Vision | 55 | $0,027 | 0,6 sn |
+| Triyaj | 8 | $0,019 | 1,4 sn |
+| Test planı | 10 | $0,013 | 1,8 sn |
+
+**Açık:**
+- Uzun oturumlarda adb/Appium kopmaları 25 eylemden sonra gelebiliyor (seeded Android 29., Habo 50.). Kalıcı çözüm oturumu kaldığı yerden sürdürmek: durum korunur, yeni Appium oturumu açılır, keşif devam eder.
+- Planner'ın planı izlemesi için daha güçlü bir mekanizma gerekiyor: Ultra'nın arada bir yönlendirme yapması ya da hedef bazlı deterministik yönlendirme.

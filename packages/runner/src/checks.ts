@@ -217,6 +217,12 @@ function key(e: UiElement, screenLabel: string): string {
 }
 
 /**
+ * The system text-selection toolbar over a field (Read You 510e336f: "Paste" counted as a form's
+ * action hidden by the keyboard). It comes and goes with the selection, not with the keyboard.
+ */
+const TEXT_TOOLBAR = /^(paste|copy|cut|select all|share|autofill|translate)$/i;
+
+/**
  * A field that belongs to a form with an action to reach. A search or filter box is not one: the
  * keyboard then covers content rows, not a submit button (AntennaPod fb926f25: six settings rows
  * under the search box of Settings were reported as hidden form actions).
@@ -344,6 +350,7 @@ export class ModeTracker {
           const e = sighting.element;
           const action =
             name(e).length <= MAX_ACTION_NAME &&
+            !TEXT_TOOLBAR.test(name(e)) &&
             familyOf(e) === null &&
             e.bounds.y >= fieldsBottom &&
             e.bounds.y >= screen.heightPx * 0.5;

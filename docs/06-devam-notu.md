@@ -73,7 +73,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 258 birim testi (shared 9, adapters 6, runner 131, web 112; 13 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 270 birim testi (shared 9, adapters 6, runner 142, web 113; 13 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -163,14 +163,23 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - Canlıda seeded `8e77605c` iki platformda 6/6; Jerboa `613d10af`'teki 3 doğru bulgu `likely_true`. Çağrı ≈ 1,3–1,9 sn, ≈ $0,001–0,002.
 - Model kodda varsayılan; Vercel'de `TRIAGE_MODEL_ID` ile değiştirilebilir (eklenmesi gerekmiyor).
 
+### 13 Ekim, B11-2 test planı ve keşif derinliği (`05` §25)
+
+- **Test planı:** iki ekrandan sonra Ultra uygulamanın türünü ve 4–6 hedefi söyler; planner hedefleri durumlarıyla görür, kapsam turu açık hedeflere öncelik verir (migration `20261013163756`).
+- **Aynı turda eklenenler:** seçim penceresi kuralı (bir seçenek yeter), 8 adım plan uyarısı, takılma çıkışı (en çok 3 geri) ve "başkalarına ulaşan hiçbir şeyi yayımlama" kuralı. Bütçe 60 planner çağrısı / 150 eylem.
+- **Klavye kontrolü:** arama ekranı ve metin araç çubuğu artık sayılmıyor.
+- **Sonuç:** kapsam ~25/39 → 26/39; Jitsi 5/5 ve Jerboa 3–4/6 iyileşti, Read You 3/7'de kaldı. Planı planner izlemiyor; kazancı bütçe ve seçim penceresi kuralı getirdi. Oturum maliyeti ≈ $0,011.
+- **Açık:** 25 eylemden sonraki adb/Appium kopmaları (oturumu sürdürme yok); Habo'da "alışkanlık oluştur" hâlâ kaçıyor.
+
 ### Hemen sıradaki
 
-1. **B11-2 uygulama düzeyinde test planı:** açılışta uygulamanın türü ve 4–6 hedef; planner hedefleri bunlarla başlar. Ölçüm: ana ekran kapsamı önce/sonra (özellikle Jerboa 2/6–4/6). Ardından ölçüm setinde kısa bir tur.
-2. **Jerboa kapsamı:** içerik ekranlarında (gönderi, kullanıcı profili) "10 eylemdir yeni ekran yok" ile erken durmak yerine çekmece/ayarlar gibi denenmemiş ana girişlere dönmek (B11-2 bunu da çözebilir).
-3. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi.
-4. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
-5. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8 (dilden bağımsız anlam), C grubu.
-6. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
+1. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi. Jüri deneyimi için en önemli kalan iş.
+2. **Bakım/cron** (Açık borçlar): `queued`'da takılan koşuyu ve kesilen oturumları toparlayan görev. Jüri denemesinin takılmaması için.
+3. **Oturumu sürdürme:** 25 eylemden sonra kopan cihaz oturumunda durumu koruyup yeni Appium oturumuyla devam etmek.
+4. **Planner'ın planı izlemesi:** Ultra'nın arada yön vermesi ya da hedef bazlı deterministik yönlendirme (Habo "Add", Read You).
+5. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
+6. **Zaman kalırsa (`07` §4):** B6 (alan türüne göre veri), B8/B11-3 (ekran sınıflandırma), C grubu.
+7. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ### Açık borçlar
 
@@ -181,4 +190,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§24'ü oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur (`05` §23; son koşularda YP %0) ve B11 bulgu triyajı (`05` §24; Nemotron Ultra bulguları gözden geçiriyor) bitti. Sıradaki iş `06` §7 "Hemen sıradaki": B11-2 uygulama düzeyinde test planı, sonra gerçek kullanıcı build'iyle uçtan uca deneme. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§25'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur (`05` §23; son koşularda YP %0) ve B11 bulgu triyajı (`05` §24; Nemotron Ultra bulguları gözden geçiriyor) bitti. Sıradaki iş `06` §7 "Hemen sıradaki": B11-2 uygulama düzeyinde test planı, sonra gerçek kullanıcı build'iyle uçtan uca deneme. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
