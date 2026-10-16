@@ -1478,8 +1478,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               ) {
                 stuckExits += 1;
                 stuckWarnings = 0;
+                // A game that closes on Back is moved on with a swipe instead (SPD 6ca7c65f).
+                const backCloses =
+                  visualBackLeaves &&
+                  (snap.screen.elements.length === 0 || snap.screen.elements.some(isVisual));
                 await act(
-                  { type: "back" },
+                  backCloses ? { type: "scroll", direction: "down" } : { type: "back" },
                   undefined,
                   "Leave this screen: the last actions did not change it.",
                   "deterministic",

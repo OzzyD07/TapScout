@@ -12,9 +12,11 @@ export const VISUAL_CLASS = "vision";
 /**
  * Measured on FieldNotes screenshots against their hierarchies (16 Oct): centre points land inside
  * the real bounds; asked for boxes, the model drops icons and boxes a field's caption instead.
+ * Asking for each icon of a row separately turned Shattered Pixel Dungeon's hero row from one
+ * "selection" control into six heroes; their points still sat on the caption above the row.
  */
 export const VISUAL_TAPS_PROMPT =
-  'This is a screenshot of a mobile app whose controls cannot be read any other way. List the controls a user can tap: buttons, links, icons, tabs, menu entries, list rows and text fields. Do not list plain titles or paragraphs. For each control give the point at its centre, as x and y from 0 to 1000 relative to the image width and height, origin top-left. Reply with JSON only: {"screen":"<short name of this screen>","items":[{"label":"<its visible text, or a two-word description of an icon>","x":<0-1000>,"y":<0-1000>}]}';
+  'This is a screenshot of a mobile app or game whose controls cannot be read any other way. List every control a user can tap: buttons, links, icons, tabs, menu entries, list rows, text fields and selectable items. A row or grid of icons is several controls: list each icon separately. Do not list plain titles or paragraphs. For each control give the point at its centre, as x and y from 0 to 1000 relative to the image width and height, origin top-left. Reply with JSON only: {"screen":"<short name of this screen>","items":[{"label":"<its visible text, or a two-word description of an icon>","x":<0-1000>,"y":<0-1000>}]}';
 
 const MAX_ITEMS = 20;
 /** Status bar and system navigation bar, in thousandths of the screen height. */
