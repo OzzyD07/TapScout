@@ -304,6 +304,9 @@ const MAX_VISION_SCREENS = 6;
 const MAX_VISUAL_SCREENS = 20;
 /** A foreground app with no elements for this long is read from its screenshots (docs/07 C3). */
 const VISUAL_LAUNCH_MS = 12_000;
+/** Looks at an empty frame of such an app before acting on it, and the pause between them. */
+const MAX_BLANK_POLLS = 3;
+const BLANK_POLL_MS = 1_500;
 /** Texts at least this long make a screen worth a visual clipping check. */
 const LONG_TEXT = 40;
 /** Measured on runs 2ce8b240 / 4cc0a298: the model writes "..." for intentional ellipses. */
@@ -372,6 +375,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let planAsked = false;
   /** C3: vision calls that located controls, screens where some were found, and the last step. */
   let visualCalls = 0;
+  /** Back from a screen read from screenshots closed the app: games close on Back everywhere. */
+  let visualBackLeaves = false;
+  let blankPolls = 0;
   let visualScreens = 0;
   let lastVisualStep = -1;
   let appId = device.appIdFromCapabilities();
@@ -1063,6 +1069,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       // Checks measure only what the hierarchy reports; located controls are estimates.
       const measured = snap.screen;
       if (snap.appForeground) await addVisualElements(snap, shot);
+      // C3: in an app read from screenshots, a frame with nothing on it is one the app has not
+      // drawn yet (black after a relaunch, 59a1dc45): look again instead of acting on it.
+      if (snap.appForeground && visualScreens > 0 && snap.screen.elements.length === 0) {
+        if (blankPolls < MAX_BLANK_POLLS) {
+          blankPolls += 1;
+          await ports.sleep(BLANK_POLL_MS);
+          continue;
+        }
+      } else {
+        blankPolls = 0;
+      }
       const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
@@ -1122,6 +1139,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? { type: pending.actionType, target: pending.target }
             : undefined,
         );
+        // C3: a game that closes on Back closes on every screen (Shattered Pixel Dungeon
+        // 59a1dc45: Back, relaunch, Back … until the relaunch limit ended the session).
+        if (
+          pending.actionType === "back" &&
+          !snap.appForeground &&
+          (pending.fromElements.length === 0 || pending.fromElements.some(isVisual))
+        ) {
+          visualBackLeaves = true;
+        }
         if (pending.outcome === "ok" && pending.actionType === "tap" && snap.appForeground) {
           notePicker(pending.fromLabel, pending.fromElements, pending.target, state.label);
         }
@@ -1563,9 +1589,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
         // Back from here already left the app (AntennaPod run f9ba4aeb: Back on the home screen,
         // relaunch, Back again until the relaunch limit ended the session): try something else.
+        const readFromScreenshot =
+          snap.screen.elements.length === 0 || snap.screen.elements.some(isVisual);
         if (
           action.type === "back" &&
-          graph.get(fp)?.tried.get(keyOf(action, undefined))?.results.includes("left the app")
+          (graph.get(fp)?.tried.get(keyOf(action, undefined))?.results.includes("left the app") ||
+            (visualBackLeaves && readFromScreenshot))
         ) {
           let alt = fallback(snap.screen, fp);
           if (alt.action.type === "back") {
@@ -1579,6 +1608,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                   (tried?.get(actionKey("tap", b))?.count ?? 0),
               )[0];
             if (least) alt = { action: { type: "tap", targetRef: least.ref }, target: least };
+          }
+          if (alt.action.type === "back" && visualBackLeaves && readFromScreenshot) {
+            // Nothing to tap on a frame the game has not drawn yet: wait for it instead.
+            alt = { action: { type: "wait", milliseconds: 1_500 } };
           }
           if (alt.action.type !== "back") {
             ports.emit({

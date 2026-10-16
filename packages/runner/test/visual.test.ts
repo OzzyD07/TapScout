@@ -75,96 +75,122 @@ const reply = (content: string): RelayResponse => ({
   budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
 });
 
-describe("runAgent on a screen without accessibility information", () => {
-  it("starts, taps controls the vision model located, and says what it could not measure", async () => {
-    let inGame = false;
-    const tapAt = vi.fn(async (x: number, y: number) => {
-      if (Math.abs(x - 540) < 60 && Math.abs(y - 1440) < 60) inGame = true;
-    });
-    const vision = vi.fn(async () =>
-      reply(
-        JSON.stringify(
-          inGame
-            ? { screen: "Level 1", items: [{ label: "Pause", x: 900, y: 80 }] }
-            : { screen: "Main menu", items: [{ label: "Play", x: 500, y: 600 }] },
-        ),
+/**
+ * A canvas game: a menu with Play, a level with Pause. Options: Back closes the game (most games
+ * do), and the first frame after a (re)launch is still black.
+ */
+function game(opts: { backCloses?: boolean; blankAfterLaunch?: boolean } = {}) {
+  let inGame = false;
+  let running = true;
+  let blankFrames = 0;
+  let closes = 0;
+  const tapAt = vi.fn(async (x: number, y: number) => {
+    if (Math.abs(x - 540) < 60 && Math.abs(y - 1440) < 60) inGame = true;
+  });
+  const back = vi.fn(async () => {
+    if (opts.backCloses && !inGame && running) {
+      running = false;
+      closes += 1;
+    }
+    inGame = false;
+  });
+  const vision = vi.fn(async () => {
+    if (blankFrames > 0) {
+      blankFrames -= 1;
+      return reply(JSON.stringify({ screen: "Black screen", items: [] }));
+    }
+    return reply(
+      JSON.stringify(
+        inGame
+          ? { screen: "Level 1", items: [{ label: "Pause", x: 900, y: 80 }] }
+          : { screen: "Main menu", items: [{ label: "Play", x: 500, y: 600 }] },
       ),
     );
-    const plan = vi.fn(async (messages: ChatMessage[]) => {
-      const prompt = messages.find((m) => m.role === "user")?.content ?? "";
-      const obs = /Observation (obs-\d+)/.exec(prompt)?.[1];
-      const play = /(el-\d+) button "Play" \[located on the screenshot\]/.exec(prompt)?.[1];
-      return reply(
-        JSON.stringify({
-          schemaVersion: "1",
-          goalId: "start-game",
-          observationId: obs,
-          nextAction: play ? { type: "tap", targetRef: play } : { type: "back" },
-          expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
-          decisionSummary: "Start the game.",
-        }),
-      );
-    });
-    let clock = 0;
-    let n = 0;
-    const events: { type: string; payload: unknown }[] = [];
-    const ports: AgentPorts = {
-      device: {
-        platform: "android",
-        windowSize: async () => ({ width: 1080, height: 2400 }),
-        screenshotPng: async () => png(1080, 2400),
-        pageSource: async () => canvas,
-        keyboardShown: async () => false,
-        appState: async () => 4,
-        appIdFromCapabilities: () => "dev.example.game",
-        find: vi.fn(async () => null),
-        tap: async () => {},
-        tapAt,
-        typeInto: async () => {},
-        pressEnter: async () => {},
-        scroll: async () => {},
-        back: async () => {
-          inGame = false;
-        },
-        hideKeyboard: async () => {},
-        relaunch: async () => {},
-      },
-      emit: (e) => events.push(e),
-      flush: async () => {},
-      saveEvidence: async () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
-      plan: (messages) => plan(messages),
-      vision,
-      checkpoint: () => {},
-      now: () => clock,
-      sleep: async (ms) => {
-        clock += ms;
-      },
-      log: () => {},
-    };
-    const out = await runAgent(ports, {
+  });
+  const plan = vi.fn(async (messages: ChatMessage[]) => {
+    const prompt = messages.find((m) => m.role === "user")?.content ?? "";
+    const obs = /Observation (obs-\d+)/.exec(prompt)?.[1];
+    const play = /(el-\d+) button "Play" \[located on the screenshot\]/.exec(prompt)?.[1];
+    return reply(
+      JSON.stringify({
+        schemaVersion: "1",
+        goalId: "start-game",
+        observationId: obs,
+        nextAction: play ? { type: "tap", targetRef: play } : { type: "back" },
+        expectedObservation: { kind: "state_change", basis: "ui_semantics", description: "x" },
+        decisionSummary: "Start the game.",
+      }),
+    );
+  });
+  let clock = 0;
+  let n = 0;
+  const events: { type: string; payload: unknown }[] = [];
+  const ports: AgentPorts = {
+    device: {
       platform: "android",
-      modes: ["functional", "accessibility"],
-      budget: { ...DEFAULT_PLATFORM_BUDGET, maxPlannerRequests: 3 },
-      softDeadline: 10 * 60_000,
-      counters: {
-        screensObserved: 0,
-        transitionsObserved: 0,
-        actionsExecuted: 0,
-        checksRun: 0,
-        plannerCalls: 0,
-        visionCalls: 0,
+      windowSize: async () => ({ width: 1080, height: 2400 }),
+      screenshotPng: async () => png(1080, 2400),
+      pageSource: async () => canvas,
+      keyboardShown: async () => false,
+      appState: async () => (running ? 4 : 1),
+      appIdFromCapabilities: () => "dev.example.game",
+      find: vi.fn(async () => null),
+      tap: async () => {},
+      tapAt,
+      typeInto: async () => {},
+      pressEnter: async () => {},
+      scroll: async () => {},
+      back,
+      hideKeyboard: async () => {},
+      relaunch: async () => {
+        running = true;
+        inGame = false;
+        if (opts.blankAfterLaunch) blankFrames = 2;
       },
-      settleMs: 10,
-      run: { runId: "run-1", sessionId: "session-1" },
-      versions: runVersionStamp(DEFAULT_PLATFORM_BUDGET.budgetVersion),
-      newId: () => `00000000-0000-4000-8000-f${String(++n).padStart(11, "0")}`,
-    });
+    },
+    emit: (e) => events.push(e),
+    flush: async () => {},
+    saveEvidence: async () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
+    plan: (messages) => plan(messages),
+    vision,
+    checkpoint: () => {},
+    now: () => clock,
+    sleep: async (ms) => {
+      clock += ms;
+    },
+    log: () => {},
+  };
+  const config = {
+    platform: "android" as const,
+    modes: ["functional" as const, "accessibility" as const],
+    budget: { ...DEFAULT_PLATFORM_BUDGET, maxPlannerRequests: 3 },
+    softDeadline: 10 * 60_000,
+    counters: {
+      screensObserved: 0,
+      transitionsObserved: 0,
+      actionsExecuted: 0,
+      checksRun: 0,
+      plannerCalls: 0,
+      visionCalls: 0,
+    },
+    settleMs: 10,
+    run: { runId: "run-1", sessionId: "session-1" },
+    versions: runVersionStamp(DEFAULT_PLATFORM_BUDGET.budgetVersion),
+    newId: () => `00000000-0000-4000-8000-f${String(++n).padStart(11, "0")}`,
+  };
+  return { ports, config, tapAt, back, events, closes: () => closes };
+}
+
+describe("runAgent on a screen without accessibility information", () => {
+  it("starts, taps controls the vision model located, and says what it could not measure", async () => {
+    const g = game();
+    const out = await runAgent(g.ports, g.config);
 
     // Started although the hierarchy never showed an element.
     expect(out.stopReason).not.toBe("access_blocked");
     // "Play" at (500, 600) of 1000 → the centre of a 1080×2400 screen's upper half.
-    expect(tapAt).toHaveBeenCalledWith(540, 1440);
-    expect(ports.device.find).not.toHaveBeenCalled();
+    expect(g.tapAt).toHaveBeenCalledWith(540, 1440);
+    expect(g.ports.device.find).not.toHaveBeenCalled();
     expect(out.screenMap.screens.map((s) => s.label)).toEqual(
       expect.arrayContaining(["Main menu (from screenshot)", "Level 1 (from screenshot)"]),
     );
@@ -172,7 +198,25 @@ describe("runAgent on a screen without accessibility information", () => {
     // Located controls are estimates: no accessibility finding is made from them.
     expect(out.findings.filter((f) => f.mode === "accessibility")).toEqual([]);
     expect(
-      events.some((e) => /exposes no accessibility information/.test(JSON.stringify(e.payload))),
+      g.events.some((e) => /exposes no accessibility information/.test(JSON.stringify(e.payload))),
     ).toBe(true);
+  });
+
+  it("stops pressing Back once it closed the game, and waits for a frame drawn after a relaunch (59a1dc45)", async () => {
+    const g = game({ backCloses: true, blankAfterLaunch: true });
+    const out = await runAgent(g.ports, {
+      ...g.config,
+      budget: { ...g.config.budget, maxPlannerRequests: 12, maxDeviceActions: 30 },
+    });
+    expect(out.stopReason).not.toBe("access_blocked");
+    expect(out.blockers.join(" ")).not.toMatch(/left the foreground repeatedly/);
+    // Back from the level returns to the menu; from the menu it closes the game, which happens
+    // once: after that the menu is never left with Back again.
+    expect(g.closes()).toBe(1);
+    expect(g.back.mock.calls.length).toBeGreaterThan(1);
+    // After the relaunch the game was played again once its menu was drawn.
+    expect(g.tapAt.mock.calls.filter(([x, y]) => x === 540 && y === 1440).length).toBeGreaterThan(
+      1,
+    );
   });
 });
