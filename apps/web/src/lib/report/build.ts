@@ -4,6 +4,7 @@ import {
   type PlatformResult,
   Report,
   type RunStatus,
+  ScreenMap,
   type SessionCounters,
   type TestMode,
   type VersionStamp,
@@ -49,6 +50,8 @@ function platformResult(
   findings: Finding[],
 ): PlatformResult {
   const reported = s.result as Partial<PlatformResult> | null;
+  // A map that does not match the contract is left out; it never fails the report.
+  const screenMap = ScreenMap.safeParse(reported?.screenMap);
   const blockers = [...(reported?.blockers ?? [])];
   if (s.phaseDetail && !blockers.includes(s.phaseDetail)) blockers.push(s.phaseDetail);
   return {
@@ -62,6 +65,7 @@ function platformResult(
     checks: checks.filter((c) => c.platform === s.platform),
     findingIds: findings.filter((f) => f.sessionId === s.id).map((f) => f.findingId),
     blockers,
+    ...(screenMap.success ? { screenMap: screenMap.data } : {}),
   };
 }
 

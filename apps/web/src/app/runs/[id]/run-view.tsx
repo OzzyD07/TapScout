@@ -217,6 +217,11 @@ export function RunView(props: {
             const s = sessions.find((x) => x.platform === platform);
             if (s) setSelected(s.id);
             setPinnedShot(artifactId);
+            requestAnimationFrame(() =>
+              document
+                .getElementById("evidence-viewer")
+                ?.scrollIntoView({ block: "center", behavior: "smooth" }),
+            );
           }}
         />
       ) : null}
@@ -247,7 +252,10 @@ export function RunView(props: {
       {session ? (
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           <aside className="flex flex-col gap-4">
-            <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-8 border-text/85 bg-surface shadow-lg">
+            <div
+              id="evidence-viewer"
+              className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[2rem] border-8 border-text/85 bg-surface shadow-lg"
+            >
               {shot ? (
                 // biome-ignore lint/performance/noImgElement: signed Storage redirect, not a static asset
                 <img

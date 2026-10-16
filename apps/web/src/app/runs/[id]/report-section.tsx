@@ -2,8 +2,9 @@
 
 import { MODES } from "@tapscout/shared";
 import { useEffect, useMemo, useState } from "react";
-import type { CheckView, FindingView, SummaryView } from "@/lib/report/view";
+import type { CheckView, FindingView, ReportView, SummaryView } from "@/lib/report/view";
 import { phaseLabel, runStatusLabel, type Tone } from "@/lib/runs/timeline";
+import { ScreenMapSection } from "./screen-map";
 import { Badge, platformName, platformShort, runTone } from "./ui";
 
 export interface ReportSnapshot {
@@ -14,6 +15,7 @@ export interface ReportSnapshot {
   checks: CheckView[];
   findings: FindingView[];
   summary: SummaryView | null;
+  maps: ReportView["maps"];
 }
 
 const CHECK_STATUS: Record<string, { label: string; tone: Tone }> = {
@@ -347,6 +349,8 @@ export function ReportSection(props: {
           </p>
         </div>
       ) : null}
+
+      <ScreenMapSection maps={report.maps} onShowEvidence={props.onShowEvidence} />
 
       {report.findings.length + report.checks.length > 0 ? (
         <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:flex-wrap sm:gap-4">

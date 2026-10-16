@@ -4,6 +4,38 @@ import { Platform, RunStatus, SessionPhase, StopReason, TestMode } from "./enums
 import { SessionCounters } from "./events.js";
 import { CheckResult, Finding } from "./findings.js";
 
+/** Limits of the screen map one session reports (the rest is left out, never truncated mid-way). */
+export const SCREEN_MAP_LIMITS = { screens: 40, edges: 120 } as const;
+
+/**
+ * Screens a session reached and the moves it observed between them (docs/07 C2): named screens
+ * with their first screenshot, and the taps and backs that led from one to another.
+ */
+export const ScreenMap = z.object({
+  screens: z
+    .array(
+      z.object({
+        label: z.string().max(80),
+        visits: z.number().int().positive(),
+        firstStep: z.number().int().nonnegative(),
+        screenshotArtifactId: Id.optional(),
+      }),
+    )
+    .max(SCREEN_MAP_LIMITS.screens),
+  edges: z
+    .array(
+      z.object({
+        from: z.string().max(80),
+        to: z.string().max(80),
+        type: z.enum(["tap", "back"]),
+        /** Name of the tapped control, when it has one. */
+        via: z.string().max(80).optional(),
+      }),
+    )
+    .max(SCREEN_MAP_LIMITS.edges),
+});
+export type ScreenMap = z.infer<typeof ScreenMap>;
+
 export const PlatformResult = z.object({
   platform: Platform,
   sessionId: Id,
@@ -21,6 +53,7 @@ export const PlatformResult = z.object({
   findingIds: z.array(Id),
   /** Access, infrastructure or input blockers that limited this platform's scope. */
   blockers: z.array(z.string().max(400)).default([]),
+  screenMap: ScreenMap.optional(),
 });
 export type PlatformResult = z.infer<typeof PlatformResult>;
 

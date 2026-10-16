@@ -395,6 +395,7 @@ try {
       checks: agent.checks,
       findingIds: agent.findings.map((f) => f.findingId),
       blockers: agent.blockers.map((b) => b.slice(0, 400)),
+      screenMap: agent.screenMap,
     },
     findings: agent.findings,
     device: deviceProfile,

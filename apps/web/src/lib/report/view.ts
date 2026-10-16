@@ -1,4 +1,10 @@
-import { CheckResult, Finding, formatReproduction, ReportSummary } from "@tapscout/shared";
+import {
+  CheckResult,
+  Finding,
+  formatReproduction,
+  ReportSummary,
+  ScreenMap,
+} from "@tapscout/shared";
 import { z } from "zod";
 import { orderFindings } from "./summary";
 
@@ -53,6 +59,8 @@ export interface ReportView {
   checks: CheckView[];
   findings: FindingView[];
   summary: SummaryView | null;
+  /** Screens reached and observed moves per platform (docs/07 C2). */
+  maps: { platform: "android" | "ios"; map: ScreenMap }[];
 }
 
 const Stored = z.object({
@@ -62,6 +70,7 @@ const Stored = z.object({
         platform: z.enum(["android", "ios"]).optional(),
         checks: z.array(z.unknown()).default([]),
         blockers: z.array(z.string()).default([]),
+        screenMap: z.unknown().optional(),
       }),
     )
     .default([]),
@@ -76,7 +85,7 @@ const Stored = z.object({
  */
 export function reportView(data: unknown): ReportView {
   const stored = Stored.safeParse(data);
-  if (!stored.success) return { blockers: [], checks: [], findings: [], summary: null };
+  if (!stored.success) return { blockers: [], checks: [], findings: [], summary: null, maps: [] };
   const checks = stored.data.platforms.flatMap((p) =>
     p.checks.flatMap((c) => {
       const r = CheckResult.safeParse(c);
@@ -137,7 +146,14 @@ export function reportView(data: unknown): ReportView {
       ? p.blockers.map((text) => ({ platform: p.platform as "android" | "ios", text }))
       : [],
   );
+  const maps = stored.data.platforms.flatMap((p) => {
+    const map = ScreenMap.safeParse(p.screenMap);
+    return p.platform && map.success && map.data.screens.length > 0
+      ? [{ platform: p.platform as "android" | "ios", map: map.data }]
+      : [];
+  });
   return {
+    maps,
     blockers,
     checks,
     findings,

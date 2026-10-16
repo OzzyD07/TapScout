@@ -14,6 +14,7 @@ import {
   type ProposedGoal,
   type RelayResponse,
   type RunEventInput,
+  type ScreenMap,
   type SessionCounters,
   type StopReason,
   type TestAccount,
@@ -49,6 +50,7 @@ import {
   repairMessages,
   validatePlannerAnswer,
 } from "./planner.js";
+import { buildScreenMap, ScreenShots } from "./screen-map.js";
 import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
 import {
   goalReached,
@@ -156,6 +158,8 @@ export interface AgentOutcome {
   detail: string;
   blockers: string[];
   screens: number;
+  /** Screens reached and the moves between them, for the report (docs/07 C2). */
+  screenMap: ScreenMap;
   checks: CheckResult[];
   findings: Finding[];
 }
@@ -420,6 +424,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let unitScale = 1;
   /** The screen behind each evidence screenshot, for the finding review. */
   const screensByShot = new Map<string, TriageScreen>();
+  const screenShots = new ScreenShots();
   let failedActions = 0;
 
   /** Check results (selected modes only) and the session outcome. */
@@ -512,6 +517,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       detail: limited ? (walls[0] as string).slice(0, 300) : end.detail,
       blockers: [...walls, ...end.blockers],
       screens: graph.size,
+      screenMap: buildScreenMap(graph, screenShots),
       checks,
       findings,
     };
@@ -1028,6 +1034,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
       current = { snap, label: state.label, shot };
+      screenShots.note(
+        state.label,
+        shot,
+        !snap.screen.keyboardVisible && !snap.screen.dialogVisible,
+      );
       if (!unitScaleKnown) {
         unitScaleKnown = true;
         const dpi = platform === "android" ? await device.displayDensity?.() : undefined;

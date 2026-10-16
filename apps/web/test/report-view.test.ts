@@ -61,7 +61,7 @@ describe("reportView", () => {
   });
 
   it("returns empty lists for reports from before checks existed", () => {
-    const empty = { blockers: [], checks: [], findings: [], summary: null };
+    const empty = { blockers: [], checks: [], findings: [], summary: null, maps: [] };
     expect(reportView({ limitations: [] })).toEqual(empty);
     expect(reportView(null)).toEqual(empty);
   });
