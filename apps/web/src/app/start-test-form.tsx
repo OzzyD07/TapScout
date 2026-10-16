@@ -1,6 +1,6 @@
 "use client";
 
-import { MODES, type TestMode } from "@tapscout/shared";
+import { MODES, TEST_NOTE_MAX, type TestMode } from "@tapscout/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -8,6 +8,8 @@ export interface BuildOption {
   id: string;
   platform: "android" | "ios";
   label: string;
+  /** The test note given at upload, offered as this run's note. */
+  note?: string;
 }
 
 /** `builds` is newest first; the newest build of each platform is preselected. */
@@ -24,6 +26,15 @@ export function StartTestForm({ builds }: { builds: BuildOption[] }) {
   const android = byPlatform.android.find((b) => b.id === chosen.android);
   const ios = byPlatform.ios.find((b) => b.id === chosen.ios);
   const [platforms, setPlatforms] = useState({ android: Boolean(android), ios: Boolean(ios) });
+  // The note of the chosen build(s) until the user edits it.
+  const buildNote = [
+    platforms.android ? android?.note : undefined,
+    platforms.ios ? ios?.note : undefined,
+  ]
+    .filter((n, i, all): n is string => Boolean(n) && all.indexOf(n) === i)
+    .join(" ");
+  const [noteEdit, setNoteEdit] = useState<string | null>(null);
+  const note = noteEdit ?? buildNote;
   const [modes, setModes] = useState<TestMode[]>(["functional"]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -45,6 +56,7 @@ export function StartTestForm({ builds }: { builds: BuildOption[] }) {
             ...(platforms.ios && ios ? { ios: ios.id } : {}),
           },
           modes,
+          ...(note.trim() ? { testNote: note.trim() } : {}),
         }),
       });
       const body = (await res.json().catch(() => ({}))) as {
@@ -145,6 +157,22 @@ export function StartTestForm({ builds }: { builds: BuildOption[] }) {
           ))}
         </div>
       </fieldset>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-sm font-semibold">Test note (optional)</span>
+        <span className="text-xs text-muted">
+          What to focus on, in a sentence: &quot;try editing a note&quot;, &quot;the sign-in screen
+          has a demo account button&quot;. The agent treats it as a goal; it still never deletes,
+          posts or buys anything.
+        </span>
+        <textarea
+          value={note}
+          maxLength={TEST_NOTE_MAX}
+          rows={2}
+          onChange={(e) => setNoteEdit(e.target.value)}
+          className="rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+        />
+      </label>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted">

@@ -10,7 +10,10 @@ import type { ArtifactDeps } from "./artifacts";
 import { verifyGithubOidc } from "./oidc";
 import type { BootstrapContext, RunnerDeps } from "./service";
 
-const RunRow = z.object({ modes: z.array(TestMode), config: z.object({ budget: PlatformBudget }) });
+const RunRow = z.object({
+  modes: z.array(TestMode),
+  config: z.object({ budget: PlatformBudget, testNote: z.string().optional() }),
+});
 const BuildRow = z.object({
   id: z.string(),
   object_key: z.string(),
@@ -144,6 +147,7 @@ export function createRunnerDeps(): RunnerDeps {
         testAccount,
         modes: runRow.data.modes,
         budget: runRow.data.config.budget,
+        testNote: runRow.data.config.testNote || undefined,
         build: {
           buildId: buildRow.data.id,
           objectKey: buildRow.data.object_key,

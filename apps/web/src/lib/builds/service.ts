@@ -41,6 +41,7 @@ export interface BuildsDeps {
     sizeBytes: number;
     stagingKey: string;
     hasTestAccount: boolean;
+    testNote?: string;
   }): Promise<void>;
   /**
    * Encrypts and stores a test account for the build; null when the server has no
@@ -111,6 +112,7 @@ export async function createBuildUpload(
     sizeBytes: req.sizeBytes,
     stagingKey,
     hasTestAccount: Boolean(req.testAccount),
+    testNote: req.testNote || undefined,
   });
   if (req.testAccount && deps.saveTestAccount) await deps.saveTestAccount(id, req.testAccount);
   const uploadUrl = await deps.signUpload(stagingKey);

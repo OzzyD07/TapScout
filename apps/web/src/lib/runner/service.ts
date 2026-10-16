@@ -25,6 +25,8 @@ export interface BootstrapContext {
   build: { buildId: string; objectKey: string; fileName: string; sizeBytes: number };
   /** Decrypted only here, for the device runner that holds this session's lease. */
   testAccount?: TestAccount;
+  /** The tester's focus for the run (CreateRunRequest.testNote). */
+  testNote?: string;
 }
 
 /** Everything the runner endpoints need from the outside world; injected so it can be tested. */
@@ -115,6 +117,7 @@ export async function bootstrap(deps: RunnerDeps, oidcToken: string, body: unkno
     budget: context.budget,
     heartbeatIntervalSeconds: HEARTBEAT_INTERVAL_SECONDS,
     testAccount: context.testAccount,
+    testNote: context.testNote,
   });
 }
 

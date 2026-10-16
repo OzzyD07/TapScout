@@ -15,6 +15,7 @@ interface BuildRow {
   is_sample: boolean;
   created_at: string;
   has_test_account: boolean;
+  test_note: string | null;
 }
 
 interface RunRow {
@@ -37,7 +38,7 @@ export default async function Dashboard() {
     supabase
       .from("app_builds")
       .select(
-        "id, platform, app_name, file_name, sample_variant, is_sample, created_at, has_test_account",
+        "id, platform, app_name, file_name, sample_variant, is_sample, created_at, has_test_account, test_note",
       )
       .in("validation_status", ["uploaded", "accepted"])
       .order("created_at", { ascending: false })
@@ -57,6 +58,7 @@ export default async function Dashboard() {
   const options: BuildOption[] = (builds.data ?? []).map((b) => ({
     id: b.id,
     platform: b.platform,
+    note: b.test_note ?? undefined,
     label: b.is_sample
       ? `${b.app_name} (sample${b.sample_variant ? `: ${b.sample_variant}` : ""}${b.has_test_account ? ", test account" : ""})`
       : `${b.app_name} · ${b.file_name} · ${new Date(b.created_at).toLocaleDateString("en")}${b.has_test_account ? " · test account" : ""}`,

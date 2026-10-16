@@ -31,7 +31,11 @@ export async function createRun(
     );
   }
 
-  const config = { budget: DEFAULT_PLATFORM_BUDGET, reportBudget: DEFAULT_REPORT_BUDGET };
+  const config = {
+    budget: DEFAULT_PLATFORM_BUDGET,
+    reportBudget: DEFAULT_REPORT_BUDGET,
+    ...(parsed.data.testNote ? { testNote: parsed.data.testNote } : {}),
+  };
   const { data, error } = await deps.rpc("create_test_run", {
     p_owner: userId,
     p_android_build: parsed.data.builds.android ?? null,

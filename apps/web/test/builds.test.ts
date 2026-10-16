@@ -102,6 +102,24 @@ describe("createBuildUpload", () => {
     expect(noKey.insertBuild).not.toHaveBeenCalled();
   });
 
+  it("keeps a test note as one clean line of at most 300 characters", async () => {
+    const d = deps();
+    await createBuildUpload(d, USER, { ...apk, testNote: "  Focus on\n\tediting notes  " });
+    expect(d.insertBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ testNote: "Focus on editing notes" }),
+    );
+    const blank = deps();
+    await createBuildUpload(blank, USER, { ...apk, testNote: "   " });
+    expect(blank.insertBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ testNote: undefined }),
+    );
+    const long = deps();
+    await createBuildUpload(long, USER, { ...apk, testNote: "x".repeat(400) });
+    expect(long.insertBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ testNote: "x".repeat(300) }),
+    );
+  });
+
   it("limits unfinished uploads per user", async () => {
     const d = deps({ countPending: vi.fn(async () => MAX_PENDING_UPLOADS) });
     await expect(createBuildUpload(d, USER, apk)).rejects.toMatchObject({ status: 409 });

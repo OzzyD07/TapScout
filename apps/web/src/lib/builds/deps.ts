@@ -39,6 +39,7 @@ export function createBuildsDeps(): BuildsDeps {
         size_bytes: row.sizeBytes,
         staging_key: row.stagingKey,
         has_test_account: row.hasTestAccount,
+        test_note: row.testNote ?? null,
       });
       if (error) throw fail("record the build");
     },

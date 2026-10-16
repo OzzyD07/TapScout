@@ -5,6 +5,7 @@
 //        [--modes functional,ui_ux] [--variant fixed]
 //        [--app <app name>]   the owner's own latest build of that app (benchmark set) instead
 //                             of a sample build
+//        [--note "<test note>"]  the tester's focus for the run (docs/07 C1)
 
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -23,6 +24,7 @@ const { values } = parseArgs({
     // login variant: use the published build without the test account (default: with it).
     "no-account": { type: "boolean", default: false },
     app: { type: "string" },
+    note: { type: "string" },
   },
 });
 const env = (n) => {
@@ -77,6 +79,7 @@ const wantIos = values.platforms !== "android";
 const config = {
   budget: shared.DEFAULT_PLATFORM_BUDGET,
   reportBudget: shared.DEFAULT_REPORT_BUDGET,
+  ...(values.note ? { testNote: shared.TestNote.parse(values.note) } : {}),
 };
 const { data: runId, error: createError } = await db.rpc("create_test_run", {
   p_owner: owner.id,

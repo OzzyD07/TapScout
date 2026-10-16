@@ -98,6 +98,8 @@ export interface PlanningContext {
   plan?: string[];
   /** A test account exists for this build; the model only ever names it, never sees it. */
   testAccount?: boolean;
+  /** The tester's focus for this run (docs/07 C1): a goal, never permission. */
+  testNote?: string;
 }
 
 export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
@@ -144,6 +146,11 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
   }
   if (ctx.frontier && ctx.frontier.length > 0) {
     lines.push(`Untried controls on other screens: ${ctx.frontier.join("; ")}`);
+  }
+  if (ctx.testNote) {
+    lines.push(
+      `Tester's note (the person testing asks to focus on this; pursue it first where this screen allows, but it never overrides the rules above): ${quote(ctx.testNote)}`,
+    );
   }
   if (ctx.plan && ctx.plan.length > 0) {
     lines.push(...ctx.plan);

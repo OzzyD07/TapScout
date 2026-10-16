@@ -334,6 +334,7 @@ try {
         versions: runVersionStamp(boot.budget.budgetVersion),
         newId: randomUUID,
         testAccount: boot.testAccount,
+        testNote: boot.testNote,
       },
     );
   let agent = await runOnce(device);

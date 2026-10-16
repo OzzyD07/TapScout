@@ -1,6 +1,6 @@
 "use client";
 
-import type { CreateBuildUploadResponse } from "@tapscout/shared";
+import { type CreateBuildUploadResponse, TEST_NOTE_MAX } from "@tapscout/shared";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { unsupportedBuildReason } from "@/lib/builds/formats";
@@ -52,6 +52,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
   const [appName, setAppName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [note, setNote] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const platform = file ? platformOf(file) : null;
   const busy = phase.kind === "uploading" || phase.kind === "checking";
@@ -81,6 +82,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
             platform === "android" ? "application/vnd.android.package-archive" : "application/zip",
           appName: appName.trim() || file.name,
           ...(username.trim() && password ? { testAccount: { username, password } } : {}),
+          ...(note.trim() ? { testNote: note.trim() } : {}),
         }),
       });
       if (!res.ok) throw new Error(await apiError(res, "Could not start the upload."));
@@ -94,6 +96,7 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
       setAppName("");
       setUsername("");
       setPassword("");
+      setNote("");
       router.refresh();
     } catch (error) {
       setPhase({ kind: "error", message: (error as Error).message });
@@ -222,6 +225,21 @@ export function UploadBuild({ maxMb }: { maxMb: number }) {
             </p>
           ) : null}
         </fieldset>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium">Test note (optional)</span>
+          <span className="text-xs text-muted">
+            What should the test focus on? Offered again when you start a test with this build.
+          </span>
+          <input
+            type="text"
+            value={note}
+            maxLength={TEST_NOTE_MAX}
+            disabled={busy}
+            placeholder="e.g. focus on creating and editing a habit"
+            onChange={(e) => setNote(e.target.value)}
+            className="h-9 rounded-lg border border-border bg-bg px-3"
+          />
+        </label>
         {file && unsupportedBuildReason(file.name) ? (
           <p className="text-xs text-danger">{unsupportedBuildReason(file.name)}</p>
         ) : file && !platform ? (

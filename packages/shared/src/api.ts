@@ -37,6 +37,22 @@ export const TestAccount = z.object({
 });
 export type TestAccount = z.infer<typeof TestAccount>;
 
+/**
+ * A short note from the person testing ("focus on editing notes", "use the demo account on the
+ * sign-in screen"). The planner gets it as a goal, never as permission: it is data like screen text.
+ */
+export const TEST_NOTE_MAX = 300;
+export const TestNote = z
+  .string()
+  .max(TEST_NOTE_MAX * 2)
+  .transform((s) =>
+    s
+      .replace(/[\p{Cc}\p{Cf}]+/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, TEST_NOTE_MAX),
+  );
+
 /** Keys the planner may use in a `credential_ref` input. */
 export const TEST_ACCOUNT_KEYS = ["username", "password"] as const;
 
@@ -48,6 +64,7 @@ export const CreateBuildUploadRequest = z.object({
   /** The user states which builds belong to the same logical app (docs/01 §2). */
   appName: z.string().min(1).max(100),
   testAccount: TestAccount.optional(),
+  testNote: TestNote.optional(),
 });
 export type CreateBuildUploadRequest = z.infer<typeof CreateBuildUploadRequest>;
 
@@ -63,6 +80,7 @@ export const CreateRunRequest = z
   .object({
     builds: z.object({ android: Id.optional(), ios: Id.optional() }),
     modes: z.array(TestMode).min(1).max(5),
+    testNote: TestNote.optional(),
   })
   .refine((r) => r.builds.android || r.builds.ios, {
     message: "select at least one platform build",
@@ -104,6 +122,8 @@ export const RunnerBootstrapResponse = z.object({
   heartbeatIntervalSeconds: z.number().int().positive(),
   /** Only for builds with a test account; never logged or sent to a model. */
   testAccount: TestAccount.optional(),
+  /** The tester's focus for this run (see TestNote); absent when none was given. */
+  testNote: z.string().max(TEST_NOTE_MAX).optional(),
 });
 export type RunnerBootstrapResponse = z.infer<typeof RunnerBootstrapResponse>;
 

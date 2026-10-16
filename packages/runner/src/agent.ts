@@ -146,6 +146,8 @@ export interface AgentConfig {
   settleMs?: number;
   /** Test account of the build, resolved only here for `credential_ref` inputs. */
   testAccount?: TestAccount;
+  /** The tester's focus for this run (docs/07 C1); a goal for the plan and the planner. */
+  testNote?: string;
 }
 
 export interface AgentOutcome {
@@ -401,6 +403,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       }
     }
     return out;
+  }
+  // A note may quote the account ("sign in as …"); it reaches a model only scrubbed.
+  const testNote = config.testNote ? scrub(config.testNote) : undefined;
+  if (testNote) {
+    ports.emit({
+      type: "note",
+      payload: {
+        level: "info",
+        message: `Tester's note, pursued as the first goal: ${testNote}`.slice(0, 500),
+      },
+    });
   }
   let unitScaleKnown = false;
   /** Screenshot pixels per dp/pt, once known. */
@@ -1418,6 +1431,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                 .filter((e) => navigationEntry(e, controlsOf(snap.screen), snap.screen.heightPx))
                 .map((e) => `${e.ref} ${JSON.stringify(displayName(e))}`),
               testAccount: Boolean(account),
+              testNote,
               plan: testPlan ? planLines(testPlan, seenNames()) : undefined,
               frontier: ledger
                 .frontier(graph, state.label, config.modes, planTargets())
@@ -2015,7 +2029,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (screens.length < 2 && step < PLAN_AFTER_STEPS) return;
     planAsked = true;
     try {
-      const res = await ports.testPlan(testPlanMessages(platform, appId, screens));
+      const res = await ports.testPlan(testPlanMessages(platform, appId, screens, testNote));
       testPlan = parseTestPlan(res.content, screens[0]?.label);
       lastGoalStep = step;
       ports.emit({
