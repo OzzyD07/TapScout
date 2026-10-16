@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Agent loop (docs/03 §2): Observe → state graph → Plan (Nemotron via relay) → Validate → Act →
 // Evaluate, one device action at a time, inside the platform budget. Cancellation and lease loss
 // arrive through `checkpoint()`, which throws; normal endings return an outcome.
@@ -300,8 +301,12 @@ const PROBE_MIN_ACTIONS = 8;
 const MAX_STRESS_PROBES = 3;
 /** Screens checked for clipped text by the vision model per session. */
 const MAX_VISION_SCREENS = 6;
-/** Screens whose controls the vision model locates per session, when the hierarchy has none. */
-const MAX_VISUAL_SCREENS = 20;
+/**
+ * Screens whose controls the vision model locates per session, when the hierarchy has none: most
+ * of the vision budget, since such an app has no text for the clipping check (SPD 92258060 spent
+ * all 20 and the rest of its screens went unread).
+ */
+const MAX_VISUAL_SCREENS = 26;
 /** A foreground app with no elements for this long is read from its screenshots (docs/07 C3). */
 const VISUAL_LAUNCH_MS = 12_000;
 /** Looks at an empty frame of such an app before acting on it, and the pause between them. */
@@ -379,6 +384,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let visualBackLeaves = false;
   let blankPolls = 0;
   let noteHandedOver = false;
+  /** Controls located on a screenshot, by the image's hash. */
+  const locatedByImage = new Map<string, ReturnType<typeof parseVisualElements>>();
   let visualScreens = 0;
   let lastVisualStep = -1;
   let appId = device.appIdFromCapabilities();
@@ -1845,8 +1852,29 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
    * semantics) gets its controls from the vision model, located on the screenshot and tapped by
    * position. Secret, loading, keyboard and system-dialog screens are left alone.
    */
+  function applyLocated(snap: Snapshot, located: ReturnType<typeof parseVisualElements>): void {
+    const first = nextRef(snap.screen.elements);
+    snap.screen = {
+      ...snap.screen,
+      title:
+        snap.screen.title || (located.title ? `${located.title} (from screenshot)` : undefined),
+      elements: [
+        ...snap.screen.elements,
+        ...located.elements.map((e, i) => ({ ...e, ref: `el-${first + i}` })),
+      ],
+    };
+  }
+
   async function addVisualElements(snap: Snapshot, shot: string): Promise<void> {
     const screen = snap.screen;
+    if (controlsOf(screen).length > 0 || screen.interruption || screen.keyboardVisible) return;
+    // A frame seen before, pixel for pixel (a static menu), keeps the controls found on it.
+    const image = createHash("sha256").update(snap.png).digest("hex");
+    const known = locatedByImage.get(image);
+    if (known) {
+      applyLocated(snap, known);
+      return;
+    }
     if (
       controlsOf(screen).length > 0 ||
       screen.interruption ||
@@ -1871,11 +1899,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       return;
     }
     if (located.elements.length === 0) return;
-    snap.screen = {
-      ...screen,
-      title: screen.title || (located.title ? `${located.title} (from screenshot)` : undefined),
-      elements: [...screen.elements, ...located.elements],
-    };
+    locatedByImage.set(image, located);
+    applyLocated(snap, located);
     visualScreens += 1;
     if (visualScreens === 1) {
       ports.emit({

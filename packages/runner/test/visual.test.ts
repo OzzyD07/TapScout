@@ -129,7 +129,12 @@ function game(opts: { backCloses?: boolean; blankAfterLaunch?: boolean } = {}) {
     device: {
       platform: "android",
       windowSize: async () => ({ width: 1080, height: 2400 }),
-      screenshotPng: async () => png(1080, 2400),
+      // The image follows what is drawn, like a real frame: identical frames share their controls.
+      screenshotPng: async () =>
+        Buffer.concat([
+          png(1080, 2400),
+          Buffer.from(blankFrames > 0 ? "blank" : inGame ? "level" : "menu"),
+        ]),
       pageSource: async () => canvas,
       keyboardShown: async () => false,
       appState: async () => (running ? 4 : 1),
