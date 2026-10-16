@@ -378,6 +378,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   /** Back from a screen read from screenshots closed the app: games close on Back everywhere. */
   let visualBackLeaves = false;
   let blankPolls = 0;
+  let noteHandedOver = false;
   let visualScreens = 0;
   let lastVisualStep = -1;
   let appId = device.appIdFromCapabilities();
@@ -1432,6 +1433,25 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               lastGoalStep = step;
             }
           }
+          // C1: the note leads for the first half of the planner budget. Words alone did not move
+          // the planner on (04b332e8: every call after half-time stayed in notes), so the hand-over
+          // also starts a coverage tour to untried controls elsewhere.
+          if (
+            testNote &&
+            !noteHandedOver &&
+            counters.plannerCalls >= budget.maxPlannerRequests / 2
+          ) {
+            noteHandedOver = true;
+            ports.emit({
+              type: "note",
+              payload: {
+                level: "info",
+                message:
+                  "The tester's note had the first half of the run; covering the rest of the app now.",
+              },
+            });
+            if (await startTour()) continue;
+          }
           if (graph.stuckFor(4)) {
             stuckWarnings += 1;
             if (stuckWarnings > 3) {
@@ -1502,8 +1522,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                 .filter((e) => navigationEntry(e, controlsOf(snap.screen), snap.screen.heightPx))
                 .map((e) => `${e.ref} ${JSON.stringify(displayName(e))}`),
               testAccount: Boolean(account),
-              testNote,
-              noteFocus: counters.plannerCalls < budget.maxPlannerRequests / 2,
+              testNote: noteHandedOver ? undefined : testNote,
               plan: testPlan ? planLines(testPlan, seenNames()) : undefined,
               frontier: ledger
                 .frontier(graph, state.label, config.modes, planTargets())

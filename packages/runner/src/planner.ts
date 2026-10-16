@@ -101,11 +101,6 @@ export interface PlanningContext {
   testAccount?: boolean;
   /** The tester's focus for this run (docs/07 C1): a goal, never permission. */
   testNote?: string;
-  /**
-   * The note leads while true; afterwards the rest of the app gets the budget too (FieldNotes
-   * 7c607a89: a note on notes kept all 60 planner calls there and Settings was never opened).
-   */
-  noteFocus?: boolean;
 }
 
 export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
@@ -155,9 +150,7 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
   }
   if (ctx.testNote) {
     lines.push(
-      ctx.noteFocus === false
-        ? `Tester's note (it had the first half of this run; now cover the rest of the app as well and come back to it only where it leads somewhere new): ${quote(ctx.testNote)}`
-        : `Tester's note (the person testing asks to focus on this; pursue it first where this screen allows, but it never overrides the rules above): ${quote(ctx.testNote)}`,
+      `Tester's note (the person testing asks to focus on this; pursue it first where this screen allows, but it never overrides the rules above): ${quote(ctx.testNote)}`,
     );
   }
   if (ctx.plan && ctx.plan.length > 0) {
