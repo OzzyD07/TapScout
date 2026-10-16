@@ -35,7 +35,16 @@ export async function dispatchRun(
   if (claimed.error) return "pending_retry";
   const [item] = (Array.isArray(claimed.data) ? claimed.data : []) as OutboxRow[];
   if (!item) return "pending_retry";
+  return dispatchClaimed(deps, item, runId, platforms);
+}
 
+/** Dispatches an outbox item this worker has already claimed and records the outcome. */
+export async function dispatchClaimed(
+  deps: DispatchDeps,
+  item: OutboxRow,
+  runId: string,
+  platforms: "both" | "android" | "ios",
+): Promise<DispatchOutcome> {
   try {
     const { workflowRunId } = await deps.dispatchWorkflow({ runId, platforms });
     await deps.rpc("complete_outbox", {
@@ -106,6 +115,61 @@ export function githubDispatcher(config: GithubConfig): DispatchDeps["dispatchWo
   };
 }
 
+function githubHeaders(config: GithubConfig): Record<string, string> {
+  return {
+    authorization: `Bearer ${config.token}`,
+    accept: "application/vnd.github+json",
+    "x-github-api-version": "2022-11-28",
+  };
+}
+
+export interface WorkflowRunState {
+  /** queued | in_progress | completed | waiting | requested | pending */
+  status: string;
+  conclusion: string | null;
+}
+
+/** null when GitHub no longer knows the workflow run. */
+export async function getWorkflowRun(
+  config: GithubConfig,
+  workflowRunId: number,
+): Promise<WorkflowRunState | null> {
+  const fetchImpl = config.fetch ?? fetch;
+  const res = await fetchImpl(
+    `https://api.github.com/repos/${config.repository}/actions/runs/${workflowRunId}`,
+    { headers: githubHeaders(config), signal: AbortSignal.timeout(10_000) },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new GithubDispatchError(res.status, `GitHub run HTTP ${res.status}`);
+  const body = (await res.json()) as { status?: string; conclusion?: string | null };
+  return { status: body.status ?? "unknown", conclusion: body.conclusion ?? null };
+}
+
+/**
+ * Finds a qa-run workflow run already started for this TapScout run (its run-name carries the
+ * run id), so an ambiguous earlier dispatch is never followed by a second paid workflow.
+ */
+export async function findDispatchedWorkflowRun(
+  config: GithubConfig,
+  runId: string,
+  since: Date,
+): Promise<number | null> {
+  const fetchImpl = config.fetch ?? fetch;
+  const created = encodeURIComponent(`>=${new Date(since.getTime() - 60_000).toISOString()}`);
+  const res = await fetchImpl(
+    `https://api.github.com/repos/${config.repository}/actions/workflows/${config.workflowFile}/runs?event=workflow_dispatch&created=${created}&per_page=50`,
+    { headers: githubHeaders(config), signal: AbortSignal.timeout(10_000) },
+  );
+  if (!res.ok) throw new GithubDispatchError(res.status, `GitHub runs HTTP ${res.status}`);
+  const body = (await res.json()) as {
+    workflow_runs?: { id: number; display_title?: string; name?: string }[];
+  };
+  const match = (body.workflow_runs ?? []).find((r) =>
+    (r.display_title ?? r.name ?? "").includes(runId),
+  );
+  return match?.id ?? null;
+}
+
 export async function cancelWorkflowRun(
   config: GithubConfig,
   workflowRunId: number,
@@ -113,15 +177,7 @@ export async function cancelWorkflowRun(
   const fetchImpl = config.fetch ?? fetch;
   const res = await fetchImpl(
     `https://api.github.com/repos/${config.repository}/actions/runs/${workflowRunId}/cancel`,
-    {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${config.token}`,
-        accept: "application/vnd.github+json",
-        "x-github-api-version": "2022-11-28",
-      },
-      signal: AbortSignal.timeout(10_000),
-    },
+    { method: "POST", headers: githubHeaders(config), signal: AbortSignal.timeout(10_000) },
   );
   // 409 means the workflow already finished; nothing left to cancel.
   if (!res.ok && res.status !== 409) {

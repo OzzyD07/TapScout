@@ -1,4 +1,6 @@
 name: qa-run
+# The run id in the title lets the maintenance job find a workflow whose dispatch answer was lost.
+run-name: qa-run ${{ inputs.run_id }} (${{ inputs.platforms }})
 
 # A real TapScout test run, dispatched by the API after a run is created (docs/02 §4).
 # Each device job proves its identity to the API with a GitHub OIDC token, receives a lease and

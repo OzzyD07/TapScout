@@ -73,9 +73,10 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 | `202c4d49` | **İlk Nemotron agent koşusu.** İki platformda örnek uygulamanın bütün ekranları (Welcome, Create profile, Profile, Edit profile) ve Sign out dönüşü keşfedildi; reddedilen öneri 0, başarısız eylem 0; 30'ar planner çağrısı | Android oturumu 4,0 dk, iOS 7,1 dk; model ≈ $0,0056 (28–30 bin girdi / ~4,4 bin çıktı token'ı, ortalama 0,8 sn/çağrı) |
 
 **Henüz doğrulanmayanlar:**
-- Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
+- Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse dispatch başarısız olur; bakım görevi (`05` §27) yeniden dener, denemeler tükenince koşuyu "could not be started" açıklamasıyla `infrastructure_failed` yapar.
+- Bakım görevi (`/api/internal/reconcile`, Supabase Cron her dakika) canlıda henüz 200 dönmedi: Vercel'de `CRON_AUTH_SECRET` bekleniyor (§6). Kontrol: `select status_code, content from net._http_response order by created desc limit 5;`.
 
-**Testler:** 281 birim testi (shared 9, adapters 6, runner 149, web 117; 17 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 299 birim testi (shared 9, adapters 6, runner 149, web 135; 17 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -97,6 +98,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 6. Proje sahibinde bekleyenler
 
+- [ ] **Vercel'e `CRON_AUTH_SECRET` eklemek** (17 Ekim): değer yerel `.env`'de (17 Ekim'de üretildi, 32 bayt base64url) ve aynısı Supabase Vault'ta (`reconcile_cron_secret`). Eklenip yeniden deploy edilmeden bakım görevi her dakika 401 alır; takılan koşular toparlanmaz. Değer değişirse Vault da güncellenmeli: `set_reconcile_secret` RPC'si (`05` §27).
 - [x] **Vercel'e `APP_CREDENTIALS_ENCRYPTION_KEY` eklemek** (11 Ekim; `7ccf0723`'te bootstrap hesabı çözdü): değer yerel `.env`'de (11 Ekim'de üretildi, 32 bayt base64). Eklenmeden test hesabıyla yükleme "Test accounts are not enabled on this server" hatası verir. Anahtar değişirse kayıtlı hesaplar çözülemez.
 - [ ] Supabase Pro'ya geçiş (11 Ekim gecesi hâlâ alınamadı). Ardından `builds` bucket sınırı 300 MB'a çıkarılacak; iOS benchmark build'leri (Habo 65 MB, Ice Cubes 80 MB) buna bağlı.
 - [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
@@ -181,7 +183,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ### Hemen sıradaki (17 Ekim sonrası, 24 Ekim freeze'e kadar)
 
-C grubu bitti (aşağıdaki 1–3 tarihçe için duruyor). Sıradaki iş 4. madde.
+C grubu ve bakım görevi (5) bitti (aşağıdaki 1–3 tarihçe için duruyor). Sıradaki iş 4. madde, sonra 6.
 
 
 
@@ -201,7 +203,7 @@ C grubu bitti (aşağıdaki 1–3 tarihçe için duruyor). Sıradaki iş 4. madd
 **Ardından:**
 
 4. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Tarayıcıda hiç görülmeyenler: yükleme formundaki "How do I get these files?" bölümü, `.aab` reddi, **test notu alanları** (yükleme ve Start Test) ve **canlı rapordaki ekran haritası** (örnek: `e7618cf2`, `21cdf360`; telefonda da). Jüri deneyimi için kritik.
-5. **Bakım/cron** (Açık borçlar): `queued`'da takılan koşuyu ve kesilen oturumları toparlayan görev. Jüri denemesinin takılmaması için.
+5. ~~**Bakım/cron**~~ **bitti** (`05` §27): `/api/internal/reconcile` + Supabase Cron (her dakika). Bekleyen dispatch'ler (cevabı kaybolanda önce GitHub'da aranır), heartbeat'i kesilen / hiç başlamayan oturumlar, askıda kalan workflow'un iptali, yazılmamış rapor ve iptal edilen koşunun `cancelled` raporu. Canlıda çalışması için Vercel'e `CRON_AUTH_SECRET` gerekiyor (§6).
 6. **Oturumu sürdürme:** 25 eylemden sonra kopan cihaz oturumunda durumu koruyup yeni Appium oturumuyla devam etmek (seeded Android 29., Habo 50. eylemde koptu).
 7. **Planner'ın planı izlemesi:** Ultra'nın arada yön vermesi ya da hedef bazlı deterministik yönlendirme (Habo "Add", Read You 3/7).
 8. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
@@ -210,11 +212,11 @@ C grubu bitti (aşağıdaki 1–3 tarihçe için duruyor). Sıradaki iş 4. madd
 
 ### Açık borçlar
 
-- **Bakım/cron:** `/api/internal/reconcile` + Supabase Cron. Şunları üstlenecek: bekleyen outbox dispatch'leri, heartbeat'i kesilen oturumlar, rapor yeniden denemesi, cevap vermeyen runner için GitHub workflow iptali. Şu an koşu `queued`'da takılırsa elle müdahale gerekir.
+- ~~**Bakım/cron**~~ bitti (`05` §27); yalnız Vercel'de `CRON_AUTH_SECRET` bekleniyor. Açık kalan: GitHub job'u bitince oturumu hemen kapatmak için lease'in dolmasını beklememek (şimdi rapor job'u kapatıyor; o da çalışmazsa bakım görevi en geç ~10 dk'da).
 - **Build yükleme:** resumable (TUS) yükleme yok; 50 MB Free sınırında tek PUT yeterli. Pro'dan sonra bucket sınırı 300 MB ve Vercel'e `STORAGE_BUILDS_MAX_BYTES`.
 - **Agent ayrıntıları:** profil başlığı kullanıcı verisini içeriyor ("Hi, Alex Doe") ve parmak izine giriyor; ad değişince yeni durum sayılabilir. Rapor agent sayaçlarını ve geçişleri özetlemiyor.
 - **Kalite pilotu ve teslim (F4–F5):** `05` §6 (jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §4 C durumunu ve §7'yi, `docs/05-v1-plan.md` §21–§26'yı oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7, B10, B11 (triyaj ve test planı) ve **C grubu bitti** (`05` §26): test notu (C1; ilgili akışa 8. eylemde ulaşılıyor, yarıda devrediliyor), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3; Shattered Pixel Dungeon artık açılıp geziliyor). Notsuz seeded `e7618cf2` iki platformda 6/6. $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 madde 4: gerçek kullanıcı build'iyle uçtan uca deneme (test notu alanları ve canlı ekran haritası tarayıcıda hiç görülmedi), sonra bakım/cron ve oturumu sürdürme. Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §4 C durumunu ve §7'yi, `docs/05-v1-plan.md` §21–§27'yı oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7, B10, B11 (triyaj ve test planı) ve **C grubu bitti** (`05` §26): test notu (C1; ilgili akışa 8. eylemde ulaşılıyor, yarıda devrediliyor), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3; Shattered Pixel Dungeon artık açılıp geziliyor). Notsuz seeded `e7618cf2` iki platformda 6/6. $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 madde 4: gerçek kullanıcı build'iyle uçtan uca deneme (test notu alanları ve canlı ekran haritası tarayıcıda hiç görülmedi), sonra oturumu sürdürme. Bakım görevi (`/api/internal/reconcile` + Supabase Cron, `05` §27) bitti; Vercel'de `CRON_AUTH_SECRET` eklenmeden canlıda 401 alır (§6). Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.

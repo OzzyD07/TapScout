@@ -75,9 +75,21 @@ export async function reportRun(
     }
   }
 
+  return writeReport(deps, runId, identity.runId);
+}
+
+/**
+ * Takes the report lease and saves the deterministic report (plus model summary) once. Shared by
+ * the report job and the maintenance job, which passes no workflow run id.
+ */
+export async function writeReport(
+  deps: Pick<ReportDeps, "rpc" | "loadContext" | "summarize">,
+  runId: string,
+  githubRunId: number | null,
+): Promise<ReportOutcome> {
   const lease = await deps.rpc("acquire_report_lease", {
     p_run_id: runId,
-    p_github_run_id: identity.runId,
+    p_github_run_id: githubRunId,
     p_lease_seconds: 300,
   });
   if (lease.error) {

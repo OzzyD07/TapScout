@@ -801,3 +801,37 @@ Kaçan tohumlar her zaman notun dışındaki alanlar: Edit profile kalıcılığ
 - Derinliği MiniCPM-V'nin konumlandırması sınırlıyor. FieldNotes'un düz arayüzünde noktalar doğru; piksel sanatı bir oyunda küçük hedeflerde y ~%7 kayıyor. Dokunuş "ekran değişmedi" diye kayda geçiyor, yanlış bir başarı sayılmıyor.
 - FieldNotes'ta C3 hiç tetiklenmedi (10 oturum, 0 "no accessibility information" notu).
 - Açık: konum hatası için dokunuştan sonra değişmeyen ekranda noktayı kaydırarak ikinci deneme ya da kırpılmış görüntüyle ikinci bir soru. Semantics'i kapalı bir Flutter örneği henüz ölçülmedi.
+
+## 27. Bakım görevi: `/api/internal/reconcile` + Supabase Cron (17 Ekim 2026)
+
+**Neden.** Dispatch'i başarısız olan koşu `queued`'da, runner'ı ölen oturum `exploring`'de, rapor job'u çalışmayan koşu `running`'de kalıyordu. İptal edilen koşunun da sonucu hiç yazılmıyordu: rapor job'u iptal edilmiş koşuyu atlıyor, `request_run_cancel` yalnız hiç başlamamış oturumları kapatıyordu.
+
+**Nasıl çağrılır:**
+- Supabase Cron her dakika `tapscout-reconcile` işini çalıştırır (migration `20261016214943`, `pg_cron` + `pg_net`). `net.http_post`, `https://tap-scout-zeta.vercel.app/api/internal/reconcile` adresine `Authorization: Bearer <CRON_AUTH_SECRET>` gönderir.
+- Sır Vault'ta (`reconcile_cron_secret`) durur. Yalnız service_role'ün çağırabildiği `set_reconcile_secret` ile `.env`'den yazılır; migration'da yer almaz.
+- Route sırrı sabit sürede karşılaştırır (sha256 + `timingSafeEqual`). Vercel'de `CRON_AUTH_SECRET` yoksa her çağrı 401 alır ve hiçbir şey yapılmaz.
+
+**Ne yapar** (`apps/web/src/lib/reconcile/service.ts`). Bir çağrıda en çok 25 aktif koşuya, 5 outbox öğesine, 3 rapora ve 12 GitHub isteğine bakar; 40 sn'den sonra yeni iş başlatmaz:
+1. **Outbox** (`claim_outbox`, SKIP LOCKED):
+   - `dispatch_run`: koşu iptal edildiyse ya da bittiyse öğe `terminal` olur. Workflow kimliği zaten biliniyorsa yeniden dispatch edilmez, `dispatched` olarak kapanır.
+   - İkinci denemeden itibaren önce GitHub'da bu koşunun workflow'u aranır. `qa-run.yml`'e `run-name: qa-run <run_id> (…)` eklendi; böylece cevabı kaybolan bir dispatch ikinci ücretli workflow açmaz. GitHub'a bakılamıyorsa öğe yeniden denemeye kalır.
+   - Bunlardan hiçbiri değilse API ile aynı `dispatchClaimed` çağrılır.
+   - `cancel_run`: runner'a durması için 3 dk verilir. Oturum hâlâ açıksa workflow iptal edilir.
+2. **Oturumlar:** lease'i 5 dk'dan uzun süredir dolmuş ya da hiç lease almamış açık oturumlar için GitHub workflow durumuna bakılır. `fail_session_without_lease` ile şu oturumlar kapatılır:
+   - workflow bitmiş: "The device job ended without reporting a result."
+   - runner 5 dk'dan uzun süredir heartbeat göndermiyor: "The device runner stopped answering".
+   - dispatch denemeleri tükenmiş: "could not be started on GitHub Actions".
+   - 60 dk içinde hiçbir runner işi almamış.
+   - Kullanıcının iptal ettiği koşuda oturum `cancelled` olarak kapanır.
+
+   Askıda kalan runner'ın koşusunda başka canlı oturum yoksa workflow iptal edilir. Raporu bakım görevi yazar, çünkü iptal edilen workflow'un rapor job'u çalışmaz.
+3. **Raporlar:** bütün oturumları bitmiş ve raporu olmayan koşular:
+   - Normal koşuda rapor job'una son oturumun bitişinden sonra 5 dk tanınır. Ardından rapor `writeReport` ile (rapor job'uyla aynı kod, aynı rapor lease'i, workflow kimliği olmadan) yazılır.
+   - İptal edilen koşuda deterministik `cancelled` raporu kaydedilir (`save_report`, attempt'siz). Koşu böylece `cancelled` olur.
+
+**İdempotentlik.** Örtüşen çağrıları claim ayırır. Oturum yalnız terminal değilse kapanır, rapor yalnız lease alınabilirse yazılır. "report already exists" sessizce atlanır.
+
+**Doğrulama:**
+- 18 birim testi (`apps/web/test/reconcile.test.ts`).
+- Canlı DB'de aktif koşu sorgusu (PostgREST gömülü seçimi) 200 döndü. Cron işi `active`, Vault sırrı kayıtlı.
+- Uçtan uca: route Vercel'e çıkıp `CRON_AUTH_SECRET` eklendikten sonra `net._http_response`'ta 200 görülmeli.
