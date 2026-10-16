@@ -1460,7 +1460,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                   "The tester's note had the first half of the run; covering the rest of the app now.",
               },
             });
-            if (await startTour()) continue;
+            // More rows of the same list are not the rest of the app (iOS 6dce4103 headed for
+            // another note).
+            if (await startTour({ elsewhere: true })) continue;
           }
           if (graph.stuckFor(4)) {
             stuckWarnings += 1;
@@ -2244,7 +2246,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     }
   }
 
-  async function startTour(): Promise<boolean> {
+  /** `elsewhere`: list rows are left out, so the tour heads for another part of the app. */
+  async function startTour(opts: { elsewhere?: boolean } = {}): Promise<boolean> {
     const from = current?.label;
     if (!from) return false;
     const noLinks = relaunches >= MAX_RELAUNCHES - 1;
@@ -2255,7 +2258,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           !pickers.has(c.screenLabel) &&
           !toured.has(c.id) &&
           !unreachable.has(c.screenLabel) &&
-          !(noLinks && c.role === "link"),
+          !(noLinks && c.role === "link") &&
+          !(
+            opts.elsewhere &&
+            familyOf({ role: c.role as UiElement["role"], stableId: c.identity.stableId })
+          ),
       );
     // Several candidates can sit on one unreachable screen (benchmark run aa5045dc gave up after
     // two buttons of a dialog while the main screen still had untried controls): keep going until
