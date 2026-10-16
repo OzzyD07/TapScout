@@ -1,0 +1,33 @@
+{
+  "key": "shattered-pixel-dungeon",
+  "app": "Shattered Pixel Dungeon",
+  "stack": "Java, libGDX (OpenGL)",
+  "source": "https://github.com/00-Evan/shattered-pixel-dungeon (F-Droid 4.0.2)",
+  "license": "GPL-3.0-only",
+  "platforms": ["android"],
+  "android": {
+    "package": "com.shatteredpixel.shatteredpixeldungeon"
+  },
+  "access": "open",
+  "traits": [
+    "drawn entirely in OpenGL: the accessibility hierarchy has no controls on any screen (docs/07 C3)",
+    "no sign-in, no network needed to play"
+  ],
+  "screensSource": "core/src/main/assets/messages/scenes/scenes.properties at v4.0.2 (title screen buttons and scene titles). The hierarchy holds none of these texts, so hierarchy markers cannot match: reached screens are read from the run's screen map (labels the vision model gave, \"… (from screenshot)\") and its screenshots.",
+  "screens": [
+    {
+      "id": "title",
+      "name": "Title (Enter the Dungeon, Rankings, Journal, News, Changes, Settings, About)",
+      "any": ["Enter the Dungeon"]
+    },
+    { "id": "hero_select", "name": "Choose Your Hero", "any": ["Choose Your Hero"] },
+    { "id": "rankings", "name": "Rankings", "any": ["Rankings"] },
+    { "id": "journal", "name": "Journal", "any": ["Journal"] },
+    { "id": "news", "name": "Game News", "any": ["Game News"] },
+    { "id": "changes", "name": "Change History", "any": ["Change History"] },
+    { "id": "settings", "name": "Settings", "any": ["Settings"] },
+    { "id": "about", "name": "About", "any": ["About"] }
+  ],
+  "knownIssues": [],
+  "verdicts": []
+}

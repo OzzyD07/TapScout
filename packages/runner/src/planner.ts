@@ -73,6 +73,7 @@ export function describeElement(e: UiElement): string {
   if (!e.enabled) parts.push("[disabled]");
   if (!e.visible) parts.push("[under keyboard]");
   if (e.focused) parts.push("[focused]");
+  if (e.platformClass === "vision") parts.push("[located on the screenshot]");
   return parts.join(" ");
 }
 

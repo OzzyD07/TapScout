@@ -69,6 +69,7 @@ import {
   triageItem,
   triageMessages,
 } from "./triage.js";
+import { isVisual, nextRef, parseVisualElements, VISUAL_TAPS_PROMPT } from "./visual.js";
 
 /** The subset of DeviceSession the loop uses; a fake implements it in tests. */
 export interface AgentDevice {
@@ -299,6 +300,10 @@ const PROBE_MIN_ACTIONS = 8;
 const MAX_STRESS_PROBES = 3;
 /** Screens checked for clipped text by the vision model per session. */
 const MAX_VISION_SCREENS = 6;
+/** Screens whose controls the vision model locates per session, when the hierarchy has none. */
+const MAX_VISUAL_SCREENS = 20;
+/** A foreground app with no elements for this long is read from its screenshots (docs/07 C3). */
+const VISUAL_LAUNCH_MS = 12_000;
 /** Texts at least this long make a screen worth a visual clipping check. */
 const LONG_TEXT = 40;
 /** Measured on runs 2ce8b240 / 4cc0a298: the model writes "..." for intentional ellipses. */
@@ -365,6 +370,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let goalsReached = 0;
   let lastGoalStep = 0;
   let planAsked = false;
+  /** C3: vision calls that located controls, screens where some were found, and the last step. */
+  let visualCalls = 0;
+  let visualScreens = 0;
+  let lastVisualStep = -1;
   let appId = device.appIdFromCapabilities();
   let lastShot: string | undefined;
   const timing = new Map<string, { total: number; count: number }>();
@@ -515,7 +524,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       ...end,
       stopReason: limited ? "access_blocked" : end.stopReason,
       detail: limited ? (walls[0] as string).slice(0, 300) : end.detail,
-      blockers: [...walls, ...end.blockers],
+      blockers: [
+        ...walls,
+        ...end.blockers,
+        ...(visualScreens > 0
+          ? [
+              `${visualScreens === 1 ? "One screen" : `${visualScreens} screens`} exposed no accessibility information: their controls were located on screenshots by the vision model and tapped by position, so accessibility and layout checks could not measure them.`,
+            ]
+          : []),
+      ],
       screens: graph.size,
       screenMap: buildScreenMap(graph, screenShots),
       checks,
@@ -635,6 +652,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let first: Snapshot | null = null;
   let last: Snapshot | null = null;
   let interruptions = 0;
+  let emptySince: number | undefined;
   try {
     while (ports.now() < launchDeadline) {
       ports.checkpoint();
@@ -648,6 +666,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       if (last.appForeground && last.screen.elements.length > 0) {
         first = last;
         break;
+      }
+      // C3: an app in front that keeps showing no elements at all draws its own interface (a
+      // game, Flutter without semantics); the vision model reads that screen instead.
+      if (last.appForeground && !last.screen.loading) {
+        emptySince ??= ports.now();
+        if (ports.now() - emptySince >= VISUAL_LAUNCH_MS) {
+          first = last;
+          break;
+        }
+      } else {
+        emptySince = undefined;
       }
       await ports.sleep(2_000);
     }
@@ -822,8 +851,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     switch (action.type) {
       case "tap": {
         if (!target) throw new Error("tap without target");
-        // iOS element queries cost ~1 s each; the bounds were observed a moment ago.
-        if (platform === "ios" && target.visible) {
+        // iOS element queries cost ~1 s each; the bounds were observed a moment ago. A control
+        // located on the screenshot has no element to find.
+        if ((platform === "ios" && target.visible) || isVisual(target)) {
           const p = center(target);
           await device.tapAt(p.x, p.y);
           return;
@@ -838,7 +868,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       }
       case "type": {
         if (!target) throw new Error("type without target");
-        let found = await resolve(target);
+        let found = isVisual(target) ? null : await resolve(target);
         if (!found && device.focusedField) {
           // No locator matches (a Flutter field has only a hint): focus it where it was seen.
           const p = center(target);
@@ -1030,6 +1060,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
 
       const observationId = `obs-${step}`;
       const shot = await record(`step-${step}`, snap, step);
+      // Checks measure only what the hierarchy reports; located controls are estimates.
+      const measured = snap.screen;
+      if (snap.appForeground) await addVisualElements(snap, shot);
       const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
       const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
@@ -1046,9 +1079,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         modeTracker.setUnitScale(unitScale);
       }
       if (snap.appForeground) {
-        modeTracker.observe(state.label, snap.screen, shot, step);
+        modeTracker.observe(state.label, measured, shot, step);
         ledger.note(state.label, controlsOf(snap.screen), snap.screen.heightPx);
-        access.observe(state.label, snap.screen, shot);
+        access.observe(state.label, measured, shot);
       }
       if (isNew) lastNewStateStep = step;
       counters.screensObserved = graph.visited().filter((s) => s.fingerprint !== OFF_APP).length;
@@ -1412,6 +1445,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             let visionNote: string | undefined;
             if (
               isNew &&
+              lastVisualStep !== step &&
               snap.screen.elements.length < 3 &&
               !snap.screen.secretsVisible &&
               counters.visionCalls < budget.maxVisionRequests
@@ -1658,7 +1692,13 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     await ports.sleep(action.type === "relaunch" ? 3_000 : (config.settleMs ?? 800));
     let snap = await observe();
     let crashDialog: string | undefined;
-    for (let i = 0; i < 4 && (snap.screen.interruption || snap.screen.elements.length === 0); i++) {
+    // A screen read from screenshots has no elements; waiting would not bring any (C3).
+    const awaitElements = visualScreens === 0;
+    for (
+      let i = 0;
+      i < 4 && (snap.screen.interruption || (awaitElements && snap.screen.elements.length === 0));
+      i++
+    ) {
       if (snap.screen.interruption?.kind === "crash") {
         crashDialog = snap.screen.interruption.title || "the app stopped";
       }
@@ -1744,6 +1784,58 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     } catch (error) {
       ports.log(`crash log not captured: ${(error as Error).message}`);
       return undefined;
+    }
+  }
+
+  /**
+   * C3: a screen in front with no control the hierarchy can name (a game, Flutter without
+   * semantics) gets its controls from the vision model, located on the screenshot and tapped by
+   * position. Secret, loading, keyboard and system-dialog screens are left alone.
+   */
+  async function addVisualElements(snap: Snapshot, shot: string): Promise<void> {
+    const screen = snap.screen;
+    if (
+      controlsOf(screen).length > 0 ||
+      screen.interruption ||
+      screen.keyboardVisible ||
+      screen.secretsVisible ||
+      screen.loading ||
+      visualCalls >= MAX_VISUAL_SCREENS ||
+      counters.visionCalls >= budget.maxVisionRequests
+    ) {
+      return;
+    }
+    visualCalls += 1;
+    counters.visionCalls += 1;
+    lastVisualStep = step;
+    let located: ReturnType<typeof parseVisualElements>;
+    try {
+      await ports.evidenceReady?.(shot);
+      const res = await ports.vision(shot, VISUAL_TAPS_PROMPT);
+      located = parseVisualElements(res.content, screen, nextRef(screen.elements));
+    } catch (error) {
+      ports.log(`locating controls failed: ${(error as Error).message}`);
+      return;
+    }
+    if (located.elements.length === 0) return;
+    snap.screen = {
+      ...screen,
+      title: screen.title || (located.title ? `${located.title} (from screenshot)` : undefined),
+      elements: [...screen.elements, ...located.elements],
+    };
+    visualScreens += 1;
+    if (visualScreens === 1) {
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "info",
+          message:
+            `This screen exposes no accessibility information: the vision model located ${located.elements.length} controls on its screenshot (${located.elements.map((e) => e.label).join(", ")}), and the agent taps them by position.`.slice(
+              0,
+              500,
+            ),
+        },
+      });
     }
   }
 

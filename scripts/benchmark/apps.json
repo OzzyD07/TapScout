@@ -126,6 +126,22 @@
         "scheme": "IceCubesApp",
         "arch": "arm64"
       }
+    },
+    {
+      "key": "shattered-pixel-dungeon",
+      "name": "Shattered Pixel Dungeon",
+      "stack": "Java, libGDX (OpenGL; no accessibility tree)",
+      "license": "GPL-3.0-only",
+      "source": "https://github.com/00-Evan/shattered-pixel-dungeon",
+      "purpose": "docs/07 C3: a game drawn entirely in OpenGL; the hierarchy shows no controls, so the agent can only use controls the vision model locates on screenshots.",
+      "android": {
+        "kind": "fdroid",
+        "package": "com.shatteredpixel.shatteredpixeldungeon",
+        "versionCode": 922,
+        "versionName": "4.0.2",
+        "abi": "universal",
+        "sha256": "ceef4cdd4beddcb3d85379ac004cb4ab5d918b89dc7366b4ce9c4a3585a5e78e"
+      }
     }
   ]
 }
