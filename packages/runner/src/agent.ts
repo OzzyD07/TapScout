@@ -662,7 +662,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   // ---- Preparation: wait for a usable first screen (system dialogs are dismissed, not explored).
-  const launchDeadline = ports.now() + (config.launchTimeoutMs ?? 90_000);
+  const sessionStart = ports.now();
+  const launchDeadline = sessionStart + (config.launchTimeoutMs ?? 90_000);
   let first: Snapshot | null = null;
   let last: Snapshot | null = null;
   let interruptions = 0;
@@ -1440,13 +1441,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
               lastGoalStep = step;
             }
           }
-          // C1: the note leads for the first half of the planner budget. Words alone did not move
-          // the planner on (04b332e8: every call after half-time stayed in notes), so the hand-over
-          // also starts a coverage tour to untried controls elsewhere.
+          // C1: the note leads for the first half of the planner budget or of the session's time,
+          // whichever ends first (iOS 21cdf360 ran out of time after 29 of 60 calls). Words alone
+          // did not move the planner on (04b332e8: every call after half-time stayed in notes), so
+          // the hand-over also starts a coverage tour to untried controls elsewhere.
           if (
             testNote &&
             !noteHandedOver &&
-            counters.plannerCalls >= budget.maxPlannerRequests / 2
+            (counters.plannerCalls >= budget.maxPlannerRequests / 2 ||
+              ports.now() >= sessionStart + (config.softDeadline - sessionStart) / 2)
           ) {
             noteHandedOver = true;
             ports.emit({
