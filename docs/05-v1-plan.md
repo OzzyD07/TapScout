@@ -726,3 +726,78 @@ Sonuç: plan doğru şeyi söylüyor, ama Lightning planner onu izlemiyor. Kapsa
 **Açık:**
 - Uzun oturumlarda adb/Appium kopmaları 25 eylemden sonra gelebiliyor (seeded Android 29., Habo 50.). Kalıcı çözüm oturumu kaldığı yerden sürdürmek: durum korunur, yeni Appium oturumu açılır, keşif devam eder.
 - Planner'ın planı izlemesi için daha güçlü bir mekanizma gerekiyor: Ultra'nın arada bir yönlendirme yapması ya da hedef bazlı deterministik yönlendirme.
+
+## 26. C grubu: test notu, ekran haritası, erişilebilirlik bilgisi olmayan arayüzler (16 Ekim 2026)
+
+### C1 Test notu
+
+**Ne yapıyor.** Yüklemede ve Start Test'te isteğe bağlı kısa not ("notları düzenlemeye odaklan", "giriş ekranındaki demo hesabını kullan"):
+- Yüklemedeki not build'de saklanır (`app_builds.test_note`, migration `20261016194825`). Start Test seçilen build'in notunu doldurur, kullanıcı değiştirebilir. Koşu kendi kopyasını `test_runs.config.testNote`'ta tutar; bootstrap runner'a verir.
+- Not tek satıra indirilir, kontrol karakterleri atılır, en çok 300 karakter (`TestNote`, shared). Test hesabının değerleri modele gitmeden önce nottan da silinir.
+- Test planı (Ultra) notu tırnak içinde veri olarak görür: yasak bir şey istemiyorsa ilk hedef `tester-note` olur; model başka yere koysa da sıralama onu öne alır.
+- Planner notu, planner bütçesinin ya da oturum süresinin yarısına kadar her adımda görür: "odaklanılacak yer, kuralları asla geçersiz kılmaz". Sonrası aşağıda (devir). Yıkıcı, dil ve dışa dönük kurallar nottan bağımsız çalışır (doğrulayıcı ve kapsam turu nota bakmaz).
+- Timeline'a "Tester's note, pursued as the first goal: …" notu düşer. `dev-run.mjs --note`.
+
+**Ölçüm** (FieldNotes seeded; not: "Focus on the notes: add a note, then open My notes again to check it was saved."). Önceki seeded/fixed koşularda "Add note"a ilk dokunuşun eylem sırası:
+
+| Koşu | Not | Android: "Add note" / seeded | iOS: "Add note" / seeded | Değişiklik |
+|---|---|---|---|---|
+| önceki 7 oturum (11–13 Ekim) | yok | 35, 29, 32, hiç (adb koptu) | 14, 28, 26 | — |
+| `e7618cf2` | yok | 31 / **6/6** | 12 / **6/6** | bugünkü runner'ın gerileme koşusu |
+| `7c607a89` | var | **8** / 4/6 | **8** / 4/6 | not her adımda; 60 çağrının hepsi notlarda |
+| `04b332e8` | var | 11 / 4/6 | 8 / 4/6 | yarıdan sonra not "yumuşatıldı": planner yine notlarda kaldı |
+| `21cdf360` | var | 8 / **6/6** | 8 / 4/6 | yarıda not geri çekilir + kapsam turu; iOS süre yüzünden yarıya varmadı |
+| `6dce4103` | var | — | 8 / 4/6 | süre yarısında da devir; tur yine bir not satırına gitti |
+| `5cd993bb` | var | — | 8 / **5/6** | devir turu liste satırlarını atlar; Edit profile'a ulaşıldı, Settings kaçtı |
+
+Kaçan tohumlar her zaman notun dışındaki alanlar: Edit profile kalıcılığı ve Settings'teki hesap silme. İlk koşuda not o kadar güçlü çalıştı ki uygulamanın kalanı hiç açılmadı. Lightning planner "artık başka yerlere de bak" cümlesine uymadı; devrin bir eylem olması gerekti:
+- Not, planner bütçesinin ya da oturum süresinin yarısına (hangisi önce gelirse) kadar öne çıkar.
+- Sonra timeline'a "The tester's note had the first half of the run" yazılır, planner notu artık görmez ve bir kapsam turu liste satırları dışındaki denenmemiş bir kontrole gider.
+
+**Sonuç:** not, ilgili akışa ulaşmayı 26–35. eylemden 8. eyleme indirdi (6 oturumda 6'sı). Android notla 6/6; iOS'ta süre sınırı içinde 5/6 (iOS seeded notsuz da 5/6–6/6 arasında oynuyor). Notsuz gerileme koşusu `e7618cf2` iki platformda **6/6**, beklenmeyen bulgu 0.
+
+### C2 Ekran haritası
+
+**Ne yapıyor.** Runner, platform sonucuna sınırlı bir `screenMap` ekler (`packages/runner/src/screen-map.ts`, sözleşme `ScreenMap`):
+- Ekran adı başına bir düğüm: ziyaret sayısı, ilk görüldüğü adım ve klavyesiz/diyalogsuz ilk ekran görüntüsü. En çok 40 ekran; fazlası varsa ilk ulaşılanlar kalır.
+- Kenarlar `StateGraph.edges`'ten gelir: adlı ekranlar arası tap ve back. En çok 120. Tap'ın adı kontrolün etiketidir; metin alanının metni (yazılan değer) hiçbir zaman ad olmaz.
+- Rapor haritayı yalnız sözleşmeye uyuyorsa saklar; uymayan harita raporu bozmaz.
+
+**Görünüm** (`runs/[id]/screen-map.tsx`, yerleşim `lib/report/screen-map-layout.ts`):
+- Sütunlar ilk ekrandan gözlenen geçişlerle uzaklığa göre (BFS), sütun içinde ilk ulaşılma sırası; sütun başına en çok 4 ekran, fazlası yan sütuna.
+- Bir tap'ı geri alan back çizilmez. Birden çok sütun atlayan geçişler ekranların altındaki ayrı şeritlerden ve sütun aralıklarından gider, hiçbir ekranın üstünden geçmez.
+- Küçük resme dokununca ekran görüntüsü telefon çerçevesinde açılır ve görünür alana kaydırılır (bulgu kanıtları da artık kaydırıyor).
+- Canlı koşularda harita her FieldNotes oturumunda 5–9 ekran ve 5–14 geçiş taşıdı; her düğümün ekran görüntüsü var.
+- Görünüm masaüstünde ve 375 px'te yerel önizlemeyle (örnek veriyle) kontrol edildi: sayfa yatay kaymıyor, harita kendi kutusunda kayıyor, telefonda "Swipe sideways" ipucu. Canlı bir raporda tarayıcıda henüz görülmedi (giriş gerekli).
+
+### C3 Erişilebilirlik bilgisi olmayan arayüzler
+
+**Sorun.** OpenGL ile çizilen oyunlar ve semantics'i kapalı Flutter uygulamaları cihaza dokunulacak hiçbir öğe göstermez. Eskiden oturum açılışta "No app screen with interactive elements appeared" ile `access_blocked` biterdi.
+
+**Ne yapıyor** (`packages/runner/src/visual.ts`):
+- Önde olan ve 12 sn boyunca hiç öğe göstermeyen (yükleme göstergesi de olmayan) uygulama başlatılmış sayılır.
+- Hierarchy'nin adlandırabildiği hiçbir kontrol olmayan ekranda (klavye, sistem diyaloğu, gizli alan ve yükleme yoksa) MiniCPM-V'ye ekran görüntüsü gider. Model kontrollerin adını ve merkez noktasını (0–1000) döndürür. Bunlar `platformClass: "vision"` olan "görsel" öğeler olur; planner onları `[located on the screenshot]` işaretiyle görür.
+- Görsel öğeye dokunuş koordinatla yapılır (locator aranmaz); metin alanına yazmak için önce noktaya dokunulup odaktaki alana yazılır.
+- Görsel öğeler tahmindir: hiçbir kontrol (etiket, dokunma alanı, klavye, kırpılma) onları ölçmez; mod kontrolleri hierarchy'nin kendi ekranını görür. Rapor "N screens exposed no accessibility information …" satırını engel olarak yazar.
+- Oturum başına en çok 20 çağrı, vision bütçesinden.
+
+**Biçim ölçümü** (16 Ekim; FieldNotes ekran görüntüleri ve aynı adımın hierarchy'si, Android 1080×2400):
+- Merkez noktası istendiğinde 4 ekrandaki her kontrolün noktası gerçek sınırların içinde kaldı (Continue 499,942 → gerçek merkez 500,947; geri oku 62,83 → 68,87). x geniş alanlarda sol kenara yakın, y hassas.
+- Kutu istendiğinde model ikonları atladı ve bazı alanlarda alanın yerine başlığını kutuladı (Email kutusunun merkezi alanın üstünde kalıyordu).
+- Model aynı istemde sayıları bazen dizi, bazen metin yazıyor; ayrıştırıcı ikisini de okur, sistem çubuklarını (üst %3,5, alt %1,5) ve adsız öğeleri atar.
+- Çağrı ≈ 1–1,5 sn, ≈ 750 girdi / 80–160 çıktı token'ı. Klavye açıkken klavye tuşlarını da listeliyor; bu yüzden klavyeli ekranda çağrı yapılmaz.
+
+**Ölçüm: Shattered Pixel Dungeon 4.0.2** (F-Droid, libGDX, her şey OpenGL; hierarchy'de hiçbir kontrol yok). Sete eklendi (`scripts/benchmark/apps.json`, `quality/benchmark/shattered-pixel-dungeon.json`). Ana ekran listesi oyunun kaynak metinlerinden; hierarchy işaretleri burada eşleşemez, ulaşılan ekranlar haritadan ve ekran görüntülerinden okunur. C3'ten önce bu oturum açılışta `access_blocked` biterdi.
+
+| Koşu | Sonuç | Ulaşılan | Ne öğretti → düzeltme |
+|---|---|---|---|
+| `59a1dc45` | `access_blocked` ("left the foreground repeatedly"), 18 eylem | giriş (intro), kahraman seçimi | Oyun Geri'de kapanıyor; yeniden başlatmadan sonraki kare simsiyah, ona da Geri basıldı → Geri bir kez uygulamayı kapattıysa ekran görüntüsünden okunan ekranlarda Geri yok (kontrol ya da 1,5 sn bekleme); boş kare 3 kez yeniden gözlenir |
+| `92258060` | `goals_exhausted`, 41 eylem, 49 planner çağrısı | intro, ana menü, kahraman seçimi, Warrior, kahraman bilgisi (5 adlı ekran) | 20 bulma çağrısının hepsi tekrar ziyaretlere gitti → aynı kare (hash) kontrollerini yeniden kullanır; sınır 26 |
+| `6ca7c65f` | `goals_exhausted`, 31 eylem | ana menü, kahraman seçimi | Takılma çıkışı Geri'yi doğrudan basıp oyunu iki kez daha kapattı; kahraman sırası tek "selection" kontrolü okundu → takılma çıkışı bu durumda kaydırır; istem "bir ikon sırası birden çok kontroldür" der |
+| `7c5b77d1` | `goals_exhausted`, 27 eylem | ana menü, kahraman seçimi | Oyun yalnız bir kez (beklenen ilk Geri'de) kapandı. Kahramanlar ayrı ayrı bulundu, ama noktaları portrelerin ~%7 üstündeki başlığa düşüyor: kahraman seçilemiyor |
+
+**Dürüst değerlendirme:**
+- C3 bu tür uygulamaları "hiç açılmıyor"dan "açılıp gezilebiliyor"a getirdi. Her koşu tamamlandı (`goals_exhausted`), engel satırı ölçülemeyen ekran sayısını söylüyor, bulgu uydurulmadı (4 koşuda 0 bulgu).
+- Derinliği MiniCPM-V'nin konumlandırması sınırlıyor. FieldNotes'un düz arayüzünde noktalar doğru; piksel sanatı bir oyunda küçük hedeflerde y ~%7 kayıyor. Dokunuş "ekran değişmedi" diye kayda geçiyor, yanlış bir başarı sayılmıyor.
+- FieldNotes'ta C3 hiç tetiklenmedi (10 oturum, 0 "no accessibility information" notu).
+- Açık: konum hatası için dokunuştan sonra değişmeyen ekranda noktayı kaydırarak ikinci deneme ya da kırpılmış görüntüyle ikinci bir soru. Semantics'i kapalı bir Flutter örneği henüz ölçülmedi.

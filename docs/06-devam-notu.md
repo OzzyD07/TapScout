@@ -1,6 +1,6 @@
 # TapScout — Devam Notu (yeni oturum için)
 
-Tarih: 13 Ekim 2026 (B11 triyaj ve B11-2 test planı sonrası)  
+Tarih: 17 Ekim 2026 (C grubu sonrası: test notu, ekran haritası, görsel dokunuş)  
 Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir, sıradaki işin planı `07`'dedir. Bu not durum özeti ve çalışma kurallarıdır.
 
 ## 1. Proje ve takvim
@@ -17,7 +17,8 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (13 Ekim):** G3 karşılandı; ölçüm setinde altıncı tur, B11 bulgu triyajı (Nemotron Ultra bulguları gözden geçiriyor; yanlış pozitiflerin ~%64'ünü indiriyor, doğruların %1'ini) ve B11-2 test planı (Ultra uygulama türünü ve hedefleri çıkarıyor; kapsam kazancı küçük) bitti. Bütçe 60 planner çağrısı / 150 eylem, oturum ≈ $0,011. Sırada C grubu (`06` §7). Ayrıntı `05` §22–§25.
+- **Şu an (17 Ekim):** C grubu bitti (`05` §26): test notu (C1), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3). Notsuz seeded `e7618cf2` iki platformda 6/6, beklenmeyen bulgu 0. Sırada gerçek kullanıcı build'iyle uçtan uca deneme ve bakım/cron (§7).
+- **13 Ekim:** G3 karşılandı; ölçüm setinde altıncı tur, B11 bulgu triyajı (Nemotron Ultra bulguları gözden geçiriyor; yanlış pozitiflerin ~%64'ünü indiriyor, doğruların %1'ini) ve B11-2 test planı (Ultra uygulama türünü ve hedefleri çıkarıyor; kapsam kazancı küçük) bitti. Bütçe 60 planner çağrısı / 150 eylem, oturum ≈ $0,011. Sırada C grubu (`06` §7). Ayrıntı `05` §22–§25.
 - **11 Ekim gecesi:** F2 ve F3 bitti; `07`'nin (gerçek uygulamalara dayanıklılık) A grubu ile B7 ve B10 da bitti. 7 açık kaynak uygulamalık ölçüm setinde (Android) beş tur koşuldu: son turlarda yanlış pozitif %0, hiçbir oturum ilk ekranlarda takılmıyor, bir uygulamada (Jerboa) gerçek bir çökme bulundu. FieldNotes gerilemesiz: seeded iki platformda 6/6, fixed 0 yanlış pozitif, login hesaplı/hesapsız doğru. Ayrıntı `07` §7, `05` §21. **G3 karşılandı** (`05` §22): son runner'la seeded `9a50d038` iki platformda 6/6, fixed `a60921bc` 0 YP, login hesaplı `bf758efb` iki platformda giriş geçti, hesapsız `5b0eb187` "Sign-in required". Yol boyunca üç gerçek hata bulundu ve düzeltildi (iOS giriş alanlarını bozan maskeleme, iOS kayıp tuş vuruşları, kalıcılıkta yanlış negatif). A2 süreyi artırmadı. $25 kredi çalışıyor. Takvimin ~10 gün önündeyiz.
 
 ## 2. Altyapı ve kimlikler (sır içermez)
@@ -74,7 +75,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 **Henüz doğrulanmayanlar:**
 - Vercel'deki GitHub değişkenleri doğrulanmadı. Eksikse koşu `queued`'da kalır, çünkü bakım/cron görevi yok.
 
-**Testler:** 270 birim testi (shared 9, adapters 6, runner 142, web 113; 13 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
+**Testler:** 281 birim testi (shared 9, adapters 6, runner 149, web 117; 17 Ekim) ve veritabanı smoke testi. Runner testleri gerçek Android/iOS hierarchy fixture'larıyla (`packages/runner/test/fixtures`) ve sahte cihazla agent döngüsünü kapsar.
 
 ## 5. Çalışma kuralları (önemli)
 
@@ -172,7 +173,17 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 - **Sonuç:** kapsam ~25/39 → 26/39; Jitsi 5/5 ve Jerboa 3–4/6 iyileşti, Read You 3/7'de kaldı. Planı planner izlemiyor; kazancı bütçe ve seçim penceresi kuralı getirdi. Oturum maliyeti ≈ $0,011.
 - **Açık:** 25 eylemden sonraki adb/Appium kopmaları (oturumu sürdürme yok); Habo'da "alışkanlık oluştur" hâlâ kaçıyor.
 
-### Hemen sıradaki (13 Ekim sonrası; C grubu öne alındı, 24 Ekim freeze'e kadar)
+### 16–17 Ekim, C grubu (`05` §26)
+
+- **C1 test notu:** yüklemede (`app_builds.test_note`, migration `20261016194825`) ve Start Test'te; koşu kopyası `config.testNote`. Test planı ve planner notu tırnak içinde veri olarak görür; kurallar nottan bağımsız. Not planner bütçesinin ya da oturum süresinin yarısına kadar öne çıkar, sonra geri çekilir ve liste satırlarını atlayan bir kapsam turu başlar (Lightning "başka yere de bak" cümlesine uymadı). "Add note"a ulaşma 26–35. eylemden 8.'ye indi; Android notla 6/6, iOS 5/6. `dev-run.mjs --note`.
+- **C2 ekran haritası:** platform sonucunda `screenMap` (en çok 40 ekran / 120 geçiş), raporda sütunlu grafik ve küçük resimler. Yerel önizlemede masaüstü ve 375 px kontrol edildi; **canlı raporda tarayıcıda henüz görülmedi** (giriş gerekli).
+- **C3 görsel dokunuş** (`visual.ts`): 12 sn öğesiz kalan önde uygulama başlatılır; kontrolsüz ekranda MiniCPM-V kontrolleri ve merkez noktalarını (0–1000) söyler, agent koordinatla dokunur. Bu öğeler hiçbir kontrolde ölçülmez; rapor ölçülemeyen ekran sayısını yazar. Geri oyunu bir kez kapattıysa bu ekranlarda Geri yok; boş kare yeniden gözlenir; aynı kare kontrollerini yeniden kullanır. Ölçüm: sete Shattered Pixel Dungeon eklendi; önce `access_blocked`, şimdi tamamlanıyor (en iyi koşu 5 adlı ekran). Derinliği MiniCPM-V'nin piksel sanatındaki konum hatası (~%7) sınırlıyor.
+
+### Hemen sıradaki (17 Ekim sonrası, 24 Ekim freeze'e kadar)
+
+C grubu bitti (aşağıdaki 1–3 tarihçe için duruyor). Sıradaki iş 4. madde.
+
+
 
 **C grubu (`07` §4)** — sırayla:
 
@@ -189,12 +200,12 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 **Ardından:**
 
-4. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Yükleme formundaki "How do I get these files?" bölümü ve `.aab` reddi tarayıcıda hiç görülmedi. Jüri deneyimi için kritik; C1'in UI kısmıyla birlikte denenebilir.
+4. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Tarayıcıda hiç görülmeyenler: yükleme formundaki "How do I get these files?" bölümü, `.aab` reddi, **test notu alanları** (yükleme ve Start Test) ve **canlı rapordaki ekran haritası** (örnek: `e7618cf2`, `21cdf360`; telefonda da). Jüri deneyimi için kritik.
 5. **Bakım/cron** (Açık borçlar): `queued`'da takılan koşuyu ve kesilen oturumları toparlayan görev. Jüri denemesinin takılmaması için.
 6. **Oturumu sürdürme:** 25 eylemden sonra kopan cihaz oturumunda durumu koruyup yeni Appium oturumuyla devam etmek (seeded Android 29., Habo 50. eylemde koptu).
 7. **Planner'ın planı izlemesi:** Ultra'nın arada yön vermesi ya da hedef bazlı deterministik yönlendirme (Habo "Add", Read You 3/7).
 8. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
-9. **Zaman kalırsa:** B6 (alan türüne göre veri), B8/B11-3 (ekran sınıflandırma).
+9. **Zaman kalırsa:** B6 (alan türüne göre veri), B8/B11-3 (ekran sınıflandırma); C3 konum hatası (değişmeyen dokunuşta kaydırılmış ikinci deneme ya da kırpılmış görüntüyle ikinci soru), semantics'i kapalı bir Flutter örneğiyle C3 ölçümü.
 10. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ### Açık borçlar
@@ -206,4 +217,4 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §7'yi ve `docs/05-v1-plan.md` §21–§25'i oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7 ve B10 bitti; **G3 karşılandı** (FieldNotes seeded iki platformda 6/6, fixed 0 YP, login hesaplı/hesapsız doğru; `05` §22). $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Ölçüm setinde altıncı tur (`05` §23; son koşularda YP %0), B11 bulgu triyajı (`05` §24; Nemotron Ultra bulguları gözden geçiriyor) ve B11-2 test planı (`05` §25; kapsam kazancı küçük, bütçe 60 çağrı) bitti. Sıradaki iş `06` §7 "Hemen sıradaki": C grubu öne alındı. Önce C1 test notu (planner'a hedef olarak), sonra C2 raporda ekran haritası, sonra C3 semantics'siz arayüzler için görsel modelle dokunuş. Ardından gerçek kullanıcı build'iyle uçtan uca deneme ve bakım/cron. Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §4 C durumunu ve §7'yi, `docs/05-v1-plan.md` §21–§26'yı oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7, B10, B11 (triyaj ve test planı) ve **C grubu bitti** (`05` §26): test notu (C1; ilgili akışa 8. eylemde ulaşılıyor, yarıda devrediliyor), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3; Shattered Pixel Dungeon artık açılıp geziliyor). Notsuz seeded `e7618cf2` iki platformda 6/6. $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 madde 4: gerçek kullanıcı build'iyle uçtan uca deneme (test notu alanları ve canlı ekran haritası tarayıcıda hiç görülmedi), sonra bakım/cron ve oturumu sürdürme. Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.

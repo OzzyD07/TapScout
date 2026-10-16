@@ -151,7 +151,11 @@ Android'de çökme anında `adb logcat -b crash` kesiti (FATAL EXCEPTION, yığ�
 - **Ekran haritası:** raporda keşfedilen ekranların küçük görsellerle gezinme grafiği.
 - **Erişilebilirlik bilgisi olmayan arayüzler:** semantics'i kapalı Flutter ve oyunlar için görsel modelle koordinat dokunuşu (planda P2).
 
-**Durum (16 Ekim):** üçü de yapıldı (`05` §26). C1 test notu yüklemede ve Start Test'te; planner ve test planı onu hedef olarak görüyor, kurallar nottan bağımsız. C2 ekran haritası raporda (ekran görüntülü düğümler, gözlenen tap/back geçişleri; 375 px'te kontrol edildi). C3: hiç öğe göstermeyen ekranlarda MiniCPM-V kontrolleri ve merkez noktalarını söylüyor, agent koordinatla dokunuyor; bu öğeler hiçbir kontrolde ölçülmüyor. Ölçüm için sete Shattered Pixel Dungeon (libGDX, yalnız OpenGL) eklendi.
+**Durum (17 Ekim):** üçü de yapıldı (`05` §26).
+- **C1 test notu:** yüklemede ve Start Test'te. Planner ve test planı onu hedef olarak görüyor; kurallar nottan bağımsız. Not ilgili akışa ulaşmayı 26–35. eylemden 8. eyleme indirdi. Yarıda devrediliyor, böylece uygulamanın kalanı da test ediliyor: Android notla 6/6, iOS 5/6.
+- **C2 ekran haritası:** raporda; ekran görüntülü düğümler, gözlenen tap/back geçişleri. Yerel önizlemede masaüstü ve 375 px kontrol edildi.
+- **C3:** hiç öğe göstermeyen ekranlarda MiniCPM-V kontrolleri ve merkez noktalarını söylüyor, agent koordinatla dokunuyor; bu öğeler hiçbir kontrolde ölçülmüyor. Shattered Pixel Dungeon (libGDX) artık açılıp geziliyor (önce `access_blocked`). Derinliği modelin piksel sanatındaki konum hatası sınırlıyor.
+- **Gerileme:** notsuz seeded `e7618cf2` iki platformda 6/6, beklenmeyen bulgu 0.
 
 ## 5. Sıra
 
