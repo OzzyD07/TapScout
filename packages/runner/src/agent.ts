@@ -1477,6 +1477,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
                 .map((e) => `${e.ref} ${JSON.stringify(displayName(e))}`),
               testAccount: Boolean(account),
               testNote,
+              noteFocus: counters.plannerCalls < budget.maxPlannerRequests / 2,
               plan: testPlan ? planLines(testPlan, seenNames()) : undefined,
               frontier: ledger
                 .frontier(graph, state.label, config.modes, planTargets())
