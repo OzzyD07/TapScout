@@ -1,9 +1,10 @@
 "use client";
 
 import type { ScreenMap as ScreenMapData } from "@tapscout/shared";
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
+import { ChevronDownIcon, MapIcon } from "@/components/icons";
+import { platformShort } from "@/components/ui";
 import { layoutScreenMap, MAP_NODE } from "@/lib/report/screen-map-layout";
-import { platformShort } from "./ui";
 
 /** One platform's screens and the moves between them (docs/07 C2). */
 function PlatformMap(props: {
@@ -22,7 +23,7 @@ function PlatformMap(props: {
         them. Solid arrows are taps, dashed ones go back. Select a screen to open its screenshot.
         <span className="sm:hidden"> Swipe sideways to see the whole map.</span>
       </figcaption>
-      <div className="overflow-x-auto rounded-xl border border-border bg-bg">
+      <div className="bg-grid overflow-x-auto rounded-lg border border-border bg-bg">
         <div className="relative" style={{ width: layout.width, height: layout.height }}>
           <svg
             aria-hidden="true"
@@ -75,7 +76,7 @@ function PlatformMap(props: {
                   onClick={() =>
                     props.onShowEvidence(props.platform, s.screenshotArtifactId as string)
                   }
-                  className="overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition hover:border-accent focus-visible:outline-2 focus-visible:outline-accent"
+                  className="overflow-hidden rounded-lg border border-border-strong bg-surface shadow-sm ring-accent/30 transition hover:-translate-y-0.5 hover:border-accent hover:ring-3"
                   style={{ width: MAP_NODE.width, height: MAP_NODE.height }}
                   aria-label={`Screenshot of ${s.label}`}
                 >
@@ -96,7 +97,7 @@ function PlatformMap(props: {
                 </div>
               )}
               <span
-                className="line-clamp-2 w-full text-center text-xs leading-tight"
+                className="line-clamp-2 w-full rounded bg-surface/90 px-1 text-center text-[11px] font-medium leading-tight"
                 title={`${s.label} · visited ${s.visits}×`}
               >
                 {s.label}
@@ -113,19 +114,52 @@ export function ScreenMapSection(props: {
   maps: { platform: "android" | "ios"; map: ScreenMapData }[];
   onShowEvidence(platform: string, artifactId: string): void;
 }) {
-  if (props.maps.length === 0) return null;
+  const [shown, setShown] = useState(props.maps[0]?.platform);
+  const current = props.maps.find((m) => m.platform === shown) ?? props.maps[0];
+  if (!current) return null;
   return (
-    <details open className="group flex flex-col gap-2">
-      <summary className="cursor-pointer text-sm font-semibold">Screen map</summary>
-      <div className="mt-2 flex flex-col gap-4">
-        {props.maps.map((m) => (
-          <PlatformMap
-            key={m.platform}
-            platform={m.platform}
-            map={m.map}
-            onShowEvidence={props.onShowEvidence}
-          />
-        ))}
+    <details open className="group/map flex flex-col">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <MapIcon size={15} className="text-muted" /> Screen map
+        </span>
+        <ChevronDownIcon
+          size={15}
+          className="text-muted transition-transform group-open/map:rotate-180"
+        />
+      </summary>
+      <div className="mt-3 flex flex-col gap-3">
+        {props.maps.length > 1 ? (
+          <div
+            role="tablist"
+            aria-label="Screen map platform"
+            className="flex w-fit gap-1 rounded-lg border border-border bg-surface-2 p-0.5"
+          >
+            {props.maps.map((m) => (
+              <button
+                key={m.platform}
+                type="button"
+                role="tab"
+                aria-selected={m.platform === current.platform}
+                onClick={() => setShown(m.platform)}
+                className={`h-7 rounded-md px-2.5 text-xs font-medium transition-colors ${
+                  m.platform === current.platform
+                    ? "bg-surface text-text shadow-xs ring-1 ring-border"
+                    : "text-muted hover:text-text"
+                }`}
+              >
+                {platformShort(m.platform)}{" "}
+                <span className="font-mono opacity-70">{m.map.screens.length}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <PlatformMap
+          key={current.platform}
+          platform={current.platform}
+          map={current.map}
+          onShowEvidence={props.onShowEvidence}
+        />
       </div>
     </details>
   );

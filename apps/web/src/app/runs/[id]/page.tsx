@@ -1,9 +1,15 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { AppHeader } from "@/components/app-header";
 import { reportView } from "@/lib/report/view";
 import { fromRow, type RunEventRow } from "@/lib/runs/timeline";
 import { createClient, getSessionUser } from "@/lib/supabase/server";
 import { type RunSnapshot, RunView, type SessionSnapshot } from "./run-view";
+
+export async function generateMetadata({ params }: PageProps<"/runs/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  return { title: `Run ${id.slice(0, 8)}` };
+}
 
 export default async function RunPage({ params }: PageProps<"/runs/[id]">) {
   const user = await getSessionUser();
@@ -59,25 +65,25 @@ export default async function RunPage({ params }: PageProps<"/runs/[id]">) {
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
-      <Link href="/" className="text-sm text-muted hover:text-text">
-        ← All runs
-      </Link>
-      <RunView
-        run={snapshot}
-        sessions={(sessions ?? []) as unknown as SessionSnapshot[]}
-        events={((events ?? []) as RunEventRow[]).map(fromRow)}
-        report={
-          report
-            ? {
-                overallStatus: report.overall_status,
-                createdAt: report.created_at,
-                limitations: (report.data as { limitations?: string[] }).limitations ?? [],
-                ...reportView(report.data),
-              }
-            : null
-        }
-      />
-    </div>
+    <>
+      <AppHeader email={user.email} />
+      <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6">
+        <RunView
+          run={snapshot}
+          sessions={(sessions ?? []) as unknown as SessionSnapshot[]}
+          events={((events ?? []) as RunEventRow[]).map(fromRow)}
+          report={
+            report
+              ? {
+                  overallStatus: report.overall_status,
+                  createdAt: report.created_at,
+                  limitations: (report.data as { limitations?: string[] }).limitations ?? [],
+                  ...reportView(report.data),
+                }
+              : null
+          }
+        />
+      </main>
+    </>
   );
 }

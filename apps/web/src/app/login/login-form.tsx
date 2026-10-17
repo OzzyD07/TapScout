@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { AlertIcon } from "@/components/icons";
+import { buttonClass, inputClass } from "@/components/ui";
 import { type LoginState, signIn } from "./actions";
 
 const initialState: LoginState = { error: null };
@@ -18,7 +20,7 @@ export function LoginForm({ next }: { next: string }) {
           type="email"
           autoComplete="email"
           required
-          className="h-11 rounded-lg border border-border bg-surface px-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+          className={`${inputClass} h-10`}
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -28,19 +30,19 @@ export function LoginForm({ next }: { next: string }) {
           type="password"
           autoComplete="current-password"
           required
-          className="h-11 rounded-lg border border-border bg-surface px-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+          className={`${inputClass} h-10`}
         />
       </label>
       {state.error ? (
-        <p role="alert" className="text-sm text-danger">
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger/10 px-3 py-2 text-sm text-danger"
+        >
+          <AlertIcon size={15} className="mt-0.5 shrink-0" />
           {state.error}
         </p>
       ) : null}
-      <button
-        type="submit"
-        disabled={pending}
-        className="h-11 rounded-lg bg-accent font-semibold text-white transition hover:bg-accent-strong disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className={`${buttonClass("primary")} mt-1 w-full`}>
         {pending ? "Signing in…" : "Sign in"}
       </button>
     </form>
