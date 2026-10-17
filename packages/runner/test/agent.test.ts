@@ -133,6 +133,8 @@ function harness(
     softDeadline: 10 * 60_000,
     counters,
     settleMs: 10,
+    // The two-screen fake app plans as early as the agent did before 2b5fa1bd.
+    planAfter: { screens: 2, steps: 8 },
     run: { runId: "run-1", sessionId: "session-1" },
     versions: runVersionStamp(DEFAULT_PLATFORM_BUDGET.budgetVersion),
     newId: (() => {

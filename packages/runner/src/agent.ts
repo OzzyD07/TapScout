@@ -166,6 +166,8 @@ export interface AgentConfig {
   testAccount?: TestAccount;
   /** The tester's focus for this run (docs/07 C1); a goal for the plan and the planner. */
   testNote?: string;
+  /** When the test plan is asked for: named screens known, or this step at the latest. */
+  planAfter?: { screens: number; steps: number };
 }
 
 export interface AgentOutcome {
@@ -262,8 +264,13 @@ const MAX_LOADING_POLLS = 5;
 const LOADING_POLL_MS = 1_000;
 /** Screens a coverage tour may try to reach before it gives up. */
 const MAX_TOUR_ATTEMPTS = 6;
-/** The test plan is asked for once two named screens are known, or at this step at the latest. */
-const PLAN_AFTER_STEPS = 8;
+/**
+ * The test plan is asked for once this many named screens are known, or at the step below at the
+ * latest. With two (welcome and sign-up) the model guessed features the app does not have (FieldNotes
+ * 2b5fa1bd: tags, filters, export), and no goal ever matched a real control.
+ */
+const PLAN_AFTER_SCREENS = 3;
+const PLAN_AFTER_STEPS = 12;
 /** Controls opened for open plan goals without the planner, per session. */
 const MAX_GOAL_TAPS = 10;
 /** Planner steps without reaching a new plan goal before it is pointed at the next one. */
@@ -2310,7 +2317,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   async function maybePlan(): Promise<void> {
     if (planAsked || !ports.testPlan) return;
     const screens = ledger.screens().filter((s) => s.label && s.label !== "Outside the app");
-    if (screens.length < 2 && step < PLAN_AFTER_STEPS) return;
+    const after = config.planAfter ?? { screens: PLAN_AFTER_SCREENS, steps: PLAN_AFTER_STEPS };
+    if (screens.length < after.screens && step < after.steps) return;
     planAsked = true;
     try {
       const res = await ports.testPlan(testPlanMessages(platform, appId, screens, testNote));
