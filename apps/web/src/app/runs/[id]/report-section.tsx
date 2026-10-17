@@ -25,7 +25,18 @@ export interface ReportSnapshot {
   findings: FindingView[];
   summary: SummaryView | null;
   maps: ReportView["maps"];
+  coverage: ReportView["coverage"];
 }
+
+/** Why a platform session stopped, in the user's words. */
+const STOP_REASON: Record<string, string> = {
+  goals_exhausted: "Everything reachable was tried",
+  budget_exhausted: "Time or model budget used up",
+  access_blocked: "Stopped at a sign-in or access wall",
+  unsupported: "Build not supported",
+  cancelled: "Cancelled",
+  infrastructure_failed: "Device or runner failure",
+};
 
 const CHECK_STATUS: Record<string, { label: string; tone: Tone }> = {
   passed_within_scope: { label: "Passed (within scope)", tone: "ok" },
@@ -389,6 +400,44 @@ export function ReportSection(props: {
             tone={passedChecks > 0 ? "ok" : "neutral"}
           />
         </dl>
+        {report.coverage.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[520px] text-left text-xs">
+              <caption className="sr-only">What each platform session covered</caption>
+              <thead className="bg-surface-2/60 text-muted">
+                <tr>
+                  <th className="px-3 py-1.5 font-medium">Platform</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Screens</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Moves</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Actions</th>
+                  <th className="px-3 py-1.5 text-right font-medium">Model calls</th>
+                  <th className="px-3 py-1.5 font-medium">Stopped because</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {report.coverage.map((c) => (
+                  <tr key={c.platform}>
+                    <td className="px-3 py-2 font-medium">{platformShort(c.platform)}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{c.screens}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{c.transitions}</td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums">{c.actions}</td>
+                    <td
+                      className="px-3 py-2 text-right font-mono tabular-nums"
+                      title={`${c.plannerCalls} planner · ${c.visionCalls} vision`}
+                    >
+                      {c.plannerCalls + c.visionCalls}
+                    </td>
+                    <td className="px-3 py-2 text-muted">
+                      {c.stopReason
+                        ? (STOP_REASON[c.stopReason] ?? c.stopReason.replace(/_/g, " "))
+                        : phaseLabel(c.phase)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-6 px-4 py-5 sm:px-5">

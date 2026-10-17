@@ -70,4 +70,47 @@ describe("reportView maps", () => {
     });
     expect(view.maps.map((m) => m.platform)).toEqual(["android"]);
   });
+
+  it("summarises what each platform session did and why it stopped", () => {
+    const view = reportView({
+      platforms: [
+        {
+          platform: "android",
+          phase: "completed",
+          stopReason: "budget_exhausted",
+          checks: [],
+          counters: {
+            screensObserved: 9,
+            transitionsObserved: 14,
+            actionsExecuted: 96,
+            plannerCalls: 60,
+          },
+        },
+        { platform: "ios", phase: "infrastructure_failed", checks: [] },
+      ],
+      findings: [],
+    });
+    expect(view.coverage).toEqual([
+      {
+        platform: "android",
+        phase: "completed",
+        stopReason: "budget_exhausted",
+        screens: 9,
+        transitions: 14,
+        actions: 96,
+        plannerCalls: 60,
+        visionCalls: 0,
+      },
+      {
+        platform: "ios",
+        phase: "infrastructure_failed",
+        stopReason: undefined,
+        screens: 0,
+        transitions: 0,
+        actions: 0,
+        plannerCalls: 0,
+        visionCalls: 0,
+      },
+    ]);
+  });
 });

@@ -61,6 +61,19 @@ export interface ReportView {
   summary: SummaryView | null;
   /** Screens reached and observed moves per platform (docs/07 C2). */
   maps: { platform: "android" | "ios"; map: ScreenMap }[];
+  /** What each platform session did and why it stopped. */
+  coverage: CoverageView[];
+}
+
+export interface CoverageView {
+  platform: "android" | "ios";
+  phase: string;
+  stopReason?: string;
+  screens: number;
+  transitions: number;
+  actions: number;
+  plannerCalls: number;
+  visionCalls: number;
 }
 
 const Stored = z.object({
@@ -71,6 +84,9 @@ const Stored = z.object({
         checks: z.array(z.unknown()).default([]),
         blockers: z.array(z.string()).default([]),
         screenMap: z.unknown().optional(),
+        phase: z.string().optional(),
+        stopReason: z.string().optional(),
+        counters: z.record(z.string(), z.unknown()).optional(),
       }),
     )
     .default([]),
@@ -85,7 +101,8 @@ const Stored = z.object({
  */
 export function reportView(data: unknown): ReportView {
   const stored = Stored.safeParse(data);
-  if (!stored.success) return { blockers: [], checks: [], findings: [], summary: null, maps: [] };
+  if (!stored.success)
+    return { blockers: [], checks: [], findings: [], summary: null, maps: [], coverage: [] };
   const checks = stored.data.platforms.flatMap((p) =>
     p.checks.flatMap((c) => {
       const r = CheckResult.safeParse(c);
@@ -152,7 +169,26 @@ export function reportView(data: unknown): ReportView {
       ? [{ platform: p.platform as "android" | "ios", map: map.data }]
       : [];
   });
+  const count = (c: Record<string, unknown> | undefined, key: string) =>
+    typeof c?.[key] === "number" ? (c[key] as number) : 0;
+  const coverage = stored.data.platforms.flatMap((p): CoverageView[] =>
+    p.platform
+      ? [
+          {
+            platform: p.platform,
+            phase: p.phase ?? "unknown",
+            stopReason: p.stopReason,
+            screens: count(p.counters, "screensObserved"),
+            transitions: count(p.counters, "transitionsObserved"),
+            actions: count(p.counters, "actionsExecuted"),
+            plannerCalls: count(p.counters, "plannerCalls"),
+            visionCalls: count(p.counters, "visionCalls"),
+          },
+        ]
+      : [],
+  );
   return {
+    coverage,
     maps,
     blockers,
     checks,
