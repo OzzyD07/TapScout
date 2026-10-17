@@ -328,6 +328,8 @@ const MAX_VISION_SCREENS = 6;
 const MAX_VISUAL_SCREENS = 26;
 /** A foreground app with no elements for this long is read from its screenshots (docs/07 C3). */
 const VISUAL_LAUNCH_MS = 12_000;
+/** Vertical shifts (share of screen height) for retries of a located tap that changed nothing. */
+const VISUAL_NUDGES = [0.04, -0.04];
 /** Looks at an empty frame of such an app before acting on it, and the pause between them. */
 const MAX_BLANK_POLLS = 3;
 const BLANK_POLL_MS = 1_500;
@@ -405,6 +407,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let noteHandedOver = false;
   /** Controls opened for the test plan without the planner (goalControl). */
   let goalTaps = 0;
+  /** C3: taps on a located control that left the screen unchanged, by action key. */
+  const visualMisses = new Map<string, number>();
   /** Values the agent typed (never the test account), left out of screen identity. */
   const typedValues: string[] = [];
   /** Controls located on a screenshot, by the image's hash. */
@@ -822,7 +826,11 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (pickers.has(graph.get(fp)?.label ?? "")) return [];
     const tried = graph.get(fp)?.tried;
     return controlsOf(screen).filter(
-      (e) => safeToTry(e, screen.elements) && !tried?.has(actionKey("tap", e)),
+      (e) =>
+        safeToTry(e, screen.elements) &&
+        (!tried?.has(actionKey("tap", e)) ||
+          // C3: a located control whose tap changed nothing gets nudged retries.
+          (isVisual(e) && (visualMisses.get(actionKey("tap", e)) ?? 0) < VISUAL_NUDGES.length)),
     );
   }
 
@@ -891,7 +899,17 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         if (!target) throw new Error("tap without target");
         // iOS element queries cost ~1 s each; the bounds were observed a moment ago. A control
         // located on the screenshot has no element to find.
-        if ((platform === "ios" && target.visible) || isVisual(target)) {
+        if (isVisual(target)) {
+          // A retry after a miss taps a little below, then above, the point the model gave
+          // (SPD 7c5b77d1: the hero portraits sat ~7% below it).
+          const p = center(target);
+          const misses = visualMisses.get(actionKey("tap", target)) ?? 0;
+          const shift = misses > 0 ? (VISUAL_NUDGES[misses - 1] ?? 0) : 0;
+          const height = snap.screen.heightPx / snap.scale;
+          await device.tapAt(p.x, Math.min(height - 1, Math.max(0, p.y + shift * height)));
+          return;
+        }
+        if (platform === "ios" && target.visible) {
           const p = center(target);
           await device.tapAt(p.x, p.y);
           return;
@@ -1185,6 +1203,15 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           (pending.fromElements.length === 0 || pending.fromElements.some(isVisual))
         ) {
           visualBackLeaves = true;
+        }
+        if (
+          pending.actionType === "tap" &&
+          pending.target &&
+          isVisual(pending.target) &&
+          snap.appForeground &&
+          fp === pending.fromFp
+        ) {
+          visualMisses.set(pending.key, (visualMisses.get(pending.key) ?? 0) + 1);
         }
         if (pending.outcome === "ok" && pending.actionType === "tap" && snap.appForeground) {
           notePicker(pending.fromLabel, pending.fromElements, pending.target, state.label);

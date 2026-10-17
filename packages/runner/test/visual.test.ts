@@ -79,13 +79,24 @@ const reply = (content: string): RelayResponse => ({
  * A canvas game: a menu with Play, a level with Pause. Options: Back closes the game (most games
  * do), and the first frame after a (re)launch is still black.
  */
-function game(opts: { backCloses?: boolean; blankAfterLaunch?: boolean } = {}) {
+function game(
+  opts: {
+    backCloses?: boolean;
+    blankAfterLaunch?: boolean;
+    playAt?: number;
+    /** The planner asks for Back after its first Play, as Lightning did in 59a1dc45. */
+    backAfterPlay?: boolean;
+  } = {},
+) {
   let inGame = false;
   let running = true;
   let blankFrames = 0;
   let closes = 0;
+  let playTapped = false;
   const tapAt = vi.fn(async (x: number, y: number) => {
-    if (Math.abs(x - 540) < 60 && Math.abs(y - 1440) < 60) inGame = true;
+    if (Math.abs(x - 540) < 60 && Math.abs(y - (opts.playAt ?? 1440)) < 40) inGame = true;
+    // Pause (900, 80 of 1000) leaves the level for the menu.
+    else if (inGame && Math.abs(x - 972) < 60 && Math.abs(y - 192) < 60) inGame = false;
   });
   const back = vi.fn(async () => {
     if (opts.backCloses && !inGame && running) {
@@ -110,7 +121,9 @@ function game(opts: { backCloses?: boolean; blankAfterLaunch?: boolean } = {}) {
   const plan = vi.fn(async (messages: ChatMessage[]) => {
     const prompt = messages.find((m) => m.role === "user")?.content ?? "";
     const obs = /Observation (obs-\d+)/.exec(prompt)?.[1];
-    const play = /(el-\d+) button "Play" \[located on the screenshot\]/.exec(prompt)?.[1];
+    const located = /(el-\d+) button "Play" \[located on the screenshot\]/.exec(prompt)?.[1];
+    const play = opts.backAfterPlay && playTapped ? undefined : located;
+    if (play) playTapped = true;
     return reply(
       JSON.stringify({
         schemaVersion: "1",
@@ -207,8 +220,17 @@ describe("runAgent on a screen without accessibility information", () => {
     ).toBe(true);
   });
 
+  it("retries a located tap that changed nothing a little lower, then higher (7c5b77d1)", async () => {
+    // The model says Play is at y=600/1000 (1440 px); it really sits 4% lower.
+    const g = game({ playAt: 1536 });
+    await runAgent(g.ports, g.config);
+    const ys = g.tapAt.mock.calls.filter(([x]) => x === 540).map(([, y]) => y);
+    expect(ys.slice(0, 2)).toEqual([1440, 1536]);
+    expect(g.events.some((e) => /Level 1/.test(JSON.stringify(e.payload)))).toBe(true);
+  });
+
   it("stops pressing Back once it closed the game, and waits for a frame drawn after a relaunch (59a1dc45)", async () => {
-    const g = game({ backCloses: true, blankAfterLaunch: true });
+    const g = game({ backCloses: true, blankAfterLaunch: true, backAfterPlay: true });
     const out = await runAgent(g.ports, {
       ...g.config,
       budget: { ...g.config.budget, maxPlannerRequests: 12, maxDeviceActions: 30 },
