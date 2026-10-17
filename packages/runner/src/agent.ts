@@ -55,7 +55,9 @@ import { buildScreenMap, ScreenShots } from "./screen-map.js";
 import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
 import {
   goalReached,
+  namesTarget,
   openTargets,
+  type PlanGoal,
   parseTestPlan,
   planLines,
   type TestPlan,
@@ -255,6 +257,8 @@ const LOADING_POLL_MS = 1_000;
 const MAX_TOUR_ATTEMPTS = 6;
 /** The test plan is asked for once two named screens are known, or at this step at the latest. */
 const PLAN_AFTER_STEPS = 8;
+/** Controls opened for open plan goals without the planner, per session. */
+const MAX_GOAL_TAPS = 10;
 /** Planner steps without reaching a new plan goal before it is pointed at the next one. */
 const PLAN_STALL_STEPS = 8;
 /** Controls that leave a dialog without choosing anything. */
@@ -392,6 +396,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let visualBackLeaves = false;
   let blankPolls = 0;
   let noteHandedOver = false;
+  /** Controls opened for the test plan without the planner (goalControl). */
+  let goalTaps = 0;
   /** Controls located on a screenshot, by the image's hash. */
   const locatedByImage = new Map<string, ReturnType<typeof parseVisualElements>>();
   let visualScreens = 0;
@@ -1397,6 +1403,18 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
           action = { type: "tap", targetRef: arrived.ref };
           target = arrived;
           decisionSummary = `Coverage: try ${tourTarget}, which was never tapped.`;
+        } else if (goalControl(snap.screen, fp)) {
+          // B11-2: the planner reads the plan but often taps elsewhere (Habo never created a
+          // habit); a control named after an open goal is opened without asking it.
+          const { element, goal } = goalControl(snap.screen, fp) as {
+            element: UiElement;
+            goal: PlanGoal;
+          };
+          goalTaps += 1;
+          action = { type: "tap", targetRef: element.ref };
+          target = element;
+          goalId = goal.goalId;
+          decisionSummary = `Test plan: open "${displayName(element)}" for the goal "${goal.description}".`;
         } else if (navigationSweep(snap.screen, fp)) {
           // B7: open each main section (tab, bottom bar, app-bar entry) once, without the planner,
           // before exploration goes deep into content (Jerboa runs never left the feed).
@@ -1445,8 +1463,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             }
             const next = testPlan.goals.find((g) => !goalReached(g, seen));
             if (next && !warning && step - lastGoalStep >= PLAN_STALL_STEPS) {
-              warning = `${step - lastGoalStep} steps without reaching a new goal of the test plan. Leave this area and head for the next open goal: ${next.description} (${next.targets.map((t) => `"${t}"`).join(", ")}).`;
+              const stalled = step - lastGoalStep;
               lastGoalStep = step;
+              // Words alone rarely moved the planner; a coverage tour heads for the open goals'
+              // controls first (they lead the frontier).
+              if (await startTour({ elsewhere: true })) continue;
+              warning = `${stalled} steps without reaching a new goal of the test plan. Leave this area and head for the next open goal: ${next.description} (${next.targets.map((t) => `"${t}"`).join(", ")}).`;
             }
           }
           // C1: the note leads for the first half of the planner budget or of the session's time,
@@ -2129,6 +2151,22 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   /** The next main navigation entry on this screen that was never opened in this session. */
+  /** An untried control on this screen named after an open goal of the test plan, first goal first. */
+  function goalControl(
+    screen: NormalizedScreen,
+    fp: string,
+  ): { element: UiElement; goal: PlanGoal } | null {
+    if (!testPlan || goalTaps >= MAX_GOAL_TAPS) return null;
+    const seen = seenNames();
+    const untried = untriedControls(screen, fp).filter((e) => !isVisual(e));
+    for (const goal of testPlan.goals) {
+      if (goalReached(goal, seen)) continue;
+      const element = untried.find((e) => goal.targets.some((t) => namesTarget(displayName(e), t)));
+      if (element) return { element, goal };
+    }
+    return null;
+  }
+
   function navigationSweep(screen: NormalizedScreen, fp: string): UiElement | undefined {
     if (swept.size >= MAX_NAV_SWEEP) return undefined;
     const controls = controlsOf(screen);

@@ -120,15 +120,18 @@ export function parseTestPlan(content: string, startLabel?: string): TestPlan | 
  * names. It is a coarse signal for ordering, not a test result.
  */
 export function goalReached(goal: PlanGoal, seen: string[]): boolean {
-  // Short names only, matched as whole words: a dialog's paragraph that happens to contain
-  // "details" is not the Details screen (Jerboa's start-up announcement).
-  const names = seen.map(norm).filter((n) => n.length <= 60);
-  return goal.targets.some((t) => {
-    const target = norm(t);
-    if (target.length < 3) return false;
-    const word = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(target)}($|[^\\p{L}\\p{N}])`, "u");
-    return names.some((n) => word.test(n));
-  });
+  return goal.targets.some((t) => seen.some((n) => namesTarget(n, t)));
+}
+
+/**
+ * A screen or control name carries a target: short names only, matched as whole words. A dialog's
+ * paragraph that happens to contain "details" is not the Details screen (Jerboa's announcement).
+ */
+export function namesTarget(name: string, target: string): boolean {
+  const n = norm(name);
+  const t = norm(target);
+  if (t.length < 3 || n.length > 60) return false;
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(t)}($|[^\\p{L}\\p{N}])`, "u").test(n);
 }
 
 function escapeRegExp(s: string): string {

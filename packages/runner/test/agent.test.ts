@@ -850,6 +850,35 @@ describe("runAgent", () => {
     expect(out.detail).toContain("exited with code 255");
   });
 
+  it("opens a control named by an open goal of the test plan without the planner", async () => {
+    const device = fakeDevice();
+    const h = harness(device, scriptedPlanner(), 6);
+    const testPlan = vi.fn(
+      async (): Promise<RelayResponse> => ({
+        model: "ultra",
+        content: JSON.stringify({
+          appType: "notes app",
+          goals: [
+            { goalId: "finish-sign-up", description: "Finish sign-up.", targets: ["Continue"] },
+            { goalId: "open-settings", description: "Open settings.", targets: ["Settings"] },
+          ],
+        }),
+        usage: { inputTokens: 500, outputTokens: 80, reported: true },
+        latencyMs: 900,
+        budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 0 },
+      }),
+    );
+    await runAgent({ ...h.ports, testPlan }, h.config);
+    expect(testPlan).toHaveBeenCalledTimes(1);
+    const planned = h.events
+      .filter((e) => e.type === "action_planned")
+      .map((e) => e.payload as { summary: string; decisionSummary: string; goalId: string });
+    const byPlan = planned.find((p) => p.decisionSummary.startsWith("Test plan: open"));
+    expect(byPlan).toMatchObject({ summary: 'Tap "Continue"', goalId: "finish-sign-up" });
+    // Once tapped, the goal counts as reached and its control is not opened again.
+    expect(planned.filter((p) => p.decisionSummary.startsWith("Test plan: open"))).toHaveLength(1);
+  });
+
   it("continues in a new device session when the old one dies mid-run (9d845c86)", async () => {
     const broken = fakeDevice();
     let shots = 0;
