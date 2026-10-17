@@ -149,6 +149,10 @@ export class FunctionalTracker {
     this.writes = this.writes.filter(
       (w) => !(w.formLabel === formLabel && fieldKey(w.field) === key),
     );
+    // Retyping what the field already held changes nothing, so a relaunch cannot show it lost
+    // (iOS fe90a784: Edit profile's Name got "Alex Doe" again, the probe found it "kept" and the
+    // seeded loss of the edit went unnoticed).
+    if (field.text !== undefined && norm(field.text) === norm(value)) return;
     this.writes.push({
       value: value.trim(),
       field: identityOf(field),

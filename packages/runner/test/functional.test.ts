@@ -277,6 +277,28 @@ describe("FunctionalTracker", () => {
     ]);
   });
 
+  it("ignores a value typed into a field that already held it (fe90a784)", () => {
+    const t = new FunctionalTracker();
+    const filled = el({
+      role: "text_field",
+      stableId: "edit-name",
+      label: "Name",
+      text: "Alex Doe",
+    });
+    t.noteTyped("Alex Doe", filled, "Edit profile", 1);
+    t.noteOutcome({
+      type: "tap",
+      target: save,
+      fromLabel: "Edit profile",
+      fromElements: [filled, save],
+      toLabel: "Profile",
+      toElements: [el({ text: "Hi, Alex Doe" })],
+      step: 2,
+      artifactId: "a",
+    });
+    expect(t.candidates).toEqual([]);
+  });
+
   it("does not take joining or searching with the typed text for saving it (c522e6d1)", () => {
     const t = new FunctionalTracker();
     t.noteTyped("Alex Doe", field, "Jitsi Meet", 1);
