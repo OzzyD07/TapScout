@@ -717,14 +717,14 @@ describe("runAgent", () => {
     expect(relaunch).not.toHaveBeenCalled();
   });
 
-  it("dismisses a system ANR dialog with Wait before exploring", async () => {
+  it("closes a frozen launcher (system ANR dialog) before exploring", async () => {
     const device = fakeDevice({ anrFirst: true });
     const h = harness(device, scriptedPlanner(), 1);
     await runAgent(h.ports, h.config);
 
-    // Centre of the "Wait" button in the fixture: [70,1300][1010,1426].
-    expect(device.tapAt).toHaveBeenCalledWith(540, 1363);
-    expect(h.events.some((e) => e.type === "note" && message(e).includes("Wait"))).toBe(true);
+    // Centre of the "Close app" button in the fixture: [70,1174][1010,1300].
+    expect(device.tapAt).toHaveBeenCalledWith(540, 1237);
+    expect(h.events.some((e) => e.type === "note" && message(e).includes("Close app"))).toBe(true);
     expect(h.counters.screensObserved).toBeGreaterThanOrEqual(1);
   });
 

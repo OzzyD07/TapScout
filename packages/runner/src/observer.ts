@@ -66,6 +66,10 @@ export interface SystemInterruption {
   dismiss: { label: string; bounds: Bounds; stableId: string };
 }
 
+/** ANR dialogs of system apps, which the emulator shows after a cold boot now and then. */
+const SYSTEM_ANR =
+  /^(pixel launcher|launcher3?|quickstep|system ui|settings|google play services|google)\b.*(isn't|is not) responding/i;
+
 /** Android permission controller buttons, most preferred first ("While using the app"). */
 const ANDROID_ALLOW = [
   "permission_allow_foreground_only_button",
@@ -209,6 +213,7 @@ function androidCandidates(root: XmlNode) {
   let title: string | undefined;
   let heading: string | undefined;
   let alertTitle = "";
+  let closeButton: SystemInterruption["dismiss"] | undefined;
   let order = 0;
 
   for (const node of walk(hierarchy)) {
@@ -218,6 +223,9 @@ function androidCandidates(root: XmlNode) {
     const bounds = parseAndroidBounds(a.bounds);
     const id = a["resource-id"] ?? "";
     if (id === "android:id/alertTitle") alertTitle = a.text ?? "";
+    if (bounds && id === "android:id/aerr_close") {
+      closeButton = { label: a.text || id, bounds, stableId: id };
+    }
     if (bounds && (id === "android:id/aerr_wait" || id === "android:id/aerr_close")) {
       const kind = id === "android:id/aerr_wait" ? "anr" : "crash";
       // Prefer "Wait" when both buttons exist: it never kills a process.
@@ -260,7 +268,15 @@ function androidCandidates(root: XmlNode) {
     });
   }
   if (!interruption) interruption = androidPermission(hierarchy);
-  else interruption.title = alertTitle;
+  else {
+    interruption.title = alertTitle;
+    // A frozen system app (the launcher, System UI, Settings) is closed rather than waited for:
+    // "Wait" brought the dialog back again and again until the session ended (FieldNotes
+    // 91f233f0 "Pixel Launcher", Tusky 0ea1dbfe "Settings"). The app under test is never closed.
+    if (interruption.kind === "anr" && SYSTEM_ANR.test(alertTitle) && closeButton) {
+      interruption.dismiss = closeButton;
+    }
+  }
   title ??= heading;
   const topPackage = [...packages.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
   return {

@@ -42,14 +42,27 @@ describe("normalizeHierarchy", () => {
     expect(s.elements.find((e) => e.stableId === "BackButton")?.role).toBe("button");
   });
 
-  it("detects the Android ANR dialog and offers Wait, not Close", () => {
+  it("closes a frozen system app such as the launcher (91f233f0)", () => {
     const s = normalizeHierarchy("android", fixture("android-anr"), { scale: 1 });
     expect(s.interruption).toMatchObject({
       kind: "anr",
       title: "Pixel Launcher isn't responding",
-      dismiss: { label: "Wait", stableId: "android:id/aerr_wait" },
+      dismiss: { stableId: "android:id/aerr_close" },
     });
     expect(s.topPackage).toBe("android");
+  });
+
+  it("waits for the app under test when it does not respond, never closing it", () => {
+    const xml = fixture("android-anr").replace(
+      "Pixel Launcher isn't responding",
+      "FieldNotes isn't responding",
+    );
+    const s = normalizeHierarchy("android", xml, { scale: 1 });
+    expect(s.interruption).toMatchObject({
+      kind: "anr",
+      title: "FieldNotes isn't responding",
+      dismiss: { label: "Wait", stableId: "android:id/aerr_wait" },
+    });
   });
 
   it("answers an Android permission request with its allowing button (benchmark run 14966324)", () => {
