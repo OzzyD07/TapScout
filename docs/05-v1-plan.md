@@ -835,3 +835,50 @@ Kaçan tohumlar her zaman notun dışındaki alanlar: Edit profile kalıcılığ
 - 18 birim testi (`apps/web/test/reconcile.test.ts`).
 - Canlı DB'de aktif koşu sorgusu (PostgREST gömülü seçimi) 200 döndü. Cron işi `active`, Vault sırrı kayıtlı.
 - Uçtan uca: route Vercel'e çıkıp `CRON_AUTH_SECRET` eklendikten sonra `net._http_response`'ta 200 görülmeli.
+
+## 28. Pro öncesi agent işleri: oturumu sürdürme, planı izleme, ekran kimliği, güvenlik (17 Ekim 2026)
+
+Supabase Pro'ya bağlı olmayan işler. Web arayüzü de aynı gün baştan tasarlandı (`ba75d44`; teknik ürün görünümü, açık/koyu tema; raporda platform başına kapsam tablosu `f272e5f`).
+
+**Değişiklikler** (commit → ne → neden):
+
+| Commit | Ne | Neden |
+|---|---|---|
+| `b8795ec` | **Oturumu sürdürme:** cihaz/Appium oturumu koparsa runner yeni oturum açar (uygulama ve verisi korunur, Appium `noReset` yalnız bu durumda), agent aynı keşfe devam eder: graf, test planı, bulgular, bütçeler. Oturum başına en çok 2 kez, en az 3 dk kala | Seeded Android 29., Habo 50. eylemde kopmuştu; eski tekrar yalnız ilk 25 eylemde ve baştan başlıyordu. Yarıda kesilen kalıcılık denemesi kaydedilmez, yani yeni oturum "veri kayboldu" bulgusu üretemez |
+| `39cbd5e` | **Planı izleme:** ekranda açık bir hedefin adını taşıyan denenmemiş kontrol planner'sız açılır (her biri bir kez, oturumda en çok 10). 8 adım yeni hedef yoksa önce kapsam turu, sonra uyarı | Lightning planı okuyup başka yere dokunuyordu (Habo hiç alışkanlık oluşturmadı) |
+| `a82ee55` | **Ekran kimliği:** agent'ın yazdığı değerler (≥4 karakter, tek kısa kelime değil) parmak izinden ve ekran adlarından çıkarılır ("Hi, …") | "Hi, Alex Doe" adı değişince aynı Profile ekranı yeni sayılıyordu |
+| `bd11767` | **C3 kaydırmalı ikinci deneme:** görselden bulunan bir kontrole dokunuş ekranı değiştirmediyse iki kez daha denenir: noktanın %4 altına, sonra üstüne | SPD'de model kahraman portrelerini ~%7 yukarıda gösteriyordu |
+| `30b06ee` | **Kalıcılık:** alanın zaten taşıdığı değeri yeniden yazmak aday sayılmaz | iOS `fe90a784`: Edit profile'da ad yine "Alex Doe" yazıldı, deneme "kept" dedi, tohumdaki kayıp gözden kaçtı (yanlış negatif) |
+| `18b75ed` | **Dışa dönük tek dokunuşlar** (oy, şikâyet, engelleme, takip, gönderme, satın alma) planner'sız asla; C3 yalnız hierarchy en çok bir adlı öğe gösterdiğinde | Jerboa `51d7c926`: deterministik tarama "Upvote 292" ve "Downvote 44"e dokundu. Read You'da düz metinli bir ayar sayfası C3'ü yanlışlıkla tetikledi |
+| `7b6d9ed` | Planner doğrulayıcısı da bu tek dokunuşları reddeder | Jerboa'da planner, prompt yasaklamasına rağmen oy verdi |
+| `ab754a6` | **Test planı üç adlı ekrandan sonra** (ya da 12. adımda) istenir | İki ekranla (karşılama, kayıt) Ultra uygulamada olmayan özellikler planladı (etiket, filtre, dışa aktarma); hiçbir hedef gerçek bir kontrole denk gelmedi |
+
+Atlanan: GitHub job'u bitince oturumu hemen kapatmak. Rapor job'u her koşunun sonunda, bakım görevi de dakikalar içinde zaten kapatıyor.
+
+**Ölçüm** (`bd11767` runner'ı, Android; önceki en iyi sonuçlar §23–§25):
+
+| Uygulama | Koşu | Ana ekran | Not |
+|---|---|---|---|
+| Habo | `f2a0e868` | **6/8** | **"Create habit" ilk kez** (44. adım), plan yönlendirmesiyle; Archived, Statistics, Settings da plandan |
+| AntennaPod | `ca4b1a52` | 8/10 | en iyi sonuca eşit; plandan 2 dokunuş |
+| Jitsi Meet | `bfcc84f3` | **5/5** | **oturum bir kez koptu ve sürdürüldü**, oturum tamamlandı |
+| Read You | `d590b06e` | 2/7 | planner "Mark all as read"/"Search" döngüsünde; plan hiçbir kontrole denk gelmedi; C3 yanlış tetiklendi (düzeltildi) |
+| Jerboa | `51d7c926` / `dfbe021f` | 2/6 / 3/6 | ilki 7 dışa dönük dokunuş (düzeltildi), ikincisi 0 |
+| Tusky | `0ea1dbfe` | 2/3 | "Sign-in required" doğru; emülatörde "Settings isn't responding" ANR'ı oturumu bitirdi (altyapı) |
+| Shattered Pixel Dungeon | `78baa762` | 6 adlı ekran (haritadan) | "Hero 2" kaydırmalı denemeyle karakter ekranını açtı; başlat kontrolü bulunamadı |
+
+**FieldNotes seeded** (iki platform, beş mod):
+
+| Koşu | Runner | Android | iOS | Not |
+|---|---|---|---|---|
+| `e7618cf2` | 16 Ekim (öncesi) | 6/6 | 6/6 | gerileme referansı |
+| `fe90a784` | `bd11767` | 5/6 | 3/6 | iOS: aynı adın yeniden yazılması "kept" sayıldı → `30b06ee` |
+| `2b5fa1bd` | `7b6d9ed` | 5/6 | 4/6 | plan iki ekrandan, hayali hedeflerle; Edit profile / Settings'e dönülmedi → `ab754a6` |
+| `d3788cb0` | `ab754a6` | **6/6** | **5/6** | iOS yalnız Settings'i kaçırdı (iOS süre sınırında 5/6–6/6 arası oynuyor) |
+
+Hiçbir koşuda beklenmeyen bulgu yok. Read You `cb0d6d18` hiç başlamadı: emülatör imajı Google'ın SDK deposundan indirilemedi ("Failed to find package system-images;android-35"). Rapor ve bakım görevi bunu doğru biçimde "device job ended without reporting a result" diye yazdı.
+
+**Açık:**
+- Read You'da planner "Mark all as read" / "Search" arasında dönüyor; plan hedefleri gerçek kontrollere denk gelmedi. Yeni plan zamanlamasıyla yeniden ölçülmeli.
+- SPD'de karakter ekranındaki başlat kontrolü bulunamıyor (MiniCPM-V konumlandırması).
+- Emülatör imajı indirme hatası CI'da tekrar ederse `qa-run.yml`'de önbellek ya da yeniden deneme gerekir.

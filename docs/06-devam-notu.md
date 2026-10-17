@@ -1,6 +1,6 @@
 # TapScout — Devam Notu (yeni oturum için)
 
-Tarih: 17 Ekim 2026 (C grubu sonrası: test notu, ekran haritası, görsel dokunuş)  
+Tarih: 17 Ekim 2026, akşam (C grubu, arayüz yenilemesi ve Pro öncesi agent işleri sonrası)  
 Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı yerden devam edebilmesi. Ayrıntılı tasarım `01`–`04`, plan ve ölçümler `05`'tedir, sıradaki işin planı `07`'dedir. Bu not durum özeti ve çalışma kurallarıdır.
 
 ## 1. Proje ve takvim
@@ -17,7 +17,8 @@ Amaç: Yeni bir çalışma oturumunun, önceki konuşmayı okumadan kaldığı y
   | **Son teslim** | **30 Ekim 20:00** |
   | Jüri dönemi | 1–15 Aralık |
 
-- **Şu an (17 Ekim):** C grubu bitti (`05` §26): test notu (C1), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3). Notsuz seeded `e7618cf2` iki platformda 6/6, beklenmeyen bulgu 0. Sırada gerçek kullanıcı build'iyle uçtan uca deneme ve bakım/cron (§7).
+- **Şu an (17 Ekim akşamı):** Pro'ya bağlı olmayan işler bitti (`05` §28): arayüz baştan tasarlandı; cihaz oturumu koparsa kaldığı yerden sürdürülüyor (Jitsi'de canlıda çalıştı); planner planı izliyor (Habo'da "Create habit" ilk kez); yazılan değerler ekran kimliğine girmiyor; dışa dönük tek dokunuşlar (oy, şikâyet, takip…) planner'sız ve planner'la engelli; test planı üç ekrandan sonra. Son seeded `d3788cb0`: Android 6/6, iOS 5/6, beklenmeyen bulgu 0. Bakım görevi canlıda çalışıyor (`CRON_AUTH_SECRET` eklendi). Sırada Supabase Pro ve iOS ölçümü, sonra teslim hazırlığı.
+- **17 Ekim (gün içi):** C grubu bitti (`05` §26): test notu (C1), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3). Notsuz seeded `e7618cf2` iki platformda 6/6, beklenmeyen bulgu 0. Sırada gerçek kullanıcı build'iyle uçtan uca deneme ve bakım/cron (§7).
 - **13 Ekim:** G3 karşılandı; ölçüm setinde altıncı tur, B11 bulgu triyajı (Nemotron Ultra bulguları gözden geçiriyor; yanlış pozitiflerin ~%64'ünü indiriyor, doğruların %1'ini) ve B11-2 test planı (Ultra uygulama türünü ve hedefleri çıkarıyor; kapsam kazancı küçük) bitti. Bütçe 60 planner çağrısı / 150 eylem, oturum ≈ $0,011. Sırada C grubu (`06` §7). Ayrıntı `05` §22–§25.
 - **11 Ekim gecesi:** F2 ve F3 bitti; `07`'nin (gerçek uygulamalara dayanıklılık) A grubu ile B7 ve B10 da bitti. 7 açık kaynak uygulamalık ölçüm setinde (Android) beş tur koşuldu: son turlarda yanlış pozitif %0, hiçbir oturum ilk ekranlarda takılmıyor, bir uygulamada (Jerboa) gerçek bir çökme bulundu. FieldNotes gerilemesiz: seeded iki platformda 6/6, fixed 0 yanlış pozitif, login hesaplı/hesapsız doğru. Ayrıntı `07` §7, `05` §21. **G3 karşılandı** (`05` §22): son runner'la seeded `9a50d038` iki platformda 6/6, fixed `a60921bc` 0 YP, login hesaplı `bf758efb` iki platformda giriş geçti, hesapsız `5b0eb187` "Sign-in required". Yol boyunca üç gerçek hata bulundu ve düzeltildi (iOS giriş alanlarını bozan maskeleme, iOS kayıp tuş vuruşları, kalıcılıkta yanlış negatif). A2 süreyi artırmadı. $25 kredi çalışıyor. Takvimin ~10 gün önündeyiz.
 
@@ -204,19 +205,19 @@ C grubu ve bakım görevi (5) bitti (aşağıdaki 1–3 tarihçe için duruyor).
 
 4. **Gerçek kullanıcı build'iyle uçtan uca deneme:** web'den yükle → Start Test (proje sahibinin tarayıcısında; giriş gerekli). Tarayıcıda hiç görülmeyenler: yükleme formundaki "How do I get these files?" bölümü, `.aab` reddi, **test notu alanları** (yükleme ve Start Test) ve **canlı rapordaki ekran haritası** (örnek: `e7618cf2`, `21cdf360`; telefonda da). Jüri deneyimi için kritik.
 5. ~~**Bakım/cron**~~ **bitti** (`05` §27): `/api/internal/reconcile` + Supabase Cron (her dakika). Bekleyen dispatch'ler (cevabı kaybolanda önce GitHub'da aranır), heartbeat'i kesilen / hiç başlamayan oturumlar, askıda kalan workflow'un iptali, yazılmamış rapor ve iptal edilen koşunun `cancelled` raporu. Canlıda çalışması için Vercel'e `CRON_AUTH_SECRET` gerekiyor (§6).
-6. **Oturumu sürdürme:** 25 eylemden sonra kopan cihaz oturumunda durumu koruyup yeni Appium oturumuyla devam etmek (seeded Android 29., Habo 50. eylemde koptu).
-7. **Planner'ın planı izlemesi:** Ultra'nın arada yön vermesi ya da hedef bazlı deterministik yönlendirme (Habo "Add", Read You 3/7).
-8. **Supabase Pro gelince:** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur.
-9. **Zaman kalırsa:** B6 (alan türüne göre veri), B8/B11-3 (ekran sınıflandırma); C3 konum hatası (değişmeyen dokunuşta kaydırılmış ikinci deneme ya da kırpılmış görüntüyle ikinci soru), semantics'i kapalı bir Flutter örneğiyle C3 ölçümü.
+6. ~~**Oturumu sürdürme**~~ **bitti** (`05` §28, `b8795ec`): uygulama ve verisi korunarak yeni Appium oturumu, en çok 2 kez. Jitsi `bfcc84f3`'te canlıda bir kez çalıştı.
+7. ~~**Planner'ın planı izlemesi**~~ **bitti** (`05` §28, `39cbd5e`, `ab754a6`): açık hedefin adını taşıyan kontrol planner'sız açılır, takılan plan kapsam turu başlatır, plan üç ekrandan sonra istenir. Habo'da "Create habit" ilk kez; Read You'da plan hâlâ gerçek kontrollere denk gelmedi.
+8. **Supabase Pro gelince (sıradaki):** bucket 300 MB, Vercel'e `STORAGE_BUILDS_MAX_BYTES`, iOS benchmark (Habo, Ice Cubes) ilk tur; aynı turda Read You'yu yeni plan zamanlamasıyla yeniden ölç.
+9. **Zaman kalırsa:** B6 (alan türüne göre veri), B8/B11-3 (ekran sınıflandırma); C3'te kırpılmış görüntüyle ikinci soru (kaydırmalı ikinci deneme `bd11767`'de yapıldı), semantics'i kapalı bir Flutter örneğiyle C3 ölçümü; CI'da emülatör imajı indirilemezse önbellek/yeniden deneme.
 10. **24 Ekim sonrası:** F4–F5 (`05` §6: jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ### Açık borçlar
 
-- ~~**Bakım/cron**~~ bitti (`05` §27); yalnız Vercel'de `CRON_AUTH_SECRET` bekleniyor. Açık kalan: GitHub job'u bitince oturumu hemen kapatmak için lease'in dolmasını beklememek (şimdi rapor job'u kapatıyor; o da çalışmazsa bakım görevi en geç ~10 dk'da).
+- ~~**Bakım/cron**~~ bitti (`05` §27) ve canlıda 200 dönüyor. GitHub job'u bitince oturumu hemen kapatmak gerekmedi: rapor job'u ve bakım görevi kapatıyor.
 - **Build yükleme:** resumable (TUS) yükleme yok; 50 MB Free sınırında tek PUT yeterli. Pro'dan sonra bucket sınırı 300 MB ve Vercel'e `STORAGE_BUILDS_MAX_BYTES`.
-- **Agent ayrıntıları:** profil başlığı kullanıcı verisini içeriyor ("Hi, Alex Doe") ve parmak izine giriyor; ad değişince yeni durum sayılabilir. Rapor agent sayaçlarını ve geçişleri özetlemiyor.
+- ~~**Agent ayrıntıları**~~ bitti: yazılan değerler ekran kimliğine girmiyor (`a82ee55`); rapor platform başına kapsamı ve durma sebebini gösteriyor (`f272e5f`).
 - **Kalite pilotu ve teslim (F4–F5):** `05` §6 (jüri hesapları, sabit örnek rapor, README, demo video, Devpost).
 
 ## 8. Yeni oturumu başlatma mesajı
 
-> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/07-gercek-uygulama-plani.md` §4 C durumunu ve §7'yi, `docs/05-v1-plan.md` §21–§27'yı oku. `docs/01`–`04`'e yalnız gerektiğinde bak. Durum: F2, F3, `07`'nin A grubu, B7, B10, B11 (triyaj ve test planı) ve **C grubu bitti** (`05` §26): test notu (C1; ilgili akışa 8. eylemde ulaşılıyor, yarıda devrediliyor), raporda ekran haritası (C2), erişilebilirlik bilgisi olmayan ekranlarda görsel modelle dokunuş (C3; Shattered Pixel Dungeon artık açılıp geziliyor). Notsuz seeded `e7618cf2` iki platformda 6/6. $25 Token Factory kredisi çalışıyor; Supabase Pro henüz yok (iOS benchmark bekliyor). Sıradaki iş `06` §7 madde 4: gerçek kullanıcı build'iyle uçtan uca deneme (test notu alanları ve canlı ekran haritası tarayıcıda hiç görülmedi), sonra oturumu sürdürme. Bakım görevi (`/api/internal/reconcile` + Supabase Cron, `05` §27) bitti; Vercel'de `CRON_AUTH_SECRET` eklenmeden canlıda 401 alır (§6). Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
+> TapScout projesine devam ediyoruz (bu klasör). Önce `docs/06-devam-notu.md`'yi (özellikle §5 çalışma kuralları, §6 bekleyenler ve §7 "Hemen sıradaki"), sonra `docs/05-v1-plan.md` §26–§28'i oku; `docs/07` ve `01`–`04`'e yalnız gerektiğinde bak. Durum: `07`'nin A, B (B6/B8 hariç) ve C grupları bitti; web arayüzü baştan tasarlandı; Pro öncesi agent işleri bitti (`05` §28: oturumu sürdürme, planı izleme, ekran kimliği, dışa dönük dokunuş engeli, test planı üç ekrandan sonra). Son seeded `d3788cb0`: Android 6/6, iOS 5/6. Bakım görevi canlıda çalışıyor. $25 Token Factory kredisi çalışıyor. Sıradaki: Supabase Pro alınınca bucket 300 MB + `STORAGE_BUILDS_MAX_BYTES` ve iOS benchmark (Habo, Ice Cubes) ilk tur (`06` §7 madde 8); sonra teslim hazırlığı (F4–F5: jüri hesapları, sabit örnek rapor, README, demo video, Devpost). Freeze 24 Ekim. Çalışma kuralları `06` §5'te; commit'lere hiçbir AI atfı ekleme, `pnpm check` geçmeden commit atma.
