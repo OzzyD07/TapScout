@@ -43,6 +43,15 @@ describe("safeToTry / iconOnly", () => {
     expect(iconOnly(edit)).toBe(false);
   });
 
+  it("never votes, reports or follows on its own, but opens tabs, composers and settings (51d7c926)", () => {
+    for (const text of ["Upvote 292", "Downvote 44", "Report post", "Follow"]) {
+      expect(safeToTry(control({ text }))).toBe(false);
+    }
+    for (const text of ["Posts", "Comments", "Subscribe", "Reply", "Post view Card"]) {
+      expect(safeToTry(control({ text }))).toBe(true);
+    }
+  });
+
   it("never picks a language option on its own (f86858fd switched the app to Afrikaans)", () => {
     for (const text of ["Afrikaans", "Deutsch", "Türkçe", "English (US)", "日本語"]) {
       expect(safeToTry(control({ text }))).toBe(false);

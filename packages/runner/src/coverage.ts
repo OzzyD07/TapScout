@@ -8,6 +8,20 @@ import { actionKey, type StateGraph, type TargetIdentity } from "./state.js";
 
 /** Never tapped without the planner: these can end the session's account or data. */
 const DESTRUCTIVE = /\b(delete|remove|erase|reset|sign ?out|log ?out|deactivate|close account)\b/i;
+/**
+ * Things that reach real servers and real people: never tapped or planned for without the
+ * planner, whose prompt forbids submitting them (Jerboa 51d7c926: the sweep tapped "Upvote 292"
+ * and "Downvote 44"). Whole words only, so "Posts" and "Comments" tabs stay open to it.
+ */
+export const OUTWARD =
+  /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate|compose|reply|replies|boost|favou?rite|follow|comment|toot|post)\b/i;
+/**
+ * What one tap does to other people right away (vote, report, block, follow, send, buy). Opening a
+ * post or reply composer is harmless: sending it is a further control, and "Post view" is a
+ * setting (Jerboa).
+ */
+const ONE_TAP_OUTWARD =
+  /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate|boost|favou?rite|follow)\b/i;
 /** Entry points where Store Readiness and Accessibility evidence usually lives. */
 const ACCOUNT_HINT = /setting|account|profile|privacy|help|about|preference|gear|menu|more/i;
 
@@ -58,11 +72,17 @@ export function unsafeName(name: string): boolean {
 }
 
 /**
- * A control the agent may tap on its own: not destructive, not a plain back button and not an
- * option that switches the app's language.
+ * A control the agent may tap on its own: not destructive, not outward-facing, not a plain back
+ * button and not an option that switches the app's language.
  */
 export function safeToTry(e: UiElement, screen?: Pick<UiElement, "label" | "text">[]): boolean {
-  return !DESTRUCTIVE.test(nameOf(e)) && !isBackControl(e) && !isLanguageOption(e, screen);
+  const name = nameOf(e);
+  return (
+    !DESTRUCTIVE.test(name) &&
+    !ONE_TAP_OUTWARD.test(name) &&
+    !isBackControl(e) &&
+    !isLanguageOption(e, screen)
+  );
 }
 
 /**

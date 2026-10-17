@@ -1952,6 +1952,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   async function addVisualElements(snap: Snapshot, shot: string): Promise<void> {
     const screen = snap.screen;
     if (controlsOf(screen).length > 0 || screen.interruption || screen.keyboardVisible) return;
+    // Only a screen the hierarchy says (almost) nothing about: a list of texts without controls
+    // is an ordinary screen (Read You d590b06e: a settings sheet whose options are plain text).
+    if (screen.elements.filter((e) => (e.label ?? e.text ?? "").trim()).length > 1) return;
     // A frame seen before, pixel for pixel (a static menu), keeps the controls found on it.
     const image = createHash("sha256").update(snap.png).digest("hex");
     const known = locatedByImage.get(image);
