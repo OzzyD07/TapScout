@@ -7,7 +7,7 @@ import {
   repairMessages,
   validatePlannerAnswer,
 } from "../src/planner.js";
-import { fingerprint, StateGraph } from "../src/state.js";
+import { actionKey, fingerprint, StateGraph } from "../src/state.js";
 
 function context(): PlanningContext {
   const screen = normalizeHierarchy(
@@ -79,6 +79,25 @@ describe("buildPlannerMessages", () => {
     expect(user?.content).toContain(
       'Untried controls on other screens: "Profile": icon button id=profile-settings',
     );
+  });
+});
+
+describe("controls that did nothing", () => {
+  it("are marked after two taps without effect and refused a third time (d590b06e)", () => {
+    const ctx = context();
+    const target = ctx.screen.elements.find((e) => e.stableId === "register-continue");
+    if (!target) throw new Error("fixture");
+    const fp = ctx.state.fingerprint;
+    for (let i = 0; i < 2; i++) {
+      ctx.graph.record(fp, actionKey("tap", target), 'Tap "Continue"', fp, i + 1, {
+        type: "tap",
+        target,
+      });
+    }
+    const [, user] = buildPlannerMessages(ctx);
+    expect(user?.content).toContain("[no effect ×2]");
+    const v = validatePlannerAnswer(answer({ type: "tap", targetRef: target.ref }), ctx);
+    expect(v).toMatchObject({ ok: false, reason: expect.stringContaining("changed nothing") });
   });
 });
 

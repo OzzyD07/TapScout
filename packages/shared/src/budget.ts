@@ -47,12 +47,14 @@ export type ReportBudget = z.infer<typeof ReportBudget>;
 
 /** Pilot defaults from docs/03 §9 — proposals to be measured, not guarantees. */
 export const DEFAULT_PLATFORM_BUDGET: PlatformBudget = {
-  budgetVersion: "2026-10-13.v4",
-  hardTimeoutMinutes: 20,
-  qaSoftStopMinute: 17,
+  budgetVersion: "2026-10-17.v5",
+  // v5: iOS sessions always ran out of time (Settings missed, d3788cb0) and Android ones out of
+  // planner calls with 3–5 minutes left (05 §28): 17 minutes of QA instead of 12, 90 calls.
+  hardTimeoutMinutes: 25,
+  qaSoftStopMinute: 22,
   preparationMaxMinutes: 5,
-  maxDeviceActions: 150,
-  maxPlannerRequests: 60,
+  maxDeviceActions: 200,
+  maxPlannerRequests: 90,
   maxVisionRequests: 30,
   maxTriageRequests: 2,
   maxTestPlanRequests: 1,
@@ -61,8 +63,8 @@ export const DEFAULT_PLATFORM_BUDGET: PlatformBudget = {
   maxInconclusiveAttemptsPerTarget: 2,
   loopDetectionRepeats: 3,
   tokens: {
-    plannerInput: 180_000,
-    plannerOutput: 26_000,
+    plannerInput: 270_000,
+    plannerOutput: 39_000,
     visionInput: 75_000,
     visionOutput: 9_000,
     triageInput: 24_000,

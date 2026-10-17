@@ -13,7 +13,17 @@ import {
 import { gateOf } from "./access.js";
 import { isLanguageOption, outwardAction } from "./coverage.js";
 import type { NormalizedScreen, Platform } from "./observer.js";
-import type { ScreenState, StateGraph } from "./state.js";
+import { actionKey, type ScreenState, type StateGraph } from "./state.js";
+
+/** Taps on one control that left its screen unchanged before it is no longer offered. */
+const MAX_NO_EFFECT_TAPS = 2;
+
+/** How often tapping this control on this screen changed nothing. */
+function noEffectTaps(state: ScreenState, e: UiElement): number {
+  return (
+    state.tried.get(actionKey("tap", e))?.results.filter((r) => r === "same screen").length ?? 0
+  );
+}
 
 /** Action types the F2 executor implements. Stress actions arrive with the stress mode. */
 export const ENABLED_ACTIONS = new Set<ProposedAction["type"]>([
@@ -116,6 +126,11 @@ export function buildPlannerMessages(ctx: PlanningContext): ChatMessage[] {
   if (ctx.visionNote) lines.push(`Visual description: ${ctx.visionNote}`);
   lines.push("Elements:");
   for (const e of screen.elements) {
+    const dud = noEffectTaps(state, e);
+    if (dud >= MAX_NO_EFFECT_TAPS) {
+      lines.push(`  ${describeElement(e)} [no effect ×${dud}]`);
+      continue;
+    }
     lines.push(`  ${describeElement(e)}${ctx.untriedRefs?.has(e.ref) ? " [untried]" : ""}`);
   }
   if (screen.truncated) lines.push("  (more elements exist; scroll to reveal them)");
@@ -257,6 +272,14 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
     }
   }
   // Jerboa 51d7c926: the prompt forbids it, yet the planner voted on posts.
+  // Read You d590b06e and Jerboa 51d7c926 spent much of their budget tapping "Mark all as read"
+  // and "Sort by" again and again with nothing changing.
+  if (action.type === "tap" && target && noEffectTaps(ctx.state, target) >= MAX_NO_EFFECT_TAPS) {
+    return {
+      ok: false,
+      reason: `${action.targetRef} was tapped ${noEffectTaps(ctx.state, target)} times here and changed nothing; choose another control, scroll or go back`,
+    };
+  }
   if (action.type === "tap" && target && outwardAction(target)) {
     return {
       ok: false,

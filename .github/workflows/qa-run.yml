@@ -53,7 +53,7 @@ jobs:
     if: inputs.platforms != 'ios'
     runs-on: ubuntu-24.04
     # Hard limit from docs/03 §9 plus setup margin; the runner stops QA work earlier.
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       # The post-run ground truth must never be readable by the agent (quality/ground-truth/README.md).
@@ -74,6 +74,14 @@ jobs:
         run: |
           npm install -g "appium@${APPIUM_VERSION}"
           appium driver install "uiautomator2@${UIAUTOMATOR2_VERSION}"
+      # The system image comes from Google's SDK repository, which failed now and then (Read You
+      # cb0d6d18: "Failed to find package system-images;android-35"). Kept in the Actions cache,
+      # sdkmanager finds it installed and downloads nothing.
+      - name: Cache the emulator system image
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/system-images/android-35/google_apis/x86_64
+          key: android-sysimg-35-google_apis-x86_64-v1
       - name: Boot emulator and run TapScout
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
