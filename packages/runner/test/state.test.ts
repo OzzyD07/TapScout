@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { UiElement } from "@tapscout/shared";
 import { describe, expect, it } from "vitest";
 import { normalizeHierarchy } from "../src/observer.js";
-import { actionKey, fingerprint, StateGraph } from "../src/state.js";
+import { actionKey, fingerprint, StateGraph, withoutValues } from "../src/state.js";
 
 const screen = (platform: "android" | "ios", name: string, scale = 1) =>
   normalizeHierarchy(platform, readFileSync(`test/fixtures/${name}.xml`, "utf8"), { scale });
@@ -20,6 +20,32 @@ describe("fingerprint", () => {
       ),
     };
     expect(fingerprint(typed)).toBe(fingerprint(register));
+  });
+
+  it("leaves typed values out of headings and names, but not short single words", () => {
+    const welcome = screen("android", "android-welcome");
+    const greeting = (name: string) => ({
+      ...welcome,
+      elements: [
+        ...welcome.elements,
+        {
+          ...(welcome.elements[0] as UiElement),
+          ref: "el-99",
+          role: "text",
+          text: `Hi, ${name}`,
+          label: undefined,
+          stableId: undefined,
+          bounds: { x: 0, y: 0, width: 10, height: 10 },
+        } as UiElement,
+      ],
+    });
+    const typed = ["Alex Doe", "Alex Doe Jr.", "Notes"];
+    expect(fingerprint(greeting("Alex Doe"), typed)).toBe(
+      fingerprint(greeting("Alex Doe Jr."), typed),
+    );
+    expect(fingerprint(greeting("Alex Doe"))).not.toBe(fingerprint(greeting("Alex Doe Jr.")));
+    expect(withoutValues("Hi, Alex Doe Jr.", typed)).toBe("Hi, …");
+    expect(withoutValues("My notes", typed)).toBe("My notes");
   });
 
   it("treats an open keyboard as a different state of the same screen", () => {

@@ -52,7 +52,14 @@ import {
   validatePlannerAnswer,
 } from "./planner.js";
 import { buildScreenMap, ScreenShots } from "./screen-map.js";
-import { actionKey, fingerprint, identityOf, matchElement, StateGraph } from "./state.js";
+import {
+  actionKey,
+  fingerprint,
+  identityOf,
+  matchElement,
+  StateGraph,
+  withoutValues,
+} from "./state.js";
 import {
   goalReached,
   namesTarget,
@@ -398,6 +405,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let noteHandedOver = false;
   /** Controls opened for the test plan without the planner (goalControl). */
   let goalTaps = 0;
+  /** Values the agent typed (never the test account), left out of screen identity. */
+  const typedValues: string[] = [];
   /** Controls located on a screenshot, by the image's hash. */
   const locatedByImage = new Map<string, ReturnType<typeof parseVisualElements>>();
   let visualScreens = 0;
@@ -912,6 +921,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             ? credential(action.input.key)
             : generatedText(action.input);
         await device.typeInto(found, text, Boolean(target.text));
+        // Typed values stay out of screen identity and names (a greeting with the user's name).
+        if (action.input.kind !== "credential_ref" && text.trim().length >= 4) {
+          typedValues.push(text.trim().slice(0, 200));
+        }
         // Typed text must arrive in full: keystrokes can be lost or land out of order while the
         // keyboard comes up, and a field read as empty can still hold text that the new value
         // is appended to (iOS: login 43c5c77c, seeded b13c27ba "ADoe", "ax.doe@…",
@@ -1068,7 +1081,7 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       // A2: content still arriving (spinner, "Loading…"): look again shortly instead of judging
       // the half-loaded screen; a state whose spinner outlasts the wait is not waited for again.
       if (snap.appForeground && snap.screen.loading) {
-        const busy = fingerprint(snap.screen);
+        const busy = fingerprint(snap.screen, typedValues);
         if (!slowStates.has(busy) && loadingPolls < MAX_LOADING_POLLS) {
           loadingPolls += 1;
           await ports.sleep(LOADING_POLL_MS);
@@ -1103,8 +1116,10 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       } else {
         blankPolls = 0;
       }
-      const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
-      const label = snap.appForeground ? (snap.screen.title ?? "") : "Outside the app";
+      const fp = snap.appForeground ? fingerprint(snap.screen, typedValues) : OFF_APP;
+      const label = snap.appForeground
+        ? withoutValues(snap.screen.title ?? "", typedValues)
+        : "Outside the app";
       const { state, isNew } = graph.visit(fp, label, step);
       current = { snap, label: state.label, shot };
       screenShots.note(
@@ -1806,9 +1821,12 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
       snap = await observe();
     }
     const shot = await record(`step-${step}`, snap, step);
-    const fp = snap.appForeground ? fingerprint(snap.screen) : OFF_APP;
+    const fp = snap.appForeground ? fingerprint(snap.screen, typedValues) : OFF_APP;
     const label =
-      graph.get(fp)?.label ?? (snap.appForeground ? (snap.screen.title ?? "") : "Outside the app");
+      graph.get(fp)?.label ??
+      (snap.appForeground
+        ? withoutValues(snap.screen.title ?? "", typedValues)
+        : "Outside the app");
     current = { snap, label, shot };
     ports.emit({
       type: "action_executed",

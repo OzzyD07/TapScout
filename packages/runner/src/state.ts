@@ -18,18 +18,45 @@ export interface FingerprintInput {
   topPackage?: string;
 }
 
-/** Stable id of a screen state: structure and headings, not content. */
-export function fingerprint(screen: FingerprintInput): string {
+/**
+ * Text with the given values (what the agent typed) replaced by "…": "Hi, Alex Doe" and
+ * "Hi, Alex Doe Jr." are the same Profile screen. Values shorter than 4 characters are kept.
+ */
+export function withoutValues(text: string, values: readonly string[]): string;
+export function withoutValues(
+  text: string | undefined,
+  values: readonly string[],
+): string | undefined;
+export function withoutValues(text: string | undefined, values: readonly string[]) {
+  if (!text) return text;
+  let out = text;
+  for (const v of [...values].sort((a, b) => b.length - a.length)) {
+    // A short single word ("Notes", "Test") is just as likely the app's own text.
+    if (v.trim().length < 4 || /^\p{L}{1,7}$/u.test(v.trim())) continue;
+    const at = out.toLowerCase().indexOf(v.trim().toLowerCase());
+    if (at >= 0) out = `${out.slice(0, at)}…${out.slice(at + v.trim().length)}`;
+  }
+  return out;
+}
+
+/**
+ * Stable id of a screen state: structure and headings, not content. `typed` values (what the
+ * agent entered) are left out, so a heading that greets the user by name does not make the
+ * screen new each time the name changes.
+ */
+export function fingerprint(screen: FingerprintInput, typed: readonly string[] = []): string {
   const parts = new Set<string>();
   for (const e of screen.elements) {
-    if (STRUCTURAL.has(e.role)) parts.add(`${e.role}:${e.stableId ?? norm(e.label ?? e.text)}`);
+    if (STRUCTURAL.has(e.role)) {
+      parts.add(`${e.role}:${e.stableId ?? norm(withoutValues(e.label ?? e.text, typed))}`);
+    }
   }
   // The top few short texts are usually the title and section headings.
   const headings = screen.elements
     .filter((e) => e.role === "text" && (e.text ?? e.label ?? "").length <= 40)
     .sort((a, b) => a.bounds.y - b.bounds.y)
     .slice(0, 3)
-    .map((e) => `h:${norm(e.text ?? e.label)}`);
+    .map((e) => `h:${norm(withoutValues(e.text ?? e.label, typed))}`);
   const key = [
     screen.topPackage ?? "",
     screen.keyboardVisible ? "kb" : "",
