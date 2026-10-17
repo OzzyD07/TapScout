@@ -882,3 +882,37 @@ Hiçbir koşuda beklenmeyen bulgu yok. Read You `cb0d6d18` hiç başlamadı: em�
 - Read You'da planner "Mark all as read" / "Search" arasında dönüyor; plan hedefleri gerçek kontrollere denk gelmedi. Yeni plan zamanlamasıyla yeniden ölçülmeli.
 - SPD'de karakter ekranındaki başlat kontrolü bulunamıyor (MiniCPM-V konumlandırması).
 - Emülatör imajı indirme hatası CI'da tekrar ederse `qa-run.yml`'de önbellek ya da yeniden deneme gerekir.
+
+## 29. Mevcut testlerin verimi: daha uzun oturum, 90 çağrı, boşa dokunuş, emülatör önbelleği (17 Ekim 2026, gece)
+
+Yeni özellik eklemeden, ölçümün gösterdiği darboğazlara yönelik ayarlar ve küçük düzeltmeler.
+
+| Commit | Ne | Neden |
+|---|---|---|
+| `069526c` | **Bütçe v5:** QA 12 yerine 17 dk (`qaSoftStopMinute` 22), 90 planner çağrısı (önce 60), 200 cihaz eylemi; planner token'ları da 1,5×. Android job zaman aşımı 35 dk | iOS oturumları hep süreden bitiyordu (Settings kaçıyordu); Android'de 60 çağrı 7–10 dk'da tükeniyor, 3–5 dk boş kalıyordu. Maliyet oturum başına ≈ $0,011 → ≈ $0,016 |
+| `069526c` | Bir ekranda iki kez **hiçbir şey değiştirmeyen** kontrol planner'a `[no effect ×N]` diye gösterilir, üçüncü dokunuş reddedilir | Read You "Mark all as read"/"Search", Jerboa "Sort by → Top" döngülerinde bütçenin büyük kısmını harcıyordu |
+| `069526c` | Android **sistem imajı Actions önbelleğinde** | Read You `cb0d6d18` imaj Google'dan indirilemediği için hiç başlamamıştı |
+| `daeb0e5` | Donan **sistem uygulaması** (launcher, System UI, Settings, Play services) "Close app" ile kapatılır; test edilen uygulamaya hâlâ "Wait" | Seeded `91f233f0` Android: "Pixel Launcher isn't responding" her "Wait"ten sonra geri geldi, oturum 6 eylemde bitti (Tusky `0ea1dbfe` aynısı "Settings" ile) |
+| `a6b587c` | "Yeni ekran yok" durağı en çok 3 kez aşılır (önce 1), planner bütçesi kaldıkça | Read You `78330d20` ve Jerboa `dca0237b` 90 çağrının 24 ve 15'i kullanılmadan durdu; Jitsi `2988fc2c` 32 çağrıda 3/5'te kaldı |
+
+**Ölçüm** (`069526c` runner'ı; karşılaştırma aynı günün §28 turu ve önceki en iyi sonuçlarla):
+
+| Uygulama | §28 turu | Bu tur | Önceki en iyi |
+|---|---|---|---|
+| FieldNotes seeded iOS | 3/6–5/6 | **6/6** (`91f233f0`; 77 çağrı, 102 eylem, 17,2 dk) | 6/6 |
+| FieldNotes seeded Android | 5/6–6/6 | altyapı: launcher ANR'ı (`91f233f0`) → `daeb0e5` | 6/6 |
+| Habo | 6/8 | **7/8** (`c00eeefc`; "Edit habit" ilk kez, 125. adım) | 6/8 |
+| AntennaPod | 8/10 | **9/10** (`c203e90c`; Playback history ilk kez) | 8/10 |
+| Read You | 2/7 | 4/7 (`78330d20`; 24 çağrı kullanılmadan durdu → `a6b587c`) | 5/7 |
+| Jerboa | 2/6–3/6 | 3/6 (`dca0237b`; Login'e ulaşıldı) | 4/6 |
+| Jitsi Meet | 5/5 | 3/5 (`2988fc2c`; 32 çağrıda durdu → `a6b587c`) | 5/5 |
+
+Bu turda 1 yanlış pozitif (AntennaPod Settings'te etiket kontrolü; önceki elle verilmiş hükümle eşleşti).
+
+**Son doğrulama** (`a6b587c`: launcher düzeltmesi ve 3 kaçış):
+- Seeded Android `678ff26f`: **5/6**; launcher ANR'ı yok, 90 çağrı ve 126 eylemle tamamlandı. Kaçan profil düzenleme kalıcılığı: Edit profile'a geç ve kapsam turuyla ulaşıldı. Tur Save'e yeni değer yazmadan dokunduğu için kontrol edilecek değer yoktu (kapsam dalgalanması, hata değil). Plan artık gerçek ekranlardan: "profil oluştur ve düzenlemeyi doğrula", "notlar", "ayarlar", "yardım ve hesap".
+- Jitsi `4b819ae7`: 3/5. Kaçışlar çalıştı (86 çağrı, 110 eylem; önce 32 çağrıda duruyordu). Oda adı yazıldı, "Tap to join"a dokunuldu, ama ön katılım ekranı bu sefer gelmedi.
+
+Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" sayımı, ekranda bir şey yazılınca sıfırlanır. Oda adı bekleyen Join gibi bir buton, yazmadan önceki iki boşa dokunuş yüzünden kalıcı olarak engellenmez.
+
+**Sonuç:** iOS 6/6'ya döndü (süre). Habo (7/8) ve AntennaPod (9/10) şimdiye kadarki en iyi sonuçlarında. Read You 2/7 → 4/7. Jitsi'nin toplantı akışı ve FieldNotes Android'in profil düzenlemesi koşudan koşuya oynamaya devam ediyor. Maliyet oturum başına ≈ $0,016; süre Android 7–12 dk, iOS ≈ 17 dk QA.
