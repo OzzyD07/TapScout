@@ -39,6 +39,14 @@ describe("buildCapabilities", () => {
     expect(android["appium:autoLaunch"]).toBe(false);
   });
 
+  it("resets the app for a new run and keeps its data only for a resumed session", () => {
+    expect(buildCapabilities({ platform: "android", appPath: "a.apk" })["appium:noReset"]).toBe(
+      false,
+    );
+    const resumed = buildCapabilities({ platform: "ios", appPath: "A.app", keepAppData: true });
+    expect(resumed["appium:noReset"]).toBe(true);
+  });
+
   it("uses a prebuilt WebDriverAgent when one is given", () => {
     const ios = buildCapabilities({
       platform: "ios",

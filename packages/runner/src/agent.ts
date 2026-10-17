@@ -125,6 +125,11 @@ export interface AgentPorts {
   triage?(messages: ChatMessage[]): Promise<RelayResponse>;
   /** App-level test plan once the first screens are known (docs/07 B11-2); optional. */
   testPlan?(messages: ChatMessage[]): Promise<RelayResponse>;
+  /**
+   * A new device session after the old one broke, with the app and its data kept; optional.
+   * Exploration then continues where it was, with everything it learned so far.
+   */
+  reconnect?(): Promise<AgentDevice>;
   /** Waits until a background evidence upload is complete (optional). */
   evidenceReady?(artifactId: string): Promise<void>;
   /** Throws when the run was cancelled or the lease was lost. */
@@ -219,6 +224,9 @@ const MAX_ESCAPES = 1;
 /** Times a session stuck on one screen steps back out of it instead of ending. */
 const MAX_STUCK_EXITS = 3;
 const MIN_PLANNER_CALLS_FOR_ESCAPE = 6;
+/** Device sessions that may replace a broken one per platform session, and the time they need. */
+const MAX_RESUMES = 2;
+const RESUME_MIN_LEFT_MS = 3 * 60_000;
 /** The exception line of a crash log ("java.lang.IllegalStateException: …"), for grouping. */
 export function crashSignature(log: string): string | undefined {
   const line = log
@@ -366,7 +374,7 @@ function isSessionDead(error: unknown): boolean {
 }
 
 export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<AgentOutcome> {
-  const { device } = ports;
+  let device = ports.device;
   const { platform, budget, counters } = config;
   const graph = new StateGraph(budget.loopDetectionRepeats);
   const goals: ProposedGoal[] = [];
@@ -2571,14 +2579,52 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   }
 
   let ending: Ending;
-  try {
-    ending = await explore();
-  } catch (error) {
-    if (error instanceof AgentStop) ending = error.outcome;
-    else {
+  let resumes = 0;
+  for (;;) {
+    try {
+      ending = await explore();
+      break;
+    } catch (error) {
+      if (error instanceof AgentStop) {
+        ending = error.outcome;
+        break;
+      }
       const failed = deviceFailure(error);
       if (!failed) throw error;
-      ending = failed;
+      // The emulator or Appium dropped out mid-session (seeded Android 9d845c86 at action 29,
+      // Habo 66ee6a94 at 50): continue in a new device session with what was learned so far.
+      if (
+        !ports.reconnect ||
+        resumes >= MAX_RESUMES ||
+        ports.now() > config.softDeadline - RESUME_MIN_LEFT_MS
+      ) {
+        ending = failed;
+        break;
+      }
+      resumes += 1;
+      ports.emit({
+        type: "note",
+        payload: {
+          level: "warn",
+          message:
+            `The device session broke after ${counters.actionsExecuted} actions (${failed.detail.replace(/^The device session failed: /, "").slice(0, 160)}); continuing in a new session with the app and what was explored so far.`.slice(
+              0,
+              400,
+            ),
+        },
+      });
+      await ports.flush();
+      try {
+        device = await ports.reconnect();
+      } catch (reconnectError) {
+        ports.log(`reconnect failed: ${(reconnectError as Error).message}`);
+        ending = failed;
+        break;
+      }
+      // The last action's outcome is unknown, and the screen must be read afresh.
+      pending = null;
+      fresh = null;
+      tour = null;
     }
   }
 

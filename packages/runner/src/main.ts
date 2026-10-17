@@ -220,8 +220,14 @@ try {
   });
   checkpoint();
 
-  const openDevice = () =>
-    DeviceSession.open({ platform, appPath, udid: values.udid, prebuiltWdaPath: values.wda });
+  const openDevice = (keepAppData = false) =>
+    DeviceSession.open({
+      platform,
+      appPath,
+      udid: values.udid,
+      prebuiltWdaPath: values.wda,
+      keepAppData,
+    });
   try {
     device = await openDevice();
   } catch (error) {
@@ -285,6 +291,14 @@ try {
           return uploads.start(file, kind, stepIndex);
         },
         evidenceReady: (artifactId) => uploads.ready(artifactId),
+        // A broken session mid-run is replaced with the app and its data kept; the emulator is
+        // brought back on adb first (see recoverEmulator).
+        reconnect: async () => {
+          await device?.close().catch(() => undefined);
+          if (platform === "android") await recoverEmulator();
+          device = await openDevice(true);
+          return device;
+        },
         crashLog:
           platform === "android"
             ? async () => {

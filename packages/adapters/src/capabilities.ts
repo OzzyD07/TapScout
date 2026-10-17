@@ -8,6 +8,11 @@ export interface SessionOptions {
   udid?: string;
   /** iOS only: prebuilt WebDriverAgentRunner-Runner.app, so no xcodebuild runs at session start. */
   prebuiltWdaPath?: string;
+  /**
+   * Keep the installed app and its data (Appium noReset). Only for a session that replaces a
+   * broken one mid-run: what the app saved so far must still be there.
+   */
+  keepAppData?: boolean;
 }
 
 /**
@@ -18,7 +23,7 @@ export function buildCapabilities(options: SessionOptions): Record<string, unkno
   const common = {
     "appium:app": options.appPath,
     "appium:newCommandTimeout": 300,
-    "appium:noReset": false,
+    "appium:noReset": options.keepAppData ?? false,
     ...(options.udid ? { "appium:udid": options.udid } : {}),
   };
 

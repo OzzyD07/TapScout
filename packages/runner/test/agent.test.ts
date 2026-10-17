@@ -850,6 +850,46 @@ describe("runAgent", () => {
     expect(out.detail).toContain("exited with code 255");
   });
 
+  it("continues in a new device session when the old one dies mid-run (9d845c86)", async () => {
+    const broken = fakeDevice();
+    let shots = 0;
+    const screenshot = broken.screenshotPng;
+    broken.screenshotPng = async () => {
+      shots += 1;
+      if (shots === 6) throw new Error("WebDriverError: invalid session id: the session is gone");
+      return screenshot();
+    };
+    const h = harness(broken, scriptedPlanner(), 6);
+    const replacement = fakeDevice();
+    const reconnect = vi.fn(async () => replacement);
+    const out = await runAgent({ ...h.ports, reconnect }, h.config);
+
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(out.phase).toBe("completed");
+    expect(out.stopReason).not.toBe("infrastructure_failed");
+    expect(h.counters.plannerCalls).toBe(6);
+    expect(h.events.map(message).some((m) => /continuing in a new session/.test(m))).toBe(true);
+  });
+
+  it("ends as infrastructure when the device keeps failing after its resumes", async () => {
+    const dead = () => {
+      const d = fakeDevice();
+      let n = 0;
+      const shot = d.screenshotPng;
+      d.screenshotPng = async () => {
+        n += 1;
+        if (n > 2) throw new Error("WebDriverError: invalid session id");
+        return shot();
+      };
+      return d;
+    };
+    const h = harness(dead(), scriptedPlanner(), 20);
+    const reconnect = vi.fn(async () => dead());
+    const out = await runAgent({ ...h.ports, reconnect }, h.config);
+    expect(reconnect).toHaveBeenCalledTimes(2);
+    expect(out.phase).toBe("infrastructure_failed");
+  });
+
   it("reports access_blocked when the app never shows a usable screen", async () => {
     const device = fakeDevice();
     device.appState = async () => 1;
