@@ -11,7 +11,7 @@ import {
   type UiElement,
 } from "@tapscout/shared";
 import { gateOf } from "./access.js";
-import { isLanguageOption } from "./coverage.js";
+import { isLanguageOption, outwardAction } from "./coverage.js";
 import type { NormalizedScreen, Platform } from "./observer.js";
 import type { ScreenState, StateGraph } from "./state.js";
 
@@ -255,6 +255,13 @@ export function validatePlannerAnswer(content: string, ctx: PlanningContext): Va
         reason: `${action.targetRef} is covered by the keyboard; use hide_keyboard first`,
       };
     }
+  }
+  // Jerboa 51d7c926: the prompt forbids it, yet the planner voted on posts.
+  if (action.type === "tap" && target && outwardAction(target)) {
+    return {
+      ok: false,
+      reason: `${action.targetRef} acts on other people (vote, report, follow, send or buy); the app may talk to real servers, so leave it alone and explore elsewhere`,
+    };
   }
   if (action.type === "tap" && target && isLanguageOption(target, ctx.screen.elements)) {
     return {

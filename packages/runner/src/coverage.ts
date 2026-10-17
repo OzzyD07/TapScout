@@ -22,6 +22,10 @@ export const OUTWARD =
  */
 const ONE_TAP_OUTWARD =
   /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate|boost|favou?rite|follow)\b/i;
+/** A control whose one tap acts on other people right away (vote, report, follow, send, buy). */
+export function outwardAction(e: Pick<UiElement, "label" | "text" | "stableId">): boolean {
+  return ONE_TAP_OUTWARD.test(nameOf(e));
+}
 /** Entry points where Store Readiness and Accessibility evidence usually lives. */
 const ACCOUNT_HINT = /setting|account|profile|privacy|help|about|preference|gear|menu|more/i;
 

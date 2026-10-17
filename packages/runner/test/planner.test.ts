@@ -83,6 +83,23 @@ describe("buildPlannerMessages", () => {
 });
 
 describe("validatePlannerAnswer", () => {
+  it("refuses a tap that votes, reports or follows (Jerboa 51d7c926)", () => {
+    const ctx = context();
+    const target = ctx.screen.elements.find((e) => e.stableId === "register-continue");
+    if (!target) throw new Error("fixture");
+    const voting = {
+      ...ctx,
+      screen: {
+        ...ctx.screen,
+        elements: ctx.screen.elements.map((e) =>
+          e === target ? { ...e, label: "Upvote 32", text: undefined } : e,
+        ),
+      },
+    };
+    const v = validatePlannerAnswer(answer({ type: "tap", targetRef: target.ref }), voting);
+    expect(v).toMatchObject({ ok: false, reason: expect.stringContaining("acts on other people") });
+  });
+
   it("accepts a grounded type action", () => {
     const ctx = context();
     const v = validatePlannerAnswer(
