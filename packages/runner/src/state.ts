@@ -75,6 +75,11 @@ export interface ScreenState {
   firstSeenStep: number;
   /** actionKey → how often it was tried here and where it led. */
   tried: Map<string, { count: number; summary: string; results: string[] }>;
+  /**
+   * Taps since the last typing here that left this screen unchanged, by action key. Typing resets
+   * them: a Join button does nothing until a room name is entered (Jitsi).
+   */
+  noEffect: Map<string, number>;
 }
 
 /** What a recorded action targeted, so it can be found again on a later observation. */
@@ -152,6 +157,7 @@ export class StateGraph {
       visits: 1,
       firstSeenStep: step,
       tried: new Map(),
+      noEffect: new Map(),
     };
     this.states.set(fp, state);
     return { state, isNew: true };
@@ -184,6 +190,12 @@ export class StateGraph {
       entry.count += 1;
       entry.results.push(result);
       from.tried.set(actionKey, entry);
+      // Typing usually happens with the keyboard open, another state of the same screen.
+      if (exec?.type === "type") {
+        for (const s of this.states.values()) if (s.label === from.label) s.noEffect.clear();
+      } else if (exec?.type === "tap" && toFp === fromFp) {
+        from.noEffect.set(actionKey, (from.noEffect.get(actionKey) ?? 0) + 1);
+      }
     }
     if (toFp && toFp !== fromFp) this.transitions += 1;
     if (

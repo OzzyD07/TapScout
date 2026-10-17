@@ -18,11 +18,9 @@ import { actionKey, type ScreenState, type StateGraph } from "./state.js";
 /** Taps on one control that left its screen unchanged before it is no longer offered. */
 const MAX_NO_EFFECT_TAPS = 2;
 
-/** How often tapping this control on this screen changed nothing. */
+/** How often tapping this control on this screen changed nothing since the last typing here. */
 function noEffectTaps(state: ScreenState, e: UiElement): number {
-  return (
-    state.tried.get(actionKey("tap", e))?.results.filter((r) => r === "same screen").length ?? 0
-  );
+  return state.noEffect.get(actionKey("tap", e)) ?? 0;
 }
 
 /** Action types the F2 executor implements. Stress actions arrive with the stress mode. */

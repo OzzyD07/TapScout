@@ -98,6 +98,15 @@ describe("controls that did nothing", () => {
     expect(user?.content).toContain("[no effect ×2]");
     const v = validatePlannerAnswer(answer({ type: "tap", targetRef: target.ref }), ctx);
     expect(v).toMatchObject({ ok: false, reason: expect.stringContaining("changed nothing") });
+
+    // Typing on the screen may be what the control was waiting for (Jitsi's Join needs a room).
+    const field = ctx.screen.elements.find((e) => e.stableId === "register-name");
+    if (!field) throw new Error("fixture");
+    ctx.graph.record(fp, actionKey("type", field), "Type", fp, 3, { type: "type", target: field });
+    expect(buildPlannerMessages(ctx)[1]?.content).not.toContain("[no effect");
+    expect(validatePlannerAnswer(answer({ type: "tap", targetRef: target.ref }), ctx).ok).toBe(
+      true,
+    );
   });
 });
 
