@@ -771,10 +771,13 @@ describe("runAgent", () => {
         budgetRemaining: { inputTokens: 1, outputTokens: 1, requests: 1 },
       };
     });
-    const h = harness(fakeDevice(), plan as ReturnType<typeof scriptedPlanner>, 30);
-    const out = await runAgent(h.ports, h.config);
+    const h = harness(fakeDevice(), plan as ReturnType<typeof scriptedPlanner>, 90);
+    const out = await runAgent(h.ports, {
+      ...h.config,
+      budget: { ...h.config.budget, maxPlannerRequests: 90, maxDeviceActions: 200 },
+    });
     expect(out.stopReason).toBe("goals_exhausted");
-    expect(h.counters.plannerCalls).toBeLessThan(30);
+    expect(h.counters.plannerCalls).toBeLessThan(90);
   });
 
   it("after the planner budget, tours to an untried icon button on another screen", async () => {

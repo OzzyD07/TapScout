@@ -230,8 +230,11 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
-/** "No new screen" stops overridden once while enough planner budget remains. */
-const MAX_ESCAPES = 1;
+/**
+ * "No new screen" stops overridden while enough planner budget remains. Three since budget v5:
+ * with one, Read You 78330d20 and Jerboa dca0237b stopped with 24 and 15 of 90 calls unused.
+ */
+const MAX_ESCAPES = 3;
 /** Times a session stuck on one screen steps back out of it instead of ending. */
 const MAX_STUCK_EXITS = 3;
 const MIN_PLANNER_CALLS_FOR_ESCAPE = 6;
