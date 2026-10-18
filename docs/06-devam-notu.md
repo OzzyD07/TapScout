@@ -100,7 +100,7 @@ quality/ground-truth/ koşu sonrası kalite değerlendirmesi; runtime kodu buray
 
 ## 6. Proje sahibinde bekleyenler
 
-- [ ] **Vercel'e `CRON_AUTH_SECRET` eklemek** (17 Ekim): değer yerel `.env`'de (17 Ekim'de üretildi, 32 bayt base64url) ve aynısı Supabase Vault'ta (`reconcile_cron_secret`). Eklenip yeniden deploy edilmeden bakım görevi her dakika 401 alır; takılan koşular toparlanmaz. Değer değişirse Vault da güncellenmeli: `set_reconcile_secret` RPC'si (`05` §27).
+- [x] **Vercel'e `CRON_AUTH_SECRET` eklemek** (17 Ekim; eklendi, bakım görevi 17 Ekim 15:41'den beri 200 dönüyor): değer yerel `.env`'de (17 Ekim'de üretildi, 32 bayt base64url) ve aynısı Supabase Vault'ta (`reconcile_cron_secret`). Eklenip yeniden deploy edilmeden bakım görevi her dakika 401 alır; takılan koşular toparlanmaz. Değer değişirse Vault da güncellenmeli: `set_reconcile_secret` RPC'si (`05` §27).
 - [x] **Vercel'e `APP_CREDENTIALS_ENCRYPTION_KEY` eklemek** (11 Ekim; `7ccf0723`'te bootstrap hesabı çözdü): değer yerel `.env`'de (11 Ekim'de üretildi, 32 bayt base64). Eklenmeden test hesabıyla yükleme "Test accounts are not enabled on this server" hatası verir. Anahtar değişirse kayıtlı hesaplar çözülemez.
 - [ ] Supabase Pro'ya geçiş (11 Ekim gecesi hâlâ alınamadı). Ardından `builds` bucket sınırı 300 MB'a çıkarılacak; iOS benchmark build'leri (Habo 65 MB, Ice Cubes 80 MB) buna bağlı.
 - [x] Siteye girip Start Test'i denemek (10 Ekim, run `cdf5265f`; Realtime ve rapor çalıştı).
