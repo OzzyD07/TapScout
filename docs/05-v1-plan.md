@@ -947,4 +947,15 @@ Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" 
 | Ice Cubes (SwiftUI) | 80,4 MB, 2 parça | `f74585fb` | **2/7**; parçalar indirildi, kuruldu, çalıştı. İlk açılışta gelen hesap ekleme / sunucu seçme sayfasında (SwiftUI sheet) takıldı: ekran adı SwiftUI'nin iç sınıf adı (`_TtGC7SwiftUI29PresentationHosting`), tek ekran durumu, 19 eylem |
 | Habo (Flutter) | 65,7 MB, 2 parça | `d36fa631` | **altyapı**: kuruldu ama açılmadı ("Cannot launch com.pavlenko.Habo"). Flutter iOS Simulator için yalnız debug build üretir; inceltilmiş debug build tek başına başlamıyor. TapScout'un değil build'in sorunu |
 
-**Sonuç:** 50 MB sınırı çözüldü; 200 MB'a kadar iOS ve Android build'leri yüklenip test edilebiliyor. iOS'ta gerçek bir uygulamada ilk ölçüm iki zayıflık gösterdi: SwiftUI iç sınıf adlarının ekran adı olarak alınması ve sheet'lerden çıkılamaması. Açık.
+**Sonuç:** 50 MB sınırı çözüldü; 200 MB'a kadar iOS ve Android build'leri yüklenip test edilebiliyor. iOS'ta gerçek bir uygulamada ilk ölçüm iki zayıflık gösterdi: SwiftUI iç sınıf adlarının ekran adı olarak alınması ve sheet'lerden çıkılamaması.
+
+**Düzeltme ve yeniden ölçüm** (`e5693c3`, 26 Ekim): asıl neden sheet değildi. 19 adımın hepsinde ekranın üstünde iOS'un bildirim izni uyarısı vardı; iOS 26'da bu uyarı SpringBoard'a ait ve uygulamanın page source'unda görünmüyor, bu yüzden bütün dokunuşlar ona çarptı. "Add Account" sheet'i ve Cancel düğmesi ağaçta zaten vardı.
+- iOS'ta her gözlemde, ağaçta uyarı yoksa sistem uyarısı WDA'dan okunur (`mobile: alert` getButtons + alert metni); izin isteğiyse "Allow" ile yanıtlanır, uygulamanın kendi uyarıları yanıtlanmaz.
+- Ekran adı görünür gezinme çubuğundan alınır; gizli (arkadaki ekranın) çubukları ve SwiftUI iç sınıf adları (`_Tt…`, `…HostingController`, `PresentationHosting`) ad olmaz.
+
+| Koşu | Sonuç |
+|---|---|
+| Ice Cubes `ddb11947` | **4/7** (önce 2/7): 25 ekran durumu (önce 1), 49 eylem, 51 planner çağrısı, 17,1 dk; izin uyarısı ilk adımda yanıtlandı. Timeline, Add account, Instance info, Settings'e ulaşıldı; Explore, Display settings ve profil kaçtı. Son ~5 eylem iOS paylaşım sayfasında (`UIActivityContentView`, Reminders) geçti |
+| FieldNotes `d137c4cf` (iOS) | gerileme yok: beklenmeyen bulgu 0 |
+
+Açık: iOS paylaşım sayfası uygulama dışı sayılıp hemen kapatılmıyor (Android'de share sheet için var, `5a5a1b40`).
