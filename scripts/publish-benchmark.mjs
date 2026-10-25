@@ -34,7 +34,9 @@ const env = (name) => {
 
 const repo = process.env.GITHUB_REPOSITORY || "OzzyD07/TapScout";
 const gh = async (path) => {
+  // A stalled artifact download hung the script for 20 minutes (25 Oct); give up and say so.
   const res = await fetch(`https://api.github.com/repos/${repo}/${path}`, {
+    signal: AbortSignal.timeout(300_000),
     headers: {
       authorization: `Bearer ${env("GITHUB_DISPATCH_TOKEN")}`,
       accept: "application/vnd.github+json",
@@ -72,6 +74,9 @@ async function publish(manifest, bytes) {
     .select("id")
     .eq("owner_id", owner.id)
     .eq("sha256", manifest.sha256)
+    // Removed copies (rejected) do not count, and several usable copies must not error.
+    .in("validation_status", ["uploaded", "accepted"])
+    .limit(1)
     .maybeSingle();
   if (existing) {
     console.log(`= ${label} already published as ${existing.id}`);
