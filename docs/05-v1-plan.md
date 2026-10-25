@@ -931,3 +931,20 @@ Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" 
 **Doğrulama:** seeded `b91014d2` (iki platform): Android 5/6, iOS 5/6, beklenmeyen bulgu 0. Görsel kırpılma kontrolü JPEG ile tohumunu iki platformda da buldu; görsel çağrılarda hata yok. Koşunun tamamı **10,6 MB** (226 JPEG, ortalama 32 KB; hierarchy'ler 3,6 MB); eşdeğer `d3788cb0` 33,9 MB'tı. Kalan ≈ 550 MB, 7 günde ≈ 50 iki platformlu koşuya yeter.
 
 **Kalan sınırlar:** dosya başına 50 MB (yükleme formu bunu söylüyor); bu yüzden iOS benchmark'ı Habo (65 MB) ve Ice Cubes (80 MB) ile yapılamıyor. iOS ölçümü FieldNotes'ta (6/6). Free planın aylık 5 GB egress'i jüri dönemi için yeterli görünüyor (koşu başına build indirme + görüntüleme birkaç on MB).
+
+## 31. 50 MB dosya sınırını aşmak: parçalı build ve ilk iOS benchmark koşuları (25–26 Ekim 2026)
+
+**Çözüm** (`71c3696`): build'ler en çok 45 MB'lık parçalar halinde saklanır (`<key>.partN`). Tek parçaya sığan build eskisi gibi tek nesnedir; mevcut build'lerin hiçbiri değişmedi. Parça adları boyuttan çıkar (`buildPartKeys`, shared), şema değişikliği yok.
+- **Yükleme:** sunucu her parça için ayrı imzalı URL verir. Tarayıcı dosyayı dilimleyip sırayla PUT eder (tek ilerleme göstergesi).
+- **Tamamlama:** her parçanın boyutu ve ilk parçanın ZIP başlığı denetlenir, bütün parçalar `final/`'a taşınır; hatalı bir parçada hepsi silinir.
+- **Bootstrap ve runner:** her parça için imzalı indirme URL'si; runner parçaları birleştirir ve toplam boyutu kontrol eder (13 kayıtlı build'in hepsinde kayıtlı boyut gerçek boyutla aynı çıktı).
+- Build sınırı 200 MB. `publish-benchmark.mjs` de aynı biçimde saklar; parça başına 3 deneme (`519040b`), yalnız kullanılabilir build'ler "zaten yayımlandı" sayılır, artifact indirmesi 5 dk'da zaman aşımına düşer (`2271e29`).
+
+**İlk iOS benchmark koşuları** (`71c3696` runner'ı):
+
+| Uygulama | Build | Koşu | Sonuç |
+|---|---|---|---|
+| Ice Cubes (SwiftUI) | 80,4 MB, 2 parça | `f74585fb` | **2/7**; parçalar indirildi, kuruldu, çalıştı. İlk açılışta gelen hesap ekleme / sunucu seçme sayfasında (SwiftUI sheet) takıldı: ekran adı SwiftUI'nin iç sınıf adı (`_TtGC7SwiftUI29PresentationHosting`), tek ekran durumu, 19 eylem |
+| Habo (Flutter) | 65,7 MB, 2 parça | `d36fa631` | **altyapı**: kuruldu ama açılmadı ("Cannot launch com.pavlenko.Habo"). Flutter iOS Simulator için yalnız debug build üretir; inceltilmiş debug build tek başına başlamıyor. TapScout'un değil build'in sorunu |
+
+**Sonuç:** 50 MB sınırı çözüldü; 200 MB'a kadar iOS ve Android build'leri yüklenip test edilebiliyor. iOS'ta gerçek bir uygulamada ilk ölçüm iki zayıflık gösterdi: SwiftUI iç sınıf adlarının ekran adı olarak alınması ve sheet'lerden çıkılamaması. Açık.
