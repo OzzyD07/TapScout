@@ -63,7 +63,16 @@ export interface SystemInterruption {
    * answer for a permission request (TapScout grants permissions so the app's normal flow is
    * what gets tested; docs/07 A1).
    */
-  dismiss: { label: string; bounds: Bounds; stableId: string };
+  dismiss: {
+    label: string;
+    bounds: Bounds;
+    stableId: string;
+    /**
+     * iOS: the alert belongs to SpringBoard and is not in the app's page source, so it has no
+     * bounds; the driver answers it by its button label.
+     */
+    viaDriver?: boolean;
+  };
 }
 
 /** ANR dialogs of system apps, which the emulator shows after a cold boot now and then. */
@@ -341,6 +350,37 @@ function iosPermission(root: XmlNode, scale: number): SystemInterruption | null 
   return null;
 }
 
+/**
+ * An iOS system permission alert read through the driver (WDA's alert endpoint), for alerts the
+ * app's page source does not contain: on iOS 26 the notification request is a SpringBoard alert
+ * (Ice Cubes run f74585fb: all 19 taps landed on it unseen).
+ */
+export function iosAlertInterruption(text: string, buttons: string[]): SystemInterruption | null {
+  const title = text.trim().split("\n")[0]?.trim() ?? "";
+  if (!IOS_PERMISSION_TITLE.test(title)) return null;
+  for (const want of IOS_ALLOW) {
+    const label = buttons.map((b) => b.trim()).find((b) => want.test(b));
+    if (!label) continue;
+    return {
+      kind: "permission",
+      title: clip(title) ?? "Permission request",
+      dismiss: {
+        label,
+        bounds: { x: 0, y: 0, width: 0, height: 0 },
+        stableId: label,
+        viaDriver: true,
+      },
+    };
+  }
+  return null;
+}
+
+/**
+ * SwiftUI and UIKit name some navigation bars after internal classes (a presented sheet's host:
+ * "_TtGC7SwiftUI29PresentationHosting"); that is no screen title.
+ */
+const IOS_INTERNAL_NAME = /^_Tt|HostingController|PresentationHosting/;
+
 function iosCandidates(root: XmlNode, scale: number) {
   const app = [...walk(root)].find((n) => n.tag === "XCUIElementTypeApplication");
   const widthPx = Math.round(Number(app?.attrs.width ?? 0) * scale);
@@ -372,7 +412,16 @@ function iosCandidates(root: XmlNode, scale: number) {
     // Keys of the software keyboard are not app UI (they would read as new texts).
     if (insideKeyboard.has(node)) continue;
     if (role === "dialog") dialogVisible = true;
-    if (type === "XCUIElementTypeNavigationBar" && a.name) title ??= clip(a.name);
+    // A bar or heading of a screen behind a sheet is reported as not visible; it names the
+    // screen behind, not the one in front.
+    if (
+      type === "XCUIElementTypeNavigationBar" &&
+      a.name &&
+      a.visible !== "false" &&
+      !IOS_INTERNAL_NAME.test(a.name)
+    ) {
+      title ??= clip(a.name);
+    }
     // XCUITest reports controls under the keyboard as not visible; keep them for the keyboard
     // check below and drop every other hidden node.
     const osHidden = a.visible === "false";
@@ -389,7 +438,7 @@ function iosCandidates(root: XmlNode, scale: number) {
     // React Native puts testID into `name`; when it only repeats the label it is not an id.
     const stableId = name && name !== a.label && name !== a.value ? name : undefined;
     const secure = type === "XCUIElementTypeSecureTextField";
-    if (!title && /Header/.test(a.traits ?? "") && label) title = label;
+    if (!title && !osHidden && /Header/.test(a.traits ?? "") && label) title = label;
     candidates.push({
       order: order++,
       role,

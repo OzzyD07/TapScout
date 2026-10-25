@@ -42,7 +42,13 @@ import {
   valueStillShown,
 } from "./functional.js";
 import { inAppInterruption } from "./interruptions.js";
-import { type NormalizedScreen, normalizeHierarchy, type Platform, pngSize } from "./observer.js";
+import {
+  iosAlertInterruption,
+  type NormalizedScreen,
+  normalizeHierarchy,
+  type Platform,
+  pngSize,
+} from "./observer.js";
 import {
   buildPlannerMessages,
   extractJson,
@@ -88,6 +94,10 @@ export interface AgentDevice {
   screenshotPng(): Promise<Buffer>;
   pageSource(): Promise<string>;
   keyboardShown(): Promise<boolean>;
+  /** iOS: a system alert that is not in the app's page source (SpringBoard); optional. */
+  systemAlert?(): Promise<{ text: string; buttons: string[] } | null>;
+  /** iOS: answers that alert by its button label; optional. */
+  answerAlert?(label: string): Promise<void>;
   /** Android density in dpi, for dp measurements; optional. */
   displayDensity?(): Promise<number | undefined>;
   appState(appId: string): Promise<number>;
@@ -632,6 +642,16 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (platform === "android" && xml) {
       screen.keyboardVisible = await timed("keyboard", () => device.keyboardShown());
     }
+    // A SpringBoard alert is not in the app's page source but covers it all the same.
+    const readAlert = device.systemAlert?.bind(device);
+    if (platform === "ios" && !screen.interruption && readAlert && device.answerAlert) {
+      const alert = await timed("system alert", readAlert);
+      const interruption = alert && iosAlertInterruption(alert.text, alert.buttons);
+      if (interruption) {
+        screen.interruption = interruption;
+        screen.dialogVisible = true;
+      }
+    }
     if (!appId && platform === "ios" && screen.topPackage) {
       appId = screen.topPackage;
       appState = await device.appState(appId);
@@ -694,7 +714,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
             : `System dialog "${it.title || it.kind}" covered the app; tapped "${it.dismiss.label}".`,
       },
     });
-    await device.tapAt((b.x + b.width / 2) / snap.scale, (b.y + b.height / 2) / snap.scale);
+    if (it.dismiss.viaDriver && device.answerAlert) await device.answerAlert(it.dismiss.label);
+    else await device.tapAt((b.x + b.width / 2) / snap.scale, (b.y + b.height / 2) / snap.scale);
     await ports.sleep(1_500);
   }
 

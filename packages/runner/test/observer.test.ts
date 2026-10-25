@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { normalizeHierarchy, parseXml, pngSize } from "../src/observer.js";
+import { iosAlertInterruption, normalizeHierarchy, parseXml, pngSize } from "../src/observer.js";
 
 const fixture = (name: string) => readFileSync(`test/fixtures/${name}.xml`, "utf8");
 
@@ -90,6 +90,37 @@ describe("normalizeHierarchy", () => {
       "Delete this habit?",
     );
     expect(normalizeHierarchy("ios", own, { scale: 3 }).interruption).toBeNull();
+  });
+
+  it("reads an iOS permission alert the driver reports, not an app's own alert", () => {
+    expect(
+      iosAlertInterruption(
+        "“Ice Cubes” Would Like to Send You Notifications\nMay include alerts.",
+        ["Don’t Allow", "Allow"],
+      ),
+    ).toMatchObject({
+      kind: "permission",
+      title: "“Ice Cubes” Would Like to Send You Notifications",
+      dismiss: { label: "Allow", viaDriver: true },
+    });
+    expect(iosAlertInterruption("Delete this post?", ["Cancel", "Delete"])).toBeNull();
+  });
+
+  it("names an iOS sheet by its own bar, not a hidden bar or a SwiftUI class name (f74585fb)", () => {
+    const xml = `<AppiumAUT><XCUIElementTypeApplication type="XCUIElementTypeApplication" name="Ice Cubes" x="0" y="0" width="402" height="874" bundleId="com.thomasricouard.IceCubesApp">
+      <XCUIElementTypeNavigationBar type="XCUIElementTypeNavigationBar" name="_TtGC7SwiftUI29PresentationHosting" visible="false" x="0" y="62" width="402" height="54">
+        <XCUIElementTypePopUpButton type="XCUIElementTypePopUpButton" name="Trending" label="Trending" visible="false" x="150" y="66" width="100" height="36" traits="Header"/>
+      </XCUIElementTypeNavigationBar>
+      <XCUIElementTypeNavigationBar type="XCUIElementTypeNavigationBar" name="Add Account" visible="true" x="0" y="78" width="402" height="54">
+        <XCUIElementTypeButton type="XCUIElementTypeButton" name="Cancel" label="Cancel" visible="true" x="20" y="82" width="36" height="36" traits="Button"/>
+      </XCUIElementTypeNavigationBar>
+    </XCUIElementTypeApplication></AppiumAUT>`;
+    expect(normalizeHierarchy("ios", xml, { scale: 3 }).title).toBe("Add Account");
+    const onlyInternal = xml.replace(
+      'name="Add Account"',
+      'name="_TtGC7SwiftUI32NavigationStackHostingController"',
+    );
+    expect(normalizeHierarchy("ios", onlyInternal, { scale: 3 }).title ?? "").not.toMatch(/^_Tt/);
   });
 
   it("names a Flutter screen by the content description in the app bar (5f2a097d)", () => {

@@ -118,6 +118,29 @@ export class DeviceSession {
     }
   }
 
+  /**
+   * iOS: the system alert in front, including SpringBoard alerts the app's page source does not
+   * contain (iOS 26 notification requests). Null when there is none or on Android.
+   */
+  async systemAlert(): Promise<{ text: string; buttons: string[] } | null> {
+    if (this.platform !== "ios") return null;
+    try {
+      const buttons = (await this.driver.execute("mobile: alert", {
+        action: "getButtons",
+      })) as unknown;
+      if (!Array.isArray(buttons) || buttons.length === 0) return null;
+      const text = String((await this.driver.getAlertText().catch(() => "")) ?? "");
+      return { text, buttons: buttons.map(String) };
+    } catch {
+      return null;
+    }
+  }
+
+  /** iOS: answers the system alert in front with the button of this label. */
+  async answerAlert(label: string): Promise<void> {
+    await this.driver.execute("mobile: alert", { action: "accept", buttonLabel: label });
+  }
+
   /** Appium app state: 0 not installed, 1 not running, 2–3 background, 4 foreground. */
   async appState(appId: string): Promise<number> {
     return Number(await this.driver.queryAppState(appId));

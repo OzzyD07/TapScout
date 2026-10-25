@@ -750,6 +750,34 @@ describe("runAgent", () => {
     expect(h.counters.screensObserved).toBeGreaterThanOrEqual(1);
   });
 
+  it("answers an iOS SpringBoard alert that is not in the page source (f74585fb, Ice Cubes)", async () => {
+    const device = fakeDevice();
+    let asking = true;
+    Object.assign(device, {
+      platform: "ios",
+      windowSize: async () => ({ width: 402, height: 874 }),
+      screenshotPng: async () => png(1206, 2622),
+      pageSource: async () => xml("ios-welcome"),
+      systemAlert: async () =>
+        asking
+          ? {
+              text: "“Ice Cubes” Would Like to Send You Notifications\nNotifications may include alerts.",
+              buttons: ["Don’t Allow", "Allow"],
+            }
+          : null,
+    });
+    device.answerAlert = vi.fn(async () => {
+      asking = false;
+    });
+    const h = harness(device, scriptedPlanner(), 1);
+    await runAgent(h.ports, { ...h.config, platform: "ios" });
+
+    expect(device.answerAlert).toHaveBeenCalledTimes(1);
+    expect(device.answerAlert).toHaveBeenCalledWith("Allow");
+    const note = h.events.find((e) => e.type === "note" && message(e).startsWith("Interruption"));
+    expect(note && message(note)).toContain("Would Like to Send You Notifications");
+  });
+
   it("stops with goals_exhausted once nothing new is reachable, before the planner budget", async () => {
     // A planner that only ever goes back and forth between the two screens.
     const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {
