@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type ActiveRun,
   type ActiveSession,
+  EVIDENCE_RETENTION_MS,
   isCronAuthorized,
+  MAX_EXPIRED_OBJECTS,
   type ReconcileDeps,
   reconcile,
 } from "../src/lib/reconcile/service";
@@ -319,5 +321,29 @@ describe("reconcile: reports", () => {
     const { d, rpc } = deps(runs);
     await reconcile(d);
     expect(calls(rpc, "acquire_report_lease").map((a) => a.p_run_id)).toEqual(["r1", "r2", "r3"]);
+  });
+});
+
+describe("evidence retention", () => {
+  it("expires evidence older than the retention window and counts it", async () => {
+    const expireEvidence = vi.fn(async () => 42);
+    const { d } = deps([], [], { expireEvidence });
+    const summary = await reconcile(d);
+    expect(expireEvidence).toHaveBeenCalledWith(
+      new Date(NOW.getTime() - EVIDENCE_RETENTION_MS),
+      MAX_EXPIRED_OBJECTS,
+    );
+    expect(summary.evidenceExpired).toBe(42);
+  });
+
+  it("notes a failing cleanup without failing the pass", async () => {
+    const { d } = deps([], [], {
+      expireEvidence: vi.fn(async () => {
+        throw new Error("storage down");
+      }),
+    });
+    const summary = await reconcile(d);
+    expect(summary.evidenceExpired).toBe(0);
+    expect(summary.errors.join(" ")).toMatch(/evidence retention: storage down/);
   });
 });

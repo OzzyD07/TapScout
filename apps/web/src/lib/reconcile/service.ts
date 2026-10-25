@@ -15,6 +15,13 @@ export const NEVER_STARTED_MS = 60 * 60_000;
 export const CANCEL_GRACE_MS = 3 * 60_000;
 /** The report job normally reports within a few minutes of the last device job. */
 export const REPORT_GRACE_MS = 5 * 60_000;
+/**
+ * Screenshots and hierarchies of finished runs are kept this long, except for kept and shared
+ * sample runs. Supabase Free holds 1 GB in all; 149 runs had filled 2.2 GB (25 Oct).
+ */
+export const EVIDENCE_RETENTION_MS = 7 * 24 * 60 * 60_000;
+/** Evidence objects removed per pass at most; the cron runs every minute. */
+export const MAX_EXPIRED_OBJECTS = 1000;
 
 const OUTBOX_BATCH = 5;
 const MAX_RUNS = 25;
@@ -58,6 +65,11 @@ export interface ReconcileDeps {
   /** null when no GitHub token is configured; provider checks are then skipped. */
   github: GithubProvider | null;
   report: Pick<ReportDeps, "loadContext" | "summarize">;
+  /**
+   * Removes stored evidence of runs finished before `before` that are not kept, at most `max`
+   * objects, and marks their artifacts expired; returns how many were removed. Optional.
+   */
+  expireEvidence?(before: Date, max: number): Promise<number>;
 }
 
 export interface ReconcileSummary {
@@ -68,6 +80,7 @@ export interface ReconcileSummary {
   workflowsCancelled: number;
   reports: number;
   cancelReports: number;
+  evidenceExpired: number;
   errors: string[];
 }
 
@@ -107,6 +120,7 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileSummary> 
     workflowsCancelled: 0,
     reports: 0,
     cancelReports: 0,
+    evidenceExpired: 0,
     errors: [],
   };
   let githubCalls = 0;
@@ -233,6 +247,16 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileSummary> 
       if (res.status === "saved") summary.reports++;
     } catch (error) {
       note(`report ${run.id}`, error);
+    }
+  }
+  if (deps.expireEvidence && !outOfTime()) {
+    try {
+      summary.evidenceExpired = await deps.expireEvidence(
+        new Date(deps.now().getTime() - EVIDENCE_RETENTION_MS),
+        MAX_EXPIRED_OBJECTS,
+      );
+    } catch (error) {
+      note("evidence retention", error);
     }
   }
   return summary;

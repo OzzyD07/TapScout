@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "@tapscout/adapters": "workspace:*",
-    "@tapscout/shared": "workspace:*"
+    "@tapscout/shared": "workspace:*",
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

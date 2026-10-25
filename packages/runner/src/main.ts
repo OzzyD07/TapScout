@@ -20,6 +20,7 @@ import { runAgent } from "./agent.js";
 import { fetchGithubOidcToken, RunnerApi, RunnerApiError } from "./api.js";
 import { installRejection, simulatorPlatformProblem } from "./build-check.js";
 import { EventSink } from "./events.js";
+import { evidenceImage } from "./evidence-image.js";
 import { EvidenceUploader } from "./uploads.js";
 
 const { values } = parseArgs({
@@ -285,6 +286,12 @@ try {
         emit: (event) => sink.emit(event),
         flush: () => sink.flush(),
         async saveEvidence(name, kind, data, stepIndex) {
+          if (kind === "screenshot" && Buffer.isBuffer(data)) {
+            const image = await evidenceImage(data);
+            const file = join(outDir, `${name}.${image.ext}`);
+            await writeFile(file, image.data);
+            return uploads.start(file, kind, stepIndex);
+          }
           const ext = kind === "screenshot" ? "png" : kind === "log" ? "txt" : "xml";
           const file = join(outDir, `${name}.${ext}`);
           await writeFile(file, data);
