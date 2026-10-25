@@ -123,6 +123,26 @@ describe("normalizeHierarchy", () => {
     expect(normalizeHierarchy("ios", onlyInternal, { scale: 3 }).title ?? "").not.toMatch(/^_Tt/);
   });
 
+  it("recognises iOS system screens the app presented and where to close them (ddb11947)", () => {
+    // The sheet spans 94–474 pt of 874: the free band below it is larger; its middle is 674 pt.
+    expect(normalizeHierarchy("ios", fixture("ios-share-sheet"), { scale: 3 }).systemUi).toEqual({
+      kind: "share_sheet",
+      leave: { x: 603, y: 2022 },
+    });
+    // Quick Look closes with its own close button (16,62 44×44 pt).
+    const ql = fixture("ios-quick-look");
+    expect(normalizeHierarchy("ios", ql, { scale: 3 }).systemUi).toEqual({
+      kind: "quick_look",
+      leave: { x: 114, y: 252 },
+    });
+    const noClose = ql.replace("QLOverlayDoneButtonAccessibilityIdentifier", "something");
+    expect(normalizeHierarchy("ios", noClose, { scale: 3 }).systemUi).toEqual({
+      kind: "quick_look",
+      leave: null,
+    });
+    expect(normalizeHierarchy("ios", fixture("ios-welcome"), { scale: 3 }).systemUi).toBeNull();
+  });
+
   it("names a Flutter screen by the content description in the app bar (5f2a097d)", () => {
     const xml = `<hierarchy width="1080" height="2400">
       <android.view.View class="android.view.View" package="com.pavlenko.Habo" text="" content-desc="Statistics" clickable="false" enabled="true" bounds="[189,140][620,250]" displayed="true"/>

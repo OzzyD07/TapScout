@@ -120,6 +120,19 @@ export interface NormalizedScreen {
   secretsVisible: boolean;
   /** A spinner or "Loading…" text is on screen: content is still arriving (docs/07 A2). */
   loading?: boolean;
+  /** iOS: a system screen the app presented (share sheet, Quick Look), not app UI. */
+  systemUi?: SystemUi | null;
+}
+
+/**
+ * iOS system UI hosted inside the app's process: the share sheet and the Quick Look file preview.
+ * They pass for app screens (same bundle), but exploring them tests iOS, not the app (Ice Cubes
+ * ddb11947: the last minutes went to Quick Look, the share sheet and Reminders).
+ */
+export interface SystemUi {
+  kind: "share_sheet" | "quick_look";
+  /** Where to tap to close it, in screenshot pixels; null when only a relaunch leaves it. */
+  leave: { x: number; y: number } | null;
 }
 
 export interface NormalizeOptions {
@@ -295,6 +308,7 @@ function androidCandidates(root: XmlNode) {
     topPackage,
     title,
     interruption,
+    systemUi: null,
     keyboardVisible: false,
     dialogVisible: interruption !== null,
   };
@@ -471,9 +485,57 @@ function iosCandidates(root: XmlNode, scale: number) {
     topPackage: app?.attrs.bundleId,
     title,
     interruption: iosPermission(root, scale),
+    systemUi: app ? iosSystemUi(app, scale, widthPx, heightPx) : null,
     keyboardVisible,
     dialogVisible,
   };
+}
+
+const SHARE_SHEET = /^(ShareSheet\.|shareSheet\.|UIActivityContentView$|ActivityListView$)/;
+const QUICK_LOOK = /^QL(PreviewControllerView|Markup|Overlay)/;
+const QUICK_LOOK_CLOSE = "QLOverlayDoneButtonAccessibilityIdentifier";
+
+function iosSystemUi(
+  app: XmlNode,
+  scale: number,
+  widthPx: number,
+  heightPx: number,
+): SystemUi | null {
+  const shown = [...walk(app)].filter((n) => n.attrs.visible !== "false");
+  const box = (n: XmlNode): Bounds => ({
+    x: Number(n.attrs.x) * scale,
+    y: Number(n.attrs.y) * scale,
+    width: Number(n.attrs.width) * scale,
+    height: Number(n.attrs.height) * scale,
+  });
+  const centre = (b: Bounds) => ({
+    x: Math.round(b.x + b.width / 2),
+    y: Math.round(b.y + b.height / 2),
+  });
+
+  const sheet = shown.find((n) =>
+    /^(ShareSheet\.RemoteContainerView|ActivityListView)$/.test(n.attrs.name ?? ""),
+  );
+  if (sheet || shown.some((n) => SHARE_SHEET.test(n.attrs.name ?? ""))) {
+    // The sheet is closed by a tap outside it (the "dismiss popup" region covers the screen):
+    // tap the middle of the larger free band above or below the sheet.
+    const dismissable = shown.some((n) => n.attrs.name === "PopoverDismissRegion");
+    if (!sheet || !dismissable) return { kind: "share_sheet", leave: null };
+    const b = box(sheet);
+    const above = b.y;
+    const below = heightPx - (b.y + b.height);
+    if (!Number.isFinite(above + below) || Math.max(above, below) < heightPx * 0.1) {
+      return { kind: "share_sheet", leave: null };
+    }
+    const y = above >= below ? above / 2 : b.y + b.height + below / 2;
+    return { kind: "share_sheet", leave: { x: Math.round(widthPx / 2), y: Math.round(y) } };
+  }
+
+  if (shown.some((n) => QUICK_LOOK.test(n.attrs.name ?? ""))) {
+    const close = shown.find((n) => n.attrs.name === QUICK_LOOK_CLOSE);
+    return { kind: "quick_look", leave: close ? centre(box(close)) : null };
+  }
+  return null;
 }
 
 function isUseful(c: Candidate): boolean {
@@ -584,6 +646,7 @@ export function normalizeHierarchy(
     keyboardVisible: raw.keyboardVisible,
     dialogVisible: raw.dialogVisible,
     interruption: raw.interruption,
+    systemUi: raw.systemUi,
     truncated: kept.length > chosen.length,
     secretsVisible,
     loading: showsLoading(platform, xml, elements),

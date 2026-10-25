@@ -778,6 +778,46 @@ describe("runAgent", () => {
     expect(note && message(note)).toContain("Would Like to Send You Notifications");
   });
 
+  it("closes an iOS share sheet the app opened, or relaunches when it stays (ddb11947)", async () => {
+    const iosDevice = (system: string) => {
+      const device = fakeDevice();
+      let covered = true;
+      Object.assign(device, {
+        platform: "ios",
+        windowSize: async () => ({ width: 402, height: 874 }),
+        screenshotPng: async () => png(1206, 2622),
+        pageSource: async () => xml(covered ? system : "ios-welcome"),
+        relaunch: vi.fn(async () => {
+          covered = false;
+        }),
+      });
+      return { device, close: () => (covered = false) };
+    };
+
+    const share = iosDevice("ios-share-sheet");
+    share.device.tapAt = vi.fn(async () => {
+      share.close();
+    });
+    let h = harness(share.device, scriptedPlanner(), 1);
+    await runAgent(h.ports, { ...h.config, platform: "ios" });
+    // Middle of the free band below the sheet, in points.
+    expect(share.device.tapAt).toHaveBeenNthCalledWith(1, 201, 674);
+    expect(h.events.some((e) => message(e).startsWith("Closed the iOS share sheet"))).toBe(true);
+
+    // A Quick Look preview without a close button, whose taps change nothing: relaunch.
+    const stuck = iosDevice("ios-quick-look");
+    const source = xml("ios-quick-look").replace("QLOverlayDoneButtonAccessibilityIdentifier", "x");
+    const pageSource = stuck.device.pageSource;
+    stuck.device.pageSource = async () => {
+      const s = await pageSource();
+      return s.includes("QLPreviewControllerView") ? source : s;
+    };
+    h = harness(stuck.device, scriptedPlanner(), 1);
+    await runAgent(h.ports, { ...h.config, platform: "ios" });
+    expect(stuck.device.relaunch).toHaveBeenCalledWith("dev.tapscout.fieldnotes", false);
+    expect(h.events.some((e) => message(e).includes("did not close; relaunched"))).toBe(true);
+  });
+
   it("stops with goals_exhausted once nothing new is reachable, before the planner budget", async () => {
     // A planner that only ever goes back and forth between the two screens.
     const plan = vi.fn(async (messages: ChatMessage[]): Promise<RelayResponse> => {

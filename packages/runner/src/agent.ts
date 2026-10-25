@@ -240,6 +240,11 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** Taps on one iOS system screen's close spot before the app is relaunched instead. */
+const MAX_SYSTEM_UI_TAPS = 2;
+/** Relaunches to leave iOS system screens per session; after that they are explored as is. */
+const MAX_SYSTEM_UI_RELAUNCHES = 4;
+const SYSTEM_UI_NAME = { share_sheet: "share sheet", quick_look: "Quick Look preview" } as const;
 /**
  * "No new screen" stops overridden while enough planner budget remains. Three since budget v5:
  * with one, Read You 78330d20 and Jerboa dca0237b stopped with 24 and 15 of 90 calls unused.
@@ -1060,6 +1065,8 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
   let pending: Pending | null = null;
   let fresh: Snapshot | null = first;
   let consecutiveInterruptions = 0;
+  let systemUiTaps = 0;
+  let systemUiRelaunches = 0;
   let relaunches = 0;
   /** Android: Back was already tried to leave the window that covers the app. */
   let backTried = false;
@@ -1126,6 +1133,40 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
         continue;
       }
       consecutiveInterruptions = 0;
+
+      // iOS system screens the app presented (share sheet, Quick Look) test iOS, not the app:
+      // close them at once, and relaunch when closing does not work.
+      const systemUi = platform === "ios" ? snap.screen.systemUi : null;
+      if (!systemUi) systemUiTaps = 0;
+      else if (systemUiTaps < MAX_SYSTEM_UI_TAPS && systemUi.leave) {
+        systemUiTaps += 1;
+        if (pending) pending.interrupted = true;
+        ports.emit({
+          type: "note",
+          payload: {
+            level: "info",
+            message: `Closed the iOS ${SYSTEM_UI_NAME[systemUi.kind]} the app opened; it is system UI, not the app.`,
+          },
+        });
+        await device.tapAt(systemUi.leave.x / snap.scale, systemUi.leave.y / snap.scale);
+        await ports.sleep(1_000);
+        continue;
+      } else if (appId && systemUiRelaunches < MAX_SYSTEM_UI_RELAUNCHES) {
+        systemUiTaps = 0;
+        systemUiRelaunches += 1;
+        if (pending) pending.interrupted = true;
+        ports.emit({
+          type: "note",
+          payload: {
+            level: "info",
+            message: `The iOS ${SYSTEM_UI_NAME[systemUi.kind]} the app opened did not close; relaunched the app.`,
+          },
+        });
+        await device.relaunch(appId, false);
+        launchStep = step;
+        await ports.sleep(2_000);
+        continue;
+      }
 
       // A2: content still arriving (spinner, "Loading…"): look again shortly instead of judging
       // the half-loaded screen; a state whose spinner outlasts the wait is not waited for again.
