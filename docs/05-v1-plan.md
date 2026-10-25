@@ -958,4 +958,10 @@ Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" 
 | Ice Cubes `ddb11947` | **4/7** (önce 2/7): 25 ekran durumu (önce 1), 49 eylem, 51 planner çağrısı, 17,1 dk; izin uyarısı ilk adımda yanıtlandı. Timeline, Add account, Instance info, Settings'e ulaşıldı; Explore, Display settings ve profil kaçtı. Son ~5 eylem iOS paylaşım sayfasında (`UIActivityContentView`, Reminders) geçti |
 | FieldNotes `d137c4cf` (iOS) | gerileme yok: beklenmeyen bulgu 0 |
 
-Açık: iOS paylaşım sayfası uygulama dışı sayılıp hemen kapatılmıyor (Android'de share sheet için var, `5a5a1b40`).
+**iOS sistem ekranları** (`dd5de8d`): `ddb11947`'in son dakikaları bir görselin Quick Look önizlemesinde, paylaşım sayfasında ve Reminders'ta geçti; bunlar uygulamanın sürecinde açılan iOS ekranları, bundle aynı olduğu için uygulama ekranı sanılıyordu. Observer artık paylaşım sayfasını (`ShareSheet.*`, `UIActivityContentView`, `ActivityListView`) ve Quick Look'u (`QL…`) tanır; agent bunları keşfetmez, hemen kapatır: paylaşım sayfasında sayfanın dışındaki geniş boşluğa, Quick Look'ta kendi kapatma düğmesine dokunur. İki denemede kapanmazsa uygulama yeniden başlatılır (oturumda en çok 4). Açan eylem "etkisiz" sayılmaz.
+
+| Koşu | Sonuç |
+|---|---|
+| Ice Cubes `64ae9179` | **4/7** (aynı): 17 durum, 58 eylem (önce 49), 47 planner çağrısı, 17,2 dk. Bu koşu paylaşım sayfasına hiç girmedi, yani yeni kapatma canlıda henüz denenmedi (birim testleri var). Explore, Display settings ve profil yine kaçtı |
+
+Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büyük), sistem uyarısı kontrolü 1,0 sn; gözlemlerin 26/61'i "yükleniyor" gösterdi. Ice Cubes'ta süre en çok buraya gidiyor.
