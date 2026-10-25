@@ -91,13 +91,22 @@ async function publish(manifest, bytes) {
   const partKeys = shared.buildPartKeys(objectKey, bytes.length);
   for (const [i, key] of partKeys.entries()) {
     const start = i * shared.BUILD_PART_BYTES;
-    const upload = await supabase.storage
-      .from(bucket)
-      .upload(key, bytes.subarray(start, start + shared.BUILD_PART_BYTES), {
-        contentType,
-        upsert: false,
-      });
-    if (upload.error) throw new Error(`${label}: upload failed: ${upload.error.message}`);
+    // A 45 MB part over a home connection fails now and then ("fetch failed", 25 Oct): retry.
+    let upload;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      upload = await supabase.storage
+        .from(bucket)
+        .upload(key, bytes.subarray(start, start + shared.BUILD_PART_BYTES), {
+          contentType,
+          upsert: true,
+        });
+      if (!upload.error) break;
+      console.warn(`${label}: part ${i} attempt ${attempt} failed: ${upload.error.message}`);
+    }
+    if (upload.error) {
+      await supabase.storage.from(bucket).remove(partKeys);
+      throw new Error(`${label}: upload failed: ${upload.error.message}`);
+    }
   }
 
   const { error } = await supabase.from("app_builds").insert({
