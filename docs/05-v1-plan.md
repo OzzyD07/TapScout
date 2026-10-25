@@ -916,3 +916,18 @@ Bu turda 1 yanlış pozitif (AntennaPod Settings'te etiket kontrolü; önceki el
 Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" sayımı, ekranda bir şey yazılınca sıfırlanır. Oda adı bekleyen Join gibi bir buton, yazmadan önceki iki boşa dokunuş yüzünden kalıcı olarak engellenmez.
 
 **Sonuç:** iOS 6/6'ya döndü (süre). Habo (7/8) ve AntennaPod (9/10) şimdiye kadarki en iyi sonuçlarında. Read You 2/7 → 4/7. Jitsi'nin toplantı akışı ve FieldNotes Android'in profil düzenlemesi koşudan koşuya oynamaya devam ediyor. Maliyet oturum başına ≈ $0,016; süre Android 7–12 dk, iOS ≈ 17 dk QA.
+
+## 30. Supabase Free'ye sığmak: depolama temizliği, JPEG kanıt, saklama süresi (25 Ekim 2026)
+
+**Karar:** Supabase Pro alınmıyor; proje Free planda kalıyor. Başka bir ücretsiz depoya (Cloudflare R2, Backblaze B2) geçmek freeze sonrasında gereksiz risk görüldü; R2 ayrıca kart bilgisi istiyor.
+
+**Sorun:** asıl sınır dosya başına 50 MB değil, toplam 1 GB depolamaydı. 25 Ekim'de 2,77 GB kullanılıyordu: kanıtlar 2,24 GB (149 koşu, 22.640 dosya, %89'u tam boyutlu PNG ekran görüntüsü), build'ler 0,53 GB. Kota aşımı uzarsa Supabase projeyi kısıtlayabilir; jüri döneminde bu, sitenin çalışmaması demek.
+
+**Yapılanlar:**
+- **Tek seferlik temizlik:** vitrin olarak 7 koşu tutuldu (`test_runs.keep_evidence`, migration `20261025160302`): `e7618cf2`, `d3788cb0`, `91f233f0`, `21cdf360`, `c00eeefc`, `c203e90c`, `78baa762`. Diğer 148 koşunun 20.649 kanıt dosyası silindi; artifact kayıtları `expired` (eski sayfalarda görüntüler 404 verir, kayıtlar, bulgular ve ölçüm tabloları durur). FieldNotes'un eski sürüm kopyaları, kullanılmayan ikinci Habo ve arm64 Jitsi build'leri kaldırıldı (`rejected`, gerekçeli). **2,77 GB → 449 MB** (kanıt 168, build 281).
+- **JPEG kanıt** (`3e73564`): runner ekran görüntüsünü cihaz genişliğinin 2/3'ünde JPEG (q78) olarak saklar. FieldNotes örneklerinde PNG ortalaması 337 KB, JPEG ≈ 36 KB; metin net kalıyor. Agent kendisi orijinal PNG ile çalışmaya devam eder (boyut, hash, C3), yalnız yüklenen kopya küçülür.
+- **Saklama süresi:** bakım görevi her dakika, bitişinden 7 günden fazla geçmiş ve tutulmayan / paylaşılan örnek olmayan koşuların kanıtını siler (en çok 1000 dosya/dakika) ve `expired` işaretler.
+
+**Doğrulama:** seeded `b91014d2` (iki platform): Android 5/6, iOS 5/6, beklenmeyen bulgu 0. Görsel kırpılma kontrolü JPEG ile tohumunu iki platformda da buldu; görsel çağrılarda hata yok. Koşunun tamamı **10,6 MB** (226 JPEG, ortalama 32 KB; hierarchy'ler 3,6 MB); eşdeğer `d3788cb0` 33,9 MB'tı. Kalan ≈ 550 MB, 7 günde ≈ 50 iki platformlu koşuya yeter.
+
+**Kalan sınırlar:** dosya başına 50 MB (yükleme formu bunu söylüyor); bu yüzden iOS benchmark'ı Habo (65 MB) ve Ice Cubes (80 MB) ile yapılamıyor. iOS ölçümü FieldNotes'ta (6/6). Free planın aylık 5 GB egress'i jüri dönemi için yeterli görünüyor (koşu başına build indirme + görüntüleme birkaç on MB).
