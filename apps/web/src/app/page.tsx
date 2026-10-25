@@ -1,3 +1,4 @@
+import { MAX_BUILD_BYTES } from "@tapscout/shared";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppHeader } from "@/components/app-header";
@@ -69,7 +70,7 @@ export default async function Dashboard() {
     note: b.test_note ?? undefined,
   }));
   const maxMb = Math.floor(
-    (Number(process.env.STORAGE_BUILDS_MAX_BYTES) || 50 * 1024 * 1024) / (1024 * 1024),
+    (Number(process.env.STORAGE_BUILDS_MAX_BYTES) || MAX_BUILD_BYTES) / (1024 * 1024),
   );
   const now = Date.now();
 

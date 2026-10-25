@@ -1,4 +1,7 @@
 import {
+  BUILD_PART_BYTES,
+  buildPartKeys,
+  buildPartSize,
   CreateBuildUploadRequest,
   type CreateBuildUploadResponse,
   type TestAccount,
@@ -115,10 +118,16 @@ export async function createBuildUpload(
     testNote: req.testNote || undefined,
   });
   if (req.testAccount && deps.saveTestAccount) await deps.saveTestAccount(id, req.testAccount);
-  const uploadUrl = await deps.signUpload(stagingKey);
+  // Larger builds go up in parts the Free plan's 50 MB object limit accepts (buildPartKeys).
+  const partUrls: string[] = [];
+  for (const key of buildPartKeys(stagingKey, req.sizeBytes)) {
+    partUrls.push(await deps.signUpload(key));
+  }
   return {
     buildId: id,
-    uploadUrl,
+    uploadUrl: partUrls[0] as string,
+    partUrls,
+    partBytes: BUILD_PART_BYTES,
     requiredHeaders: { "content-type": format.contentType, "x-upsert": "false" },
     expiresAt: new Date(
       deps.now().getTime() + UPLOAD_LIMITS.signedUploadUrlSeconds * 1000,
@@ -146,24 +155,32 @@ export async function completeBuildUpload(
   if (build.status !== "awaiting_upload") {
     throw new HttpError(409, "conflict", "this build was already completed");
   }
-  const size = await deps.objectSize(build.stagingKey);
-  if (size === null) throw new HttpError(409, "conflict", "the file has not been uploaded yet");
+  const parts = buildPartKeys(build.stagingKey, build.sizeBytes);
+  const sizes: (number | null)[] = [];
+  for (const key of parts) sizes.push(await deps.objectSize(key));
+  if (sizes.some((s) => s === null)) {
+    throw new HttpError(409, "conflict", "the file has not been uploaded yet");
+  }
 
   let reason: string | null = null;
-  if (size !== build.sizeBytes) {
-    reason = `The uploaded file has ${size} bytes, not the ${build.sizeBytes} that were declared.`;
-  } else if (!isZipContainer(await deps.objectHead(build.stagingKey, 4))) {
+  const total = sizes.reduce<number>((n, s) => n + (s ?? 0), 0);
+  if (sizes.some((s, i) => s !== buildPartSize(build.sizeBytes, i))) {
+    reason = `The uploaded file has ${total} bytes, not the ${build.sizeBytes} that were declared.`;
+  } else if (!isZipContainer(await deps.objectHead(parts[0] as string, 4))) {
     reason =
       build.platform === "android" ? "The file is not an APK." : "The file is not a ZIP archive.";
   }
   if (reason) {
     await deps.markRejected(build.id, reason);
-    await deps.removeObject(build.stagingKey).catch(() => {});
+    for (const key of parts) await deps.removeObject(key).catch(() => {});
     throw new HttpError(400, "invalid_request", reason);
   }
 
   const finalKey = build.stagingKey.replace(/^staging\//, "final/");
-  await deps.moveObject(build.stagingKey, finalKey);
+  const finalParts = buildPartKeys(finalKey, build.sizeBytes);
+  for (const [i, key] of parts.entries()) {
+    await deps.moveObject(key, finalParts[i] as string);
+  }
   await deps.markUploaded(build.id, finalKey);
   return { buildId: build.id, status: "uploaded" };
 }

@@ -34,25 +34,45 @@ async function apiError(res: Response, fallback: string): Promise<string> {
 }
 
 /** PUT straight to Storage with progress; the API never sees the file (docs/02 §3). */
-function putFile(
-  upload: CreateBuildUploadResponse,
-  file: File,
-  onProgress: (percent: number) => void,
+function putPart(
+  url: string,
+  headers: Record<string, string>,
+  body: Blob,
+  onProgress: (loaded: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("PUT", upload.uploadUrl);
-    for (const [k, v] of Object.entries(upload.requiredHeaders)) xhr.setRequestHeader(k, v);
+    xhr.open("PUT", url);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) onProgress(e.loaded);
     };
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
         : reject(new Error(`Storage refused the upload (HTTP ${xhr.status}).`));
     xhr.onerror = () => reject(new Error("The upload was interrupted. Check the connection."));
-    xhr.send(file);
+    xhr.send(body);
   });
+}
+
+/**
+ * The file goes to storage in the parts the server signed (each under the storage's 50 MB object
+ * limit), one after another, with one progress figure for the whole file.
+ */
+async function putFile(
+  upload: CreateBuildUploadResponse,
+  file: File,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  const urls = upload.partUrls?.length ? upload.partUrls : [upload.uploadUrl];
+  for (const [i, url] of urls.entries()) {
+    const start = i * upload.partBytes;
+    const part = urls.length === 1 ? file : file.slice(start, start + upload.partBytes);
+    await putPart(url, upload.requiredHeaders, part, (loaded) =>
+      onProgress(Math.round(((start + loaded) / file.size) * 100)),
+    );
+  }
 }
 
 const label = "text-xs font-medium uppercase tracking-wide text-muted";

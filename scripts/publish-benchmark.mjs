@@ -12,8 +12,13 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { createClient } from "@supabase/supabase-js";
+
+const shared = await import(
+  pathToFileURL(join(import.meta.dirname, "..", "packages/shared/dist/index.js")).href
+);
 
 const { values } = parseArgs({
   options: {
@@ -77,10 +82,18 @@ async function publish(manifest, bytes) {
   const objectKey = `final/${id}/${manifest.file}`;
   const contentType =
     manifest.platform === "android" ? "application/vnd.android.package-archive" : "application/zip";
-  const upload = await supabase.storage
-    .from(bucket)
-    .upload(objectKey, bytes, { contentType, upsert: false });
-  if (upload.error) throw new Error(`${label}: upload failed: ${upload.error.message}`);
+  // Builds above one part (Supabase Free: 50 MB per object) are stored in parts, as uploads are.
+  const partKeys = shared.buildPartKeys(objectKey, bytes.length);
+  for (const [i, key] of partKeys.entries()) {
+    const start = i * shared.BUILD_PART_BYTES;
+    const upload = await supabase.storage
+      .from(bucket)
+      .upload(key, bytes.subarray(start, start + shared.BUILD_PART_BYTES), {
+        contentType,
+        upsert: false,
+      });
+    if (upload.error) throw new Error(`${label}: upload failed: ${upload.error.message}`);
+  }
 
   const { error } = await supabase.from("app_builds").insert({
     id,
@@ -90,7 +103,7 @@ async function publish(manifest, bytes) {
     app_name: manifest.app,
     file_name: manifest.file,
     content_type: contentType,
-    size_bytes: manifest.sizeBytes,
+    size_bytes: bytes.length,
     staging_key: objectKey,
     object_key: objectKey,
     sha256: manifest.sha256,
@@ -100,7 +113,7 @@ async function publish(manifest, bytes) {
     validation_status: "accepted",
   });
   if (error) {
-    await supabase.storage.from(bucket).remove([objectKey]);
+    await supabase.storage.from(bucket).remove(partKeys);
     throw new Error(`${label}: database insert failed: ${error.message}`);
   }
   console.log(`+ ${label} → ${id} (${(manifest.sizeBytes / 1048576).toFixed(1)} MB)`);

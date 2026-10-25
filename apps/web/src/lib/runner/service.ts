@@ -1,4 +1,5 @@
 import {
+  buildPartKeys,
   EventBatchRequest,
   type EventBatchResponse,
   FinishSessionRequest,
@@ -89,7 +90,12 @@ export async function bootstrap(deps: RunnerDeps, oidcToken: string, body: unkno
   if (!lease) throw new HttpError(500, "internal", "lease was not returned");
 
   const context = await deps.loadBootstrapContext(parsed.data.runId, lease.build_id);
-  const downloadUrl = await deps.signBuildDownload(context.build.objectKey);
+  // A build larger than one storage part is downloaded part by part and joined by the runner.
+  const partUrls: string[] = [];
+  for (const key of buildPartKeys(context.build.objectKey, context.build.sizeBytes)) {
+    partUrls.push(await deps.signBuildDownload(key));
+  }
+  const downloadUrl = partUrls[0] as string;
   const { token, expiresAt } = await issueRunnerToken(
     {
       kind: "device",
@@ -110,6 +116,7 @@ export async function bootstrap(deps: RunnerDeps, oidcToken: string, body: unkno
     build: {
       buildId: context.build.buildId,
       downloadUrl,
+      ...(partUrls.length > 1 ? { partUrls } : {}),
       fileName: context.build.fileName,
       sizeBytes: context.build.sizeBytes,
     },

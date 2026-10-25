@@ -1,12 +1,11 @@
 import "server-only";
+
+import { MAX_BUILD_BYTES } from "@tapscout/shared";
 import { HttpError } from "@/lib/api/errors";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseKey, sealTestAccount } from "./secrets";
 import type { BuildRecord, BuildsDeps } from "./service";
-
-/** Supabase Free plan file limit; set STORAGE_BUILDS_MAX_BYTES after raising the bucket limit. */
-const DEFAULT_MAX_BYTES = 50 * 1024 * 1024;
 
 export function createBuildsDeps(): BuildsDeps {
   const admin = createAdminClient();
@@ -14,7 +13,8 @@ export function createBuildsDeps(): BuildsDeps {
   const bucket = () => admin.storage.from(serverEnv.storageBuildsBucket());
   const fail = (what: string) => new HttpError(500, "internal", `could not ${what}`);
   return {
-    maxBytes: Number(process.env.STORAGE_BUILDS_MAX_BYTES) || DEFAULT_MAX_BYTES,
+    // Builds are stored in parts, so the bucket's 50 MB object limit no longer caps their size.
+    maxBytes: Number(process.env.STORAGE_BUILDS_MAX_BYTES) || MAX_BUILD_BYTES,
     newId: () => crypto.randomUUID(),
     now: () => new Date(),
     async countPending(ownerId) {

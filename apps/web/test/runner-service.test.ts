@@ -85,6 +85,33 @@ describe("bootstrap", () => {
       heartbeatIntervalSeconds: 30,
     });
     expect(res.build.downloadUrl).toBe("https://storage.example/signed");
+    expect(res.build.partUrls).toBeUndefined();
+  });
+
+  it("hands out one download URL per part for a build stored in parts", async () => {
+    const d = deps({
+      rpc: vi.fn(async () => ({
+        data: [{ session_id: SESSION, attempt_id: ATTEMPT, lease_version: 1, build_id: "b1" }],
+        error: null,
+      })),
+      loadBootstrapContext: vi.fn(async () => ({
+        modes: ["functional" as const],
+        budget: DEFAULT_PLATFORM_BUDGET,
+        build: {
+          buildId: "b1",
+          objectKey: "final/b1/app.zip",
+          fileName: "app.zip",
+          sizeBytes: 80 * 1024 * 1024,
+        },
+      })),
+      signBuildDownload: vi.fn(async (key: string) => `https://storage.example/${key}`),
+    });
+    const res = await bootstrap(d, "oidc", { runId: RUN, platform: "ios" });
+    expect(res.build.partUrls).toEqual([
+      "https://storage.example/final/b1/app.zip.part0",
+      "https://storage.example/final/b1/app.zip.part1",
+    ]);
+    expect(res.build.downloadUrl).toBe("https://storage.example/final/b1/app.zip.part0");
   });
 
   it("maps a rejected OIDC token to 401 and a held lease to 409", async () => {

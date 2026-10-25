@@ -170,14 +170,26 @@ try {
   // Download and verify the build (the hash is recorded, never trusted from the request).
   const buildDir = join(outDir, "build");
   await mkdir(buildDir, { recursive: true });
-  const res = await fetch(boot.build.downloadUrl, { signal: AbortSignal.timeout(300_000) });
-  if (!res.ok)
+  // A build larger than one storage part (Supabase Free: 50 MB per object) comes in parts.
+  const chunks: Buffer[] = [];
+  for (const url of boot.build.partUrls ?? [boot.build.downloadUrl]) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(300_000) });
+    if (!res.ok)
+      throw new Stop(
+        "infrastructure_failed",
+        "infrastructure_failed",
+        `build download HTTP ${res.status}`,
+      );
+    chunks.push(Buffer.from(await res.arrayBuffer()));
+  }
+  const bytes = Buffer.concat(chunks);
+  if (bytes.length !== boot.build.sizeBytes) {
     throw new Stop(
       "infrastructure_failed",
       "infrastructure_failed",
-      `build download HTTP ${res.status}`,
+      `build download has ${bytes.length} bytes, not ${boot.build.sizeBytes}`,
     );
-  const bytes = Buffer.from(await res.arrayBuffer());
+  }
   const buildFile = join(buildDir, boot.build.fileName);
   await writeFile(buildFile, bytes);
   const sha256 = createHash("sha256").update(bytes).digest("hex");

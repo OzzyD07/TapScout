@@ -165,3 +165,57 @@ describe("completeBuildUpload", () => {
     expect(d.markUploaded).not.toHaveBeenCalled();
   });
 });
+
+describe("builds larger than one storage part", () => {
+  const MB = 1024 * 1024;
+  const size = 100 * MB;
+  const ios = {
+    platform: "ios",
+    fileName: "IceCubes.zip",
+    sizeBytes: size,
+    contentType: "application/zip",
+    appName: "Ice Cubes",
+  };
+
+  it("signs one upload per part, each under the storage's 50 MB object limit", async () => {
+    const d = deps({ maxBytes: 200 * MB });
+    const res = await createBuildUpload(d, USER, ios);
+    expect(res.partUrls.map((u) => u.split("/").pop()?.split("?")[0])).toEqual([
+      "app.zip.part0",
+      "app.zip.part1",
+      "app.zip.part2",
+    ]);
+    expect(res.uploadUrl).toBe(res.partUrls[0]);
+    expect(res.partBytes).toBe(45 * MB);
+  });
+
+  it("checks every part's size and moves all of them on completion", async () => {
+    const sizes: Record<string, number> = {
+      [`staging/${BUILD}/app.zip.part0`]: 45 * MB,
+      [`staging/${BUILD}/app.zip.part1`]: 45 * MB,
+      [`staging/${BUILD}/app.zip.part2`]: 10 * MB,
+    };
+    const d = deps(
+      { objectSize: vi.fn(async (key: string) => sizes[key] ?? null) },
+      { platform: "ios", sizeBytes: size, stagingKey: `staging/${BUILD}/app.zip` },
+    );
+    await completeBuildUpload(d, USER, BUILD);
+    expect(d.objectHead).toHaveBeenCalledWith(`staging/${BUILD}/app.zip.part0`, 4);
+    expect(d.moveObject).toHaveBeenCalledTimes(3);
+    expect(d.moveObject).toHaveBeenLastCalledWith(
+      `staging/${BUILD}/app.zip.part2`,
+      `final/${BUILD}/app.zip.part2`,
+    );
+    expect(d.markUploaded).toHaveBeenCalledWith(BUILD, `final/${BUILD}/app.zip`);
+  });
+
+  it("rejects a part of the wrong size and removes every part", async () => {
+    const d = deps(
+      { objectSize: vi.fn(async (key: string) => (key.endsWith("part2") ? 9 * MB : 45 * MB)) },
+      { platform: "ios", sizeBytes: size, stagingKey: `staging/${BUILD}/app.zip` },
+    );
+    await expect(completeBuildUpload(d, USER, BUILD)).rejects.toMatchObject({ status: 400 });
+    expect(d.removeObject).toHaveBeenCalledTimes(3);
+    expect(d.moveObject).not.toHaveBeenCalled();
+  });
+});

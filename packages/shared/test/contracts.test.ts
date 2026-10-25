@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUILD_PART_BYTES,
+  buildPartKeys,
+  buildPartSize,
   CreateRunRequest,
   describeAction,
   formatReproduction,
@@ -141,5 +144,19 @@ describe("describeAction", () => {
         "Password",
       ),
     ).toBe('Type test credential into "Password"');
+  });
+});
+
+describe("build parts", () => {
+  it("keeps a build up to one part as one object and splits larger ones", () => {
+    const MB = 1024 * 1024;
+    expect(buildPartKeys("final/b/app.apk", 41 * MB)).toEqual(["final/b/app.apk"]);
+    expect(buildPartKeys("final/b/app.zip", 80 * MB)).toEqual([
+      "final/b/app.zip.part0",
+      "final/b/app.zip.part1",
+    ]);
+    expect(buildPartSize(80 * MB, 0)).toBe(BUILD_PART_BYTES);
+    expect(buildPartSize(80 * MB, 1)).toBe(80 * MB - BUILD_PART_BYTES);
+    expect(BUILD_PART_BYTES).toBeLessThan(50 * 1000 * 1000);
   });
 });

@@ -68,9 +68,34 @@ export const CreateBuildUploadRequest = z.object({
 });
 export type CreateBuildUploadRequest = z.infer<typeof CreateBuildUploadRequest>;
 
+/**
+ * Builds are stored in parts of at most this size: the Supabase Free plan accepts 50 MB per
+ * object (iOS Simulator builds of real apps are 65–80 MB). A build up to one part is one object
+ * exactly as before. Never change this value: stored builds are read back by it.
+ */
+export const BUILD_PART_BYTES = 45 * 1024 * 1024;
+/** Largest build accepted, in all its parts. */
+export const MAX_BUILD_BYTES = 200 * 1024 * 1024;
+
+/** Storage keys of a build's parts: the key itself for one part, `<key>.partN` for more. */
+export function buildPartKeys(objectKey: string, sizeBytes: number): string[] {
+  const count = Math.max(1, Math.ceil(sizeBytes / BUILD_PART_BYTES));
+  if (count === 1) return [objectKey];
+  return Array.from({ length: count }, (_, i) => `${objectKey}.part${i}`);
+}
+
+/** Byte size of part `index` of a build of `sizeBytes`. */
+export function buildPartSize(sizeBytes: number, index: number): number {
+  return Math.min(BUILD_PART_BYTES, sizeBytes - index * BUILD_PART_BYTES);
+}
+
 export const CreateBuildUploadResponse = z.object({
   buildId: Id,
+  /** The first part's URL (the whole file when it fits one part). */
   uploadUrl: z.url(),
+  /** One signed URL per part, in order; the browser PUTs each slice of the file to its URL. */
+  partUrls: z.array(z.url()).min(1),
+  partBytes: z.number().int().positive(),
   requiredHeaders: z.record(z.string(), z.string()),
   expiresAt: Timestamp,
 });
@@ -113,7 +138,10 @@ export const RunnerBootstrapResponse = z.object({
   tokenExpiresAt: Timestamp,
   build: z.object({
     buildId: Id,
+    /** The first part (the whole file when it fits one part). */
     downloadUrl: z.url(),
+    /** Every part in order, when the build is stored in more than one; joined by the runner. */
+    partUrls: z.array(z.url()).optional(),
     fileName: z.string(),
     sizeBytes: z.number().int(),
   }),
