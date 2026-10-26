@@ -146,17 +146,35 @@ export class RunnerApi {
   }
 }
 
-/** GitHub Actions OIDC token for the configured audience (requires `id-token: write`). */
-export async function fetchGithubOidcToken(audience: string, fetchImpl: typeof fetch = fetch) {
+/**
+ * GitHub Actions OIDC token for the configured audience (requires `id-token: write`). GitHub's
+ * token service answers 5xx now and then (run 5984db7b: one 503 cost the whole Android session),
+ * so server errors and network failures are retried a few times with a growing pause.
+ */
+export async function fetchGithubOidcToken(
+  audience: string,
+  fetchImpl: typeof fetch = fetch,
+  pauseMs = 3_000,
+) {
   const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
   const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   if (!url || !requestToken) {
     throw new Error("GitHub OIDC is not available: the job needs `permissions: id-token: write`");
   }
-  const res = await fetchImpl(`${url}&audience=${encodeURIComponent(audience)}`, {
-    headers: { authorization: `Bearer ${requestToken}` },
-  });
-  if (!res.ok) throw new Error(`OIDC token request failed with HTTP ${res.status}`);
+  const attempts = 4;
+  let res: Response | undefined;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await fetchImpl(`${url}&audience=${encodeURIComponent(audience)}`, {
+        headers: { authorization: `Bearer ${requestToken}` },
+      });
+      if (res.ok || res.status < 500 || attempt === attempts) break;
+    } catch (error) {
+      if (attempt === attempts) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
+  }
+  if (!res?.ok) throw new Error(`OIDC token request failed with HTTP ${res?.status}`);
   const { value } = (await res.json()) as { value?: string };
   if (!value) throw new Error("OIDC token response had no value");
   return value;
