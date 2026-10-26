@@ -240,6 +240,8 @@ export function fragments(secret: string): string[] {
 }
 
 const MAX_CONSECUTIVE_INTERRUPTIONS = 4;
+/** iOS: observations after the start that always ask for a SpringBoard alert. */
+const ALERT_CHECKS_AT_START = 3;
 /** Taps on one iOS system screen's close spot before the app is relaunched instead. */
 const MAX_SYSTEM_UI_TAPS = 2;
 /** Relaunches to leave iOS system screens per session; after that they are explored as is. */
@@ -455,6 +457,9 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     }
   }
   let window: { width: number; height: number } | null = null;
+  /** Observations so far and the last page source, to decide when to ask for a system alert. */
+  let observations = 0;
+  let lastSource = "";
 
   const tracker = new FunctionalTracker();
   const modeTracker = new ModeTracker(platform, 1);
@@ -647,9 +652,20 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     if (platform === "android" && xml) {
       screen.keyboardVisible = await timed("keyboard", () => device.keyboardShown());
     }
-    // A SpringBoard alert is not in the app's page source but covers it all the same.
+    // A SpringBoard alert is not in the app's page source but covers it all the same. Asking
+    // costs ~1 s (64ae9179: 77 s a session), so ask only where one is likely: right after
+    // launch, and when the page source did not change at all (taps landing on an alert).
     const readAlert = device.systemAlert?.bind(device);
-    if (platform === "ios" && !screen.interruption && readAlert && device.answerAlert) {
+    const alertLikely = observations < ALERT_CHECKS_AT_START || (xml !== "" && xml === lastSource);
+    observations += 1;
+    lastSource = xml;
+    if (
+      platform === "ios" &&
+      alertLikely &&
+      !screen.interruption &&
+      readAlert &&
+      device.answerAlert
+    ) {
       const alert = await timed("system alert", readAlert);
       const interruption = alert && iosAlertInterruption(alert.text, alert.buttons);
       if (interruption) {

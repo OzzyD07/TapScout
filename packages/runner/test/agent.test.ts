@@ -778,6 +778,38 @@ describe("runAgent", () => {
     expect(note && message(note)).toContain("Would Like to Send You Notifications");
   });
 
+  it("asks for an iOS system alert only at the start and when the page source stood still", async () => {
+    const device = fakeDevice();
+    let n = 0;
+    Object.assign(device, {
+      platform: "ios",
+      windowSize: async () => ({ width: 402, height: 874 }),
+      screenshotPng: async () => png(1206, 2622),
+      // Every observation sees a slightly different source: no alert is likely after the start.
+      pageSource: async () => `${xml("ios-welcome")}<!-- ${n++} -->`,
+      systemAlert: vi.fn(async () => null),
+      answerAlert: vi.fn(async () => {}),
+    });
+    const h = harness(device, scriptedPlanner(), 3);
+    await runAgent(h.ports, { ...h.config, platform: "ios" });
+    expect(n).toBeGreaterThan(3);
+    expect(device.systemAlert).toHaveBeenCalledTimes(3);
+
+    // The same source twice in a row (taps landing on an alert): ask again.
+    const still = fakeDevice();
+    Object.assign(still, {
+      platform: "ios",
+      windowSize: async () => ({ width: 402, height: 874 }),
+      screenshotPng: async () => png(1206, 2622),
+      pageSource: async () => xml("ios-welcome"),
+      systemAlert: vi.fn(async () => null),
+      answerAlert: vi.fn(async () => {}),
+    });
+    const h2 = harness(still, scriptedPlanner(), 3);
+    await runAgent(h2.ports, { ...h2.config, platform: "ios" });
+    expect((still.systemAlert as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(3);
+  });
+
   it("closes an iOS share sheet the app opened, or relaunches when it stays (ddb11947)", async () => {
     const iosDevice = (system: string) => {
       const device = fakeDevice();
