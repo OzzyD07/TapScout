@@ -657,15 +657,6 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     // launch, and when the page source did not change at all (taps landing on an alert).
     const readAlert = device.systemAlert?.bind(device);
     const alertLikely = observations < ALERT_CHECKS_AT_START || (xml !== "" && xml === lastSource);
-    // TEMPORARY measurement of the iOS page source cost; removed after the probe run.
-    const probe = (device as { probeSource?: () => Promise<string> }).probeSource;
-    if (platform === "ios" && probe && [3, 12, 25, 40].includes(observations)) {
-      const summary = await probe.call(device).catch((e: Error) => `probe failed: ${e.message}`);
-      ports.emit({
-        type: "note",
-        payload: { level: "info", message: `Source probe @${observations}: ${summary}` },
-      });
-    }
     observations += 1;
     lastSource = xml;
     if (
