@@ -997,3 +997,13 @@ Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büy
 |---|---|---|
 | Ice Cubes `56f5c08f` | 4,4 sn (sheet içinde sunucu adresi yazarken klavye açık) | **6/7** (en iyi): yalnız Explore kaçtı; 23 durum, 54 eylem. Web girişi uyarısı canlıda iki kez Cancel ile kapatıldı |
 | FieldNotes seeded `ac0f08e6` | 0,6 sn | 1/1 tohum (2/2 tekrar), beklenmeyen bulgu 0 |
+
+## 32. Teslim hazırlığı: README, Devpost metni, jüri hesapları ve sabit örnek koşu (26 Ekim 2026)
+
+- **README** (`be7952f`) İngilizce ve teslim için yeniden yazıldı: ne yaptığı, Nemotron'un rolleri (planner Lightning, test planı ve triage Ultra, rapor özeti Lightning, görsel MiniCPM-V), döngü, ölçülen sonuçlar, sınırlamalar, kurulum.
+- **Devpost metni** `docs/submission/devpost.md`: her form alanının taslağı (pitch, hikâye bölümleri, built with, testing instructions, araç geri bildirimi). Teslim günü doldurulacaklar: video linki ve jüri şifreleri.
+- **Jüri hesapları** (`3e85f32`): `scripts/create-jury-accounts.mjs` üç onaylı hesap açtı (`judge1–3@tapscout.com`). Şifreler rastgele ve yalnız gitignored `.env.jury`'de; script şifre yazdırmaz (`--reset` yeni şifre verir). Üç hesap, jürilerin aynı anda (hesap başına 2 aktif koşu) test edebilmesi için.
+- **Başlangıç formu** seeded örneği öne alıyor: önceden en yeni örnek (login varyantı) seçili geliyordu. Kullanıcının kendi yüklediği build yine önce.
+- **OIDC tekrar denemesi** (`16f912f`): ilk vitrin koşusunda (`5984db7b`) Android oturumu GitHub'ın OIDC token servisinden tek bir 503 alıp başlamadan bitti; artık 5xx ve ağ hataları 4 kez denenir.
+- **Sabit örnek koşu `67f6637c`**: seeded, iki platform, beş mod. **Android 6/6, iOS 6/6, beklenmeyen bulgu 0**, 12 bulgu, rapor hazır. `is_shared_sample` ve `keep_evidence` işaretlendi: her hesap görür ("Previously completed sample run" etiketiyle), 7 günlük silmeden muaf.
+- **Erişim kontrolü (API ile, judge1):** giriş çalışıyor; yalnız paylaşılan koşu görünüyor, başka kullanıcının koşusu görünmüyor; rapor, 12 bulgu ve ekran görüntüleri okunuyor. Tarayıcıda gizli pencereden giriş denemesi proje sahibinde.
