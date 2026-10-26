@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { remote } from "webdriverio";
 import { buildCapabilities, type SessionOptions } from "./capabilities.js";
+import { FAST_SOURCE_EXCLUDED, needsVisibility } from "./ios-source.js";
 import {
   type DevicePlatform,
   type LocatorCandidate,
@@ -96,7 +97,20 @@ export class DeviceSession {
     return Buffer.from(await this.driver.takeScreenshot(), "base64");
   }
 
-  pageSource(): Promise<string> {
+  /**
+   * The page source. iOS reads it without the costly `visible` attribute first and in full only
+   * where something covers the app (ios-source.ts).
+   */
+  async pageSource(): Promise<string> {
+    if (this.platform === "ios") {
+      const fast = String(
+        await this.driver.execute("mobile: source", {
+          format: "xml",
+          excludedAttributes: FAST_SOURCE_EXCLUDED,
+        }),
+      );
+      if (!needsVisibility(fast)) return fast;
+    }
     return this.driver.getPageSource();
   }
 
