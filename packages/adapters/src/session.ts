@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { remote } from "webdriverio";
 import { buildCapabilities, type SessionOptions } from "./capabilities.js";
-import { FAST_SOURCE_EXCLUDED, needsVisibility } from "./ios-source.js";
+import { FAST_SOURCE_EXCLUDED, usableFastSource } from "./ios-source.js";
 import {
   type DevicePlatform,
   type LocatorCandidate,
@@ -99,7 +99,8 @@ export class DeviceSession {
 
   /**
    * The page source. iOS reads it without the costly `visible` attribute first and in full only
-   * where something covers the app (ios-source.ts).
+   * where something covers the app; a screen behind a presented one is marked without it
+   * (ios-source.ts).
    */
   async pageSource(): Promise<string> {
     if (this.platform === "ios") {
@@ -109,7 +110,8 @@ export class DeviceSession {
           excludedAttributes: FAST_SOURCE_EXCLUDED,
         }),
       );
-      if (!needsVisibility(fast)) return fast;
+      const usable = usableFastSource(fast);
+      if (usable !== null) return usable;
     }
     return this.driver.getPageSource();
   }
