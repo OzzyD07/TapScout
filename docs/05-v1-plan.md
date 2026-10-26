@@ -973,3 +973,11 @@ Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büy
 | Ice Cubes `6651afd4` | **3/7**, 11 durum, 41 eylem, 38 planner çağrısı, 13,7 dk; `goals_exhausted` ("aynı ekrana dönüyor"). Settings'e bu kez ulaşılmadı |
 
 **Değerlendirme:** Ice Cubes iOS üç koşuda 4/7, 4/7, 3/7; koşular arası fark planner'ın seçtiği yoldan geliyor. Kalan zayıflık: uygulama açılışta zaman akışının üstünde "Add Account" sheet'iyle başlıyor; agent sheet'in içindeki sunucu bilgisi satırlarında dolaşıp Cancel ile sheet'i kapatmayı geç ya da hiç seçmiyor, Explore, Display settings ve profil hiç açılmadı.
+
+**Sheet değil, web girişi uyarısı** (`75f6718`): `6651afd4`'ün eylem dökümü yukarıdaki değerlendirmeyi düzeltti. Agent sheet'i Cancel ile kapatabiliyordu (beş kez Trending'e çıktı). Asıl tuzak: bir sunucu seçip "Sign in"e basınca iOS'un "“Ice Cubes” Wants to Use “mastodon.social” to Sign In" uyarısı çıktı. Bu da SpringBoard uyarısı, page source'ta yok ve izin isteği sayılmadığı için yanıtlanmadı; son 18 eylem (Cancel'lar dahil) ona çarptı. Artık bu uyarıya "Cancel" ile yanıt veriliyor (`sign_in` türü; test hesabı olmadan gerçek bir sunucuya giriş yapılmaz) ve rapora not düşülüyor.
+
+| Koşu | Sonuç |
+|---|---|
+| Ice Cubes `7f6a73a8` | **4/7**, 20 durum, **63 eylem** (en yüksek), 49 planner çağrısı, 17,4 dk (süre bitti). Timeline, Add account, Settings (17. adım), Instance info. Bu koşu web girişine hiç girmedi. Adım başına page source 4,3 sn, uyarı kontrolü 99 gözlemin 49'unda |
+
+**Durum:** Ice Cubes iOS dört koşuda 4/7, 4/7, 3/7, 4/7; takılma yok, süre sonuna kadar keşif sürüyor. Kalan üç ekran (Explore, Display settings, bir kullanıcı profili) planner'ın yol seçimine bağlı.
