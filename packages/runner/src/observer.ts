@@ -56,12 +56,13 @@ function* walk(node: XmlNode): Generator<XmlNode> {
 }
 
 export interface SystemInterruption {
-  kind: "anr" | "crash" | "permission";
+  kind: "anr" | "crash" | "permission" | "sign_in";
   title: string;
   /**
    * Button that clears it: "Wait" for an ANR, "Close app" for a crash dialog and the allowing
    * answer for a permission request (TapScout grants permissions so the app's normal flow is
-   * what gets tested; docs/07 A1).
+   * what gets tested; docs/07 A1). An iOS web sign-in request ("… Wants to Use … to Sign In")
+   * is cancelled: signing in to a real server is not TapScout's to do.
    */
   dismiss: {
     label: string;
@@ -334,32 +335,50 @@ function androidPermission(hierarchy: XmlNode): SystemInterruption | null {
     : null;
 }
 
-/** An iOS system permission alert (notifications, location, camera, tracking …). */
+/** iOS web sign-in alert (ASWebAuthenticationSession), shown by SpringBoard. */
+const IOS_WEB_SIGN_IN = /\bto sign in\b/i;
+
+/** How TapScout answers an iOS system alert with this title, or null when it leaves it alone. */
+function iosAlertAnswer(
+  title: string,
+  labels: string[],
+): { kind: "permission" | "sign_in"; label: string } | null {
+  if (IOS_WEB_SIGN_IN.test(title)) {
+    const label = labels.find((l) => /^cancel$/i.test(l));
+    return label ? { kind: "sign_in", label } : null;
+  }
+  if (!IOS_PERMISSION_TITLE.test(title)) return null;
+  for (const want of IOS_ALLOW) {
+    const label = labels.find((l) => want.test(l));
+    if (label) return { kind: "permission", label };
+  }
+  return null;
+}
+
+/** An iOS system permission or web sign-in alert (notifications, location, camera, tracking …). */
 function iosPermission(root: XmlNode, scale: number): SystemInterruption | null {
   for (const alert of walk(root)) {
     if ((alert.attrs.type ?? alert.tag) !== "XCUIElementTypeAlert") continue;
     const title = alert.attrs.label ?? alert.attrs.name ?? "";
-    if (!IOS_PERMISSION_TITLE.test(title)) continue;
     const buttons = [...walk(alert)].filter(
       (n) => (n.attrs.type ?? n.tag) === "XCUIElementTypeButton" && n.attrs.visible !== "false",
     );
-    for (const want of IOS_ALLOW) {
-      const b = buttons.find((n) => want.test((n.attrs.label ?? n.attrs.name ?? "").trim()));
-      if (!b) continue;
-      const bounds: Bounds = {
-        x: Math.round(Number(b.attrs.x) * scale),
-        y: Math.round(Number(b.attrs.y) * scale),
-        width: Math.round(Number(b.attrs.width) * scale),
-        height: Math.round(Number(b.attrs.height) * scale),
-      };
-      if (!Number.isFinite(bounds.x + bounds.y + bounds.width + bounds.height)) continue;
-      const label = (b.attrs.label ?? b.attrs.name ?? "").trim();
-      return {
-        kind: "permission",
-        title: clip(title) ?? "Permission request",
-        dismiss: { label, bounds, stableId: label },
-      };
-    }
+    const labelOf = (n: XmlNode) => (n.attrs.label ?? n.attrs.name ?? "").trim();
+    const answer = iosAlertAnswer(title, buttons.map(labelOf));
+    const b = answer && buttons.find((n) => labelOf(n) === answer.label);
+    if (!answer || !b) continue;
+    const bounds: Bounds = {
+      x: Math.round(Number(b.attrs.x) * scale),
+      y: Math.round(Number(b.attrs.y) * scale),
+      width: Math.round(Number(b.attrs.width) * scale),
+      height: Math.round(Number(b.attrs.height) * scale),
+    };
+    if (!Number.isFinite(bounds.x + bounds.y + bounds.width + bounds.height)) continue;
+    return {
+      kind: answer.kind,
+      title: clip(title) ?? "Permission request",
+      dismiss: { label: answer.label, bounds, stableId: answer.label },
+    };
   }
   return null;
 }
@@ -371,22 +390,21 @@ function iosPermission(root: XmlNode, scale: number): SystemInterruption | null 
  */
 export function iosAlertInterruption(text: string, buttons: string[]): SystemInterruption | null {
   const title = text.trim().split("\n")[0]?.trim() ?? "";
-  if (!IOS_PERMISSION_TITLE.test(title)) return null;
-  for (const want of IOS_ALLOW) {
-    const label = buttons.map((b) => b.trim()).find((b) => want.test(b));
-    if (!label) continue;
-    return {
-      kind: "permission",
-      title: clip(title) ?? "Permission request",
-      dismiss: {
-        label,
-        bounds: { x: 0, y: 0, width: 0, height: 0 },
-        stableId: label,
-        viaDriver: true,
-      },
-    };
-  }
-  return null;
+  const answer = iosAlertAnswer(
+    title,
+    buttons.map((b) => b.trim()),
+  );
+  if (!answer) return null;
+  return {
+    kind: answer.kind,
+    title: clip(title) ?? "Permission request",
+    dismiss: {
+      label: answer.label,
+      bounds: { x: 0, y: 0, width: 0, height: 0 },
+      stableId: answer.label,
+      viaDriver: true,
+    },
+  };
 }
 
 /**

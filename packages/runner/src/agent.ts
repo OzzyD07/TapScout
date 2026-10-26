@@ -728,11 +728,13 @@ export async function runAgent(ports: AgentPorts, config: AgentConfig): Promise<
     ports.emit({
       type: "note",
       payload: {
-        level: it.kind === "permission" ? "info" : "warn",
+        level: it.kind === "permission" || it.kind === "sign_in" ? "info" : "warn",
         message:
           it.kind === "permission"
             ? `Interruption: permission request "${it.title}"; tapped "${it.dismiss.label}" so the app's normal flow is tested.`
-            : `System dialog "${it.title || it.kind}" covered the app; tapped "${it.dismiss.label}".`,
+            : it.kind === "sign_in"
+              ? `Interruption: web sign-in request "${it.title}"; tapped "${it.dismiss.label}": TapScout does not sign in to real servers without a test account.`
+              : `System dialog "${it.title || it.kind}" covered the app; tapped "${it.dismiss.label}".`,
       },
     });
     if (it.dismiss.viaDriver && device.answerAlert) await device.answerAlert(it.dismiss.label);

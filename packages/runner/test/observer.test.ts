@@ -104,6 +104,14 @@ describe("normalizeHierarchy", () => {
       dismiss: { label: "Allow", viaDriver: true },
     });
     expect(iosAlertInterruption("Delete this post?", ["Cancel", "Delete"])).toBeNull();
+    // A web sign-in to a real server is cancelled, not continued (6651afd4: it covered the app
+    // for the last 18 actions).
+    expect(
+      iosAlertInterruption("“Ice Cubes” Wants to Use “mastodon.social” to Sign In\nThis allows…", [
+        "Cancel",
+        "Continue",
+      ]),
+    ).toMatchObject({ kind: "sign_in", dismiss: { label: "Cancel", viaDriver: true } });
   });
 
   it("names an iOS sheet by its own bar, not a hidden bar or a SwiftUI class name (f74585fb)", () => {
