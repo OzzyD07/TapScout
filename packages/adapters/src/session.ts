@@ -100,6 +100,42 @@ export class DeviceSession {
     return this.driver.getPageSource();
   }
 
+  /**
+   * TEMPORARY measurement (iOS page source cost): times the source under several driver options
+   * on the current screen and returns a one-line summary. Removed after the probe run.
+   */
+  async probeSource(): Promise<string> {
+    if (this.platform !== "ios") return "";
+    const count = (xml: string) => (xml.match(/<XCUIElementType/g) ?? []).length;
+    const time = async (name: string, get: () => Promise<unknown>) => {
+      const t0 = Date.now();
+      try {
+        const xml = String(await get());
+        return `${name} ${((Date.now() - t0) / 1000).toFixed(2)}s/${count(xml)}el`;
+      } catch (error) {
+        return `${name} failed (${(error as Error).message.slice(0, 60)})`;
+      }
+    };
+    const source = (excludedAttributes?: string) =>
+      this.driver.execute("mobile: source", {
+        format: "xml",
+        ...(excludedAttributes ? { excludedAttributes } : {}),
+      });
+    const out = [
+      await time("default", () => this.driver.getPageSource()),
+      await time("default-again", () => this.driver.getPageSource()),
+      await time("no-accessible-index", () => source("accessible,index")),
+      await time("no-visible-accessible-index", () => source("visible,accessible,index")),
+    ];
+    for (const depth of [30, 20]) {
+      await this.driver.updateSettings({ snapshotMaxDepth: depth });
+      out.push(await time(`depth${depth}`, () => this.driver.getPageSource()));
+    }
+    await this.driver.updateSettings({ snapshotMaxDepth: 50 });
+    out.push(await time("json", () => this.driver.execute("mobile: source", { format: "json" })));
+    return out.join(" | ");
+  }
+
   /** Android screen density in dpi (160 = 1 px per dp); undefined on iOS. */
   async displayDensity(): Promise<number | undefined> {
     if (this.platform !== "android") return undefined;
