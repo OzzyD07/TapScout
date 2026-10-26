@@ -965,3 +965,11 @@ Bu turda bir ilke açığı da görüldü ve kapatıldı (`c9ca6d6`): "etkisiz" 
 | Ice Cubes `64ae9179` | **4/7** (aynı): 17 durum, 58 eylem (önce 49), 47 planner çağrısı, 17,2 dk. Bu koşu paylaşım sayfasına hiç girmedi, yani yeni kapatma canlıda henüz denenmedi (birim testleri var). Explore, Display settings ve profil yine kaçtı |
 
 Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büyük), sistem uyarısı kontrolü 1,0 sn; gözlemlerin 26/61'i "yükleniyor" gösterdi. Ice Cubes'ta süre en çok buraya gidiyor.
+
+**Sistem uyarısı kontrolü ucuzladı** (`af613b9`): SpringBoard uyarısı yalnız ilk üç gözlemde ve page source hiç değişmediğinde (dokunuşlar bir uyarıya çarpıyorsa) sorulur. `6651afd4`'te 56 gözlemin 37'sinde soruldu (ortalama 0,6 sn; önce 77/77, 1,0 sn); "aynı ekran" sonuçlarında page source birebir aynı kaldığı için kazanç beklenenden küçük. Uyarı yine ilk adımda yanıtlandı.
+
+| Koşu | Sonuç |
+|---|---|
+| Ice Cubes `6651afd4` | **3/7**, 11 durum, 41 eylem, 38 planner çağrısı, 13,7 dk; `goals_exhausted` ("aynı ekrana dönüyor"). Settings'e bu kez ulaşılmadı |
+
+**Değerlendirme:** Ice Cubes iOS üç koşuda 4/7, 4/7, 3/7; koşular arası fark planner'ın seçtiği yoldan geliyor. Kalan zayıflık: uygulama açılışta zaman akışının üstünde "Add Account" sheet'iyle başlıyor; agent sheet'in içindeki sunucu bilgisi satırlarında dolaşıp Cancel ile sheet'i kapatmayı geç ya da hiç seçmiyor, Explore, Display settings ve profil hiç açılmadı.
