@@ -335,8 +335,11 @@ function androidPermission(hierarchy: XmlNode): SystemInterruption | null {
     : null;
 }
 
-/** iOS web sign-in alert (ASWebAuthenticationSession), shown by SpringBoard. */
-const IOS_WEB_SIGN_IN = /\bto sign in\b/i;
+/**
+ * iOS sign-in alerts shown by SpringBoard: web sign-in ("… Wants to Use … to Sign In") and the
+ * Apple Account sign-in a purchase asks for ("Sign in to Apple Account", Ice Cubes 45c733ca).
+ */
+const IOS_WEB_SIGN_IN = /\bsign in\b/i;
 
 /** How TapScout answers an iOS system alert with this title, or null when it leaves it alone. */
 function iosAlertAnswer(

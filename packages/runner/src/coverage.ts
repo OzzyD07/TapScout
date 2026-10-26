@@ -22,9 +22,15 @@ export const OUTWARD =
  */
 const ONE_TAP_OUTWARD =
   /\b(report|block|send|publish|vote|upvote|downvote|buy|purchase|pay|donate|boost|favou?rite|follow)\b/i;
+/**
+ * A price on a control ("$0.99", "1,99 €", "₺29,99") starts a purchase: on iOS it opened "Sign in
+ * to Apple Account", which covered the app for the rest of the session (Ice Cubes 45c733ca).
+ */
+const PRICE = /(^|\s)[$€£¥₺]\s?\d|\d[.,]\d{2}\s?(€|£|₺|TL|USD|EUR)(\s|$)/;
+const oneTapOutward = (name: string) => ONE_TAP_OUTWARD.test(name) || PRICE.test(name);
 /** A control whose one tap acts on other people right away (vote, report, follow, send, buy). */
 export function outwardAction(e: Pick<UiElement, "label" | "text" | "stableId">): boolean {
-  return ONE_TAP_OUTWARD.test(nameOf(e));
+  return oneTapOutward(nameOf(e));
 }
 /** Entry points where Store Readiness and Accessibility evidence usually lives. */
 const ACCOUNT_HINT = /setting|account|profile|privacy|help|about|preference|gear|menu|more/i;
@@ -83,7 +89,7 @@ export function safeToTry(e: UiElement, screen?: Pick<UiElement, "label" | "text
   const name = nameOf(e);
   return (
     !DESTRUCTIVE.test(name) &&
-    !ONE_TAP_OUTWARD.test(name) &&
+    !oneTapOutward(name) &&
     !isBackControl(e) &&
     !isLanguageOption(e, screen)
   );

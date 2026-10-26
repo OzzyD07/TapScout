@@ -112,6 +112,11 @@ describe("normalizeHierarchy", () => {
         "Continue",
       ]),
     ).toMatchObject({ kind: "sign_in", dismiss: { label: "Cancel", viaDriver: true } });
+    // The Apple Account sign-in a purchase asks for (45c733ca).
+    expect(iosAlertInterruption("Sign in to Apple Account", ["Cancel", "OK"])).toMatchObject({
+      kind: "sign_in",
+      dismiss: { label: "Cancel" },
+    });
   });
 
   it("names an iOS sheet by its own bar, not a hidden bar or a SwiftUI class name (f74585fb)", () => {

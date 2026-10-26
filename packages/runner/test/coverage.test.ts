@@ -38,6 +38,10 @@ describe("safeToTry / iconOnly", () => {
     expect(safeToTry(del)).toBe(false);
     expect(safeToTry(control({ text: "Sign out" }))).toBe(false);
     expect(safeToTry(back)).toBe(false);
+    // A price starts a purchase (45c733ca: "$0.99" opened "Sign in to Apple Account").
+    expect(safeToTry(control({ text: "$0.99" }))).toBe(false);
+    expect(safeToTry(control({ text: "Small Tip 1,99 €" }))).toBe(false);
+    expect(safeToTry(control({ text: "Version 2.0.12" }))).toBe(true);
     expect(safeToTry(gear)).toBe(true);
     expect(iconOnly(gear)).toBe(true);
     expect(iconOnly(edit)).toBe(false);
