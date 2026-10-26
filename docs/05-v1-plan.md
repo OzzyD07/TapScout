@@ -981,3 +981,10 @@ Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büy
 | Ice Cubes `7f6a73a8` | **4/7**, 20 durum, **63 eylem** (en yüksek), 49 planner çağrısı, 17,4 dk (süre bitti). Timeline, Add account, Settings (17. adım), Instance info. Bu koşu web girişine hiç girmedi. Adım başına page source 4,3 sn, uyarı kontrolü 99 gözlemin 49'unda |
 
 **Durum:** Ice Cubes iOS dört koşuda 4/7, 4/7, 3/7, 4/7; takılma yok, süre sonuna kadar keşif sürüyor. Kalan üç ekran (Explore, Display settings, bir kullanıcı profili) planner'ın yol seçimine bağlı.
+
+**iOS page source iki adımda** (`b04547e`): geçici bir ölçüm koşusu (`137cb3ce`, sonra geri alındı) aynı ekranı dört noktada farklı seçeneklerle okudu. Maliyetin ~%90'ı WDA'nın `visible` özniteliği: aynı ekran ve aynı öğe sayısıyla 6–7,7 sn yerine 0,5–0,7 sn. `accessible`/`index`'i çıkarmak, derinliği 30'a indirmek ve JSON biçimi işe yaramadı; derinlik 20 öğe kaybettirdi. `visible` yalnız uygulamanın bir kısmı örtülüyken gerekli (ekran dışı öğeleri sınır kontrolü zaten eliyor). Şimdi her iOS adımı önce `visible`'sız okunur (`mobile: source`, `excludedAttributes`); klavye, sistem uyarısı, sheet, popover, üst üste iki gezinme çubuğu (SwiftUI `PresentationHosting`) ya da ikinci bir pencerede içerik varsa tam kaynak okunur (`adapters/src/ios-source.ts`). iOS 26'nın her ekranda tuttuğu `AdditionalDimmingOverlay` işaret sayılmaz.
+
+| Koşu | Page source (ort.) | Sonuç |
+|---|---|---|
+| FieldNotes seeded iOS `d4321ac2` | **0,5 sn** (önce 1,4 sn, `d137c4cf`) | 1/1 tohum yakalandı (2/2 tekrar), beklenmeyen bulgu 0; 90 planner çağrısının hepsi kullanıldı |
+| Ice Cubes `ad2df78f` | 5,4 sn (önce 4,3–7,4) | **5/7** (en iyi): Display settings ilk kez; 20 durum, 47 eylem. Adımların çoğu Add Account sheet'inde geçtiği için orada tam kaynak gerekiyor |
