@@ -162,11 +162,14 @@ ios-simulator, expo, react-native, zod, vitest
 
 ```text
 Demo URL: https://tap-scout-zeta.vercel.app
-Email: <jury account email>
-Password: <jury account password>
+Accounts (any one; separate accounts let judges run tests at the same time):
+  judge1@tapscout.com / <password 1>
+  judge2@tapscout.com / <password 2>
+  judge3@tapscout.com / <password 3>
 
-1. Sign in. The home page offers the FieldNotes sample app (Android + iOS); select it.
-2. Keep the default test modes (or pick any) and press Start Test.
+1. Sign in. Android and iOS are preselected with "FieldNotes — sample: seeded", our sample
+   app with planted bugs ("fixed" has them repaired, "login" sits behind a sign-in).
+2. Select any test modes (all five show the most) and press Start Test.
 3. Open the run. Switch between the Android and iOS timelines to see each action, the
    agent's reason and the screenshot after it, live.
 4. When the run finishes, open the report: findings with evidence, replay steps and

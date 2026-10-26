@@ -57,8 +57,11 @@ export default async function Dashboard() {
       .returns<RunRow[]>(),
   ]);
 
-  // Newest first: a build the user just uploaded is preselected, otherwise the sample app.
-  const options: BuildOption[] = (builds.data ?? []).map((b) => ({
+  // Newest first: a build the user just uploaded is preselected, otherwise the sample app with
+  // planted bugs (the newest sample is the login variant, which shows less on a first run).
+  const rank = (b: BuildRow) => (!b.is_sample ? 0 : b.sample_variant === "seeded" ? 1 : 2);
+  const ordered = [...(builds.data ?? [])].sort((a, b) => rank(a) - rank(b));
+  const options: BuildOption[] = ordered.map((b) => ({
     id: b.id,
     platform: b.platform,
     appName: b.app_name,
