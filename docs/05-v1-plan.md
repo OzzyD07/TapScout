@@ -988,3 +988,12 @@ Gözlem: iOS'ta adım başına page source ortalama 5,7 sn (SwiftUI ağacı büy
 |---|---|---|
 | FieldNotes seeded iOS `d4321ac2` | **0,5 sn** (önce 1,4 sn, `d137c4cf`) | 1/1 tohum yakalandı (2/2 tekrar), beklenmeyen bulgu 0; 90 planner çağrısının hepsi kullanıldı |
 | Ice Cubes `ad2df78f` | 5,4 sn (önce 4,3–7,4) | **5/7** (en iyi): Display settings ilk kez; 20 durum, 47 eylem. Adımların çoğu Add Account sheet'inde geçtiği için orada tam kaynak gerekiyor |
+
+**Sheet'li ekranlar da hızlı yoldan** (`8cd891a`): bir ekran başka birinin üstünde açıldığında (iki gezinme çubuğu, SwiftUI `PresentationHosting`) artık tam kaynak beklenmiyor. Ağaçta en son gelen gezinme çubuğu öndeki ekranındır; daha önceki bir çubuğu tutup öndekini tutmayan en üst alt ağaç arkadaki ekrandır ve öğelerine `visible="false"` yazılır (`markScreensBehind`). Yapı bunu açıkça göstermezse tam kaynak okunur. Klavye, sistem uyarısı, popover ve ikinci pencere yine tam okunur. Doğrulama: önceki koşulardan indirilen 78 Ice Cubes ekranında arkadaki zaman akışından öndeki ekrana hiçbir öğe sızmadı. Kalan farklar küçük: hücre içi yazılar ve düğme ikonları fazladan listeleniyor (dokunmak aynı denetime gidiyor). Hızlı yol 6 ekrandan 35 ekrana çıktı.
+
+**Ölçümün açtığı iki açık** (`8ae6cb7`): `45c733ca` (Ice Cubes, adım başı 1,4 sn) "Support Ice Cubes" sayfasında "$0.99" bahşiş düğmesine bastı; iOS'un "Sign in to Apple Account" uyarısı (SpringBoard) oturumun geri kalanını kapattı ve koşu 3/7 ile erken bitti. Artık fiyat gösteren denetimlere ("$0.99", "1,99 €", "₺29,99") hiç basılmıyor (satın alma). "sign in" geçen iOS sistem uyarılarına Cancel ile yanıt veriliyor. Aynı turda FieldNotes `85393d07` tohumu kaçırdı; ekranları yeni yoldan hiç geçmedi, planner Edit profile'a hiç basmadı (yol farkı).
+
+| Koşu | Page source (ort.) | Sonuç |
+|---|---|---|
+| Ice Cubes `56f5c08f` | 4,4 sn (sheet içinde sunucu adresi yazarken klavye açık) | **6/7** (en iyi): yalnız Explore kaçtı; 23 durum, 54 eylem. Web girişi uyarısı canlıda iki kez Cancel ile kapatıldı |
+| FieldNotes seeded `ac0f08e6` | 0,6 sn | 1/1 tohum (2/2 tekrar), beklenmeyen bulgu 0 |
