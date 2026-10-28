@@ -216,8 +216,14 @@ export function RunView(props: {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "reports", filter: `run_id=eq.${run.id}` },
         () => router.refresh(),
-      )
-      .subscribe((status) => {
+      );
+    let cancelled = false;
+    // On a full page load the session is still being read from the cookie. A channel joined
+    // before that carries no user token, so RLS filters out every change while the badge says
+    // Live. Hand realtime the session token first, then join.
+    void supabase.realtime.setAuth().then(() => {
+      if (cancelled) return;
+      channel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setLive("live");
           void backfill();
@@ -225,7 +231,9 @@ export function RunView(props: {
           setLive("offline");
         }
       });
+    });
     return () => {
+      cancelled = true;
       void supabase.removeChannel(channel);
     };
   }, [run.id, backfill, router]);
