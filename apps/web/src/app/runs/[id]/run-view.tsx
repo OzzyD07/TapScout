@@ -3,7 +3,14 @@
 import { MODES } from "@tapscout/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import {
   ArrowLeftIcon,
   ExternalIcon,
@@ -67,6 +74,22 @@ export interface SessionSnapshot {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en", { hour12: false });
 
+const noSubscribe = () => () => {};
+/**
+ * False on the server and during hydration, true after. Local clock times are rendered only on
+ * the client: the server formats them in UTC, and the mismatch made React re-render the page,
+ * which left the realtime channel joined without its listeners (no live updates until reload).
+ */
+const useHydrated = () =>
+  useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
+
+/** A safety net under realtime: while a run is active, re-read it this often. */
+const RESYNC_MS = 15_000;
+
 /** "12 min 30 s" between two timestamps (or until now). */
 function duration(from: string | null, to: string | null): string | null {
   if (!from) return null;
@@ -104,22 +127,54 @@ export function RunView(props: {
   const [cancelling, startCancel] = useTransition();
   const [cancelError, setCancelError] = useState<string | null>(null);
 
+  const hydrated = useHydrated();
   const backfill = useCallback(async () => {
     // History is authoritative; realtime only notifies. Re-read after every (re)connect.
     const supabase = createClient();
-    const { data } = await supabase
-      .from("run_events")
-      .select("event_id, session_id, sequence, type, phase, step_index, occurred_at, payload")
-      .eq("run_id", run.id)
-      .order("sequence")
-      .limit(2000);
+    const [{ data }, { data: sessionRows }, { data: runRow }] = await Promise.all([
+      supabase
+        .from("run_events")
+        .select("event_id, session_id, sequence, type, phase, step_index, occurred_at, payload")
+        .eq("run_id", run.id)
+        .order("sequence")
+        .limit(2000),
+      supabase
+        .from("platform_sessions")
+        .select(
+          "id, platform, phase, stop_reason, phase_detail, counters, device_profile, started_at, finished_at",
+        )
+        .eq("run_id", run.id),
+      supabase
+        .from("test_runs")
+        .select("status, cancel_requested_at, finished_at")
+        .eq("id", run.id)
+        .maybeSingle(),
+    ]);
     if (data) setEvents((cur) => mergeEvents(cur, (data as RunEventRow[]).map(fromRow)));
+    if (sessionRows) {
+      setSessions((cur) =>
+        cur.map((s) => {
+          const row = sessionRows.find((r) => r.id === s.id);
+          return row ? { ...s, ...(row as Omit<SessionSnapshot, "build">), build: s.build } : s;
+        }),
+      );
+    }
+    if (runRow) {
+      setRun((cur) => ({
+        ...cur,
+        status: runRow.status,
+        cancelRequested: Boolean(runRow.cancel_requested_at),
+        finishedAt: runRow.finished_at,
+      }));
+    }
   }, [run.id]);
 
   useEffect(() => {
     const supabase = createClient();
+    // A topic of its own per mount: realtime-js hands back an existing channel with the same
+    // topic, and one that is already joined never sends this mount's listeners to the server.
     const channel = supabase
-      .channel(`run:${run.id}`)
+      .channel(`run:${run.id}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "run_events", filter: `run_id=eq.${run.id}` },
@@ -175,6 +230,22 @@ export function RunView(props: {
     };
   }, [run.id, backfill, router]);
 
+  const active = run.status === "queued" || run.status === "running";
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => void backfill(), RESYNC_MS);
+    return () => clearInterval(timer);
+  }, [active, backfill]);
+
+  // The report is written after the run ends; fetch it here if realtime missed the insert.
+  const watchedLive = props.run.status === "queued" || props.run.status === "running";
+  const hasReport = props.report !== null;
+  useEffect(() => {
+    if (!watchedLive || active || hasReport) return;
+    const timer = setInterval(() => router.refresh(), RESYNC_MS);
+    return () => clearInterval(timer);
+  }, [watchedLive, active, hasReport, router]);
+
   const session = sessions.find((s) => s.id === selected) ?? sessions[0];
   const sessionEvents = useMemo(
     () => events.filter((e) => e.sessionId === session?.id),
@@ -193,7 +264,6 @@ export function RunView(props: {
     [sessionEvents, types],
   );
   const shot = pinnedShot ?? (session ? latestScreenshot(events, session.id) : undefined);
-  const active = run.status === "queued" || run.status === "running";
   const sessionActive = session
     ? !["completed", "cancelled", "blocked", "infrastructure_failed"].includes(session.phase)
     : false;
@@ -244,8 +314,10 @@ export function RunView(props: {
               ))}
             </div>
             <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-              <span>Created {new Date(run.createdAt).toLocaleString("en")}</span>
-              {run.finishedAt ? (
+              {hydrated ? (
+                <span>Created {new Date(run.createdAt).toLocaleString("en")}</span>
+              ) : null}
+              {hydrated && run.finishedAt ? (
                 <span>Finished {new Date(run.finishedAt).toLocaleString("en")}</span>
               ) : null}
               {duration(run.startedAt ?? run.createdAt, run.finishedAt) ? (
@@ -505,7 +577,7 @@ export function RunView(props: {
                             dateTime={e.occurredAt}
                           >
                             {e.stepIndex !== null ? `#${e.stepIndex} · ` : ""}
-                            {time(e.occurredAt)}
+                            {hydrated ? time(e.occurredAt) : null}
                           </time>
                         </div>
                         {d.detail ? <p className="text-muted break-words">{d.detail}</p> : null}
