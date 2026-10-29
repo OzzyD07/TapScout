@@ -10,8 +10,24 @@ TapScout
 
 ## Elevator pitch (≤ 200 characters)
 
-Upload an Android or iOS build and an NVIDIA Nemotron agent tests it on real devices — no scripts.
-Every bug comes with screenshots, steps and an honest reproduction rate.
+Hand it an Android or iOS build: an NVIDIA Nemotron agent tests it on an emulator and a simulator with no scripts. Every bug comes back with screenshots, steps and a reproduction rate.
+
+(184 characters.)
+
+## Thumbnail and image gallery
+
+Files are in `Desktop/video/devpost/` (copies of `docs/media/`). Devpost recommends 3:2; the
+thumbnail is 1500×1000.
+
+| File | Caption |
+|---|---|
+| `00-thumbnail.png` | Thumbnail (not a gallery image) |
+| `01-live-run.png` | Live run: the agent relaunched the app and is replaying the steps to confirm saved text is lost. |
+| `02-finding.png` | A finding: expected vs. observed, the exact steps, and a screenshot for each replay. Reproduced 2/2. |
+| `03-report.png` | The report: per-platform totals, a summary whose every claim links to a finding, and the screen map. |
+| `04-triage.png` | Nemotron 3 Ultra reviews each finding and explains its verdict. |
+| `05-architecture.png` | Browser → Next.js on Vercel → Nemotron on Nebius Token Factory; devices on GitHub Actions runners. |
+| `06-benchmark.png` | Main screens reached in one session on six open-source apps across five UI frameworks. |
 
 ## Track
 
@@ -51,8 +67,9 @@ TapScout takes an Android APK and/or an iOS Simulator build and tests it with no
 
 What it found in our measurements:
 - **Planted bugs.** On the sample app, 5–6 of 6 known bugs, on both platforms, including data lost
-  after a relaunch, a keyboard covering the submit button and a crash on a long title. The fixed
-  build produces zero findings.
+  after a relaunch, a keyboard covering the submit button and a crash on a long title. The shared
+  showcase run found all six on Android and iOS with no false alarms. The fixed build produces
+  zero findings.
 - **Real apps.** On six open-source apps across five UI stacks (Android Views, Jetpack Compose,
   Flutter, React Native, SwiftUI), it reaches most main screens in one 17-minute session.
 - **Real bugs.** It found a real crash in Jerboa (Lemmy client), with 1 false positive in 21
@@ -98,7 +115,8 @@ A platform session costs about $0.016 in model calls.
 
 **Measurement.**
 - **Hidden ground truth.** Quality is measured against ground truth the agent never sees: a
-  sample app with seeded, fixed and login variants, plus a benchmark of seven open-source apps.
+  sample app with seeded, fixed and login variants, plus a benchmark of eight open-source apps
+  (including one that needs a sign-in and a game with no accessibility tree).
 - **Regression checks.** Every change to the agent was checked against those numbers before it
   stayed.
 
@@ -199,7 +217,20 @@ can queue for a few minutes at busy times. Each account can run two tests at onc
     public vision model instead. A public NVIDIA vision endpoint would have let us stay
     all-NVIDIA.
 
+  - The public vision model (`MiniCPM-V-4_5`) also returns `<think>` blocks unless asked not
+    to; our relay strips them. One documented switch for reasoning across all models would help.
+  - In our probes, `Nemotron-3-Nano-30B` was not reliable with strict JSON schema output for
+    the planner, while Lightning was. A short "which model for structured output" note in the
+    catalogue would have saved a round of testing.
+
 **NVIDIA Nemotron.**
 - **Lightning** follows a strict schema well and is cheap enough to call 90 times per session.
 - **Ultra** writes noticeably better test plans and triage judgements; we use it once or twice
   per session where quality matters more than latency.
+
+**Nebius AI Cloud.** Not used: the device sessions need KVM (Android emulator) and macOS (iOS
+Simulator), so they run on GitHub-hosted runners; only inference runs on Nebius.
+
+## Project history
+
+TapScout was started on 6 October 2026, inside the submission period; nothing existed before.

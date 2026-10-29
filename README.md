@@ -1,17 +1,27 @@
 # TapScout
 
+![TapScout: an AI agent that tests your Android and iOS app with no test scripts](docs/media/banner.png)
+
 **An autonomous QA agent for mobile apps.** Upload an Android APK and/or an iOS Simulator build,
 pick what to test, and an agent driven by **NVIDIA Nemotron** explores the app on a real Android
 emulator and iOS Simulator — no test scripts, no recorded flows. You watch both devices live, and
 get a report where every finding carries screenshots, the steps that led to it and an honest
 reproduction rate (`Reproduced 2/2`).
 
-Built for the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/)
-(track: *Coding and Agentic Engineering*). Every model call goes to **Nebius Token Factory** at
-runtime.
+**[Live demo](https://tap-scout-zeta.vercel.app)** · **[Devpost](https://nebiusglobalaihackathon.devpost.com/)** ·
+[Apache-2.0](LICENSE)
 
-**Live demo:** <https://tap-scout-zeta.vercel.app> — sign-in details for judges are in the Devpost
-testing instructions (public sign-up is closed).
+Built during the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/)
+(track: *Coding and Agentic Engineering*). Every model call goes to **Nebius Token Factory** at
+runtime. Sign-in details for judges are in the Devpost testing instructions (public sign-up is
+closed).
+
+| | |
+|---|---|
+| **6 / 6** planted bugs found on Android *and* iOS, 0 false alarms | showcase run on the sample app |
+| **6 real open-source apps**, 5 UI frameworks | most main screens reached in one session, one real crash found |
+| **~$0.016** in model calls per platform session | Nemotron Lightning every step, Ultra where judgement matters |
+| **0** test scripts | the agent decides every tap itself and writes down why |
 
 ---
 
@@ -26,6 +36,25 @@ testing instructions (public sign-up is closed).
 4. **Read the report**: findings grouped by platform and mode, each with expected vs. observed,
    evidence, replay steps and how often it reproduced; a coverage table of the screens reached;
    and a short summary written by Nemotron that may only cite facts in the report.
+
+**Live run** — the agent has just saved a profile, relaunched the app and is replaying the steps
+to confirm the saved text is gone:
+
+![Live run: Android device screenshot next to the agent's timeline of planned actions and results](docs/media/live.png)
+
+**A finding** — expected vs. observed, how it was measured, the exact steps, and the screenshots of
+each replay:
+
+![A report finding: saved text lost after restart, reproduced 2/2, with steps and replay screenshots](docs/media/finding.png)
+
+<details>
+<summary><b>More: report overview with screen map, Nemotron Ultra triage verdicts</b></summary>
+
+![Report overview: counts per platform, a summary whose every claim links to a finding, and the screen map](docs/media/report.png)
+
+![Findings with Nemotron Ultra's review verdict and reason](docs/media/triage.png)
+
+</details>
 
 ### Test modes
 
@@ -57,7 +86,16 @@ The planner's answer is validated against a strict schema and against the curren
 anything touches the device. Screen text is treated as data under test, never as instructions.
 A platform session costs about **$0.016** in model calls.
 
+**Why Token Factory made this practical.** One OpenAI-compatible endpoint serves every model above,
+so each role uses the size it needs: Lightning answers in about a second with schema-constrained
+JSON, which is what makes a step-by-step agent fast enough to run 90 steps in a session; Ultra is
+called only once or twice, where a better judgement is worth the latency. Swapping a model for a
+role is a config change, which let us compare candidates on the same runs (`pnpm probe:models`,
+`quality/triage-eval.mjs`) before choosing.
+
 ## How it works
+
+![Architecture: browser, Next.js on Vercel, Nebius Token Factory, GitHub Actions device runners](docs/media/architecture.png)
 
 ```
 Browser ──► Next.js on Vercel (UI, API, model relay) ──► Nebius Token Factory (Nemotron, VLM)
@@ -84,7 +122,8 @@ Quality is measured against ground truth the agent never sees (`quality/`, check
 `scripts/check-ground-truth.sh`).
 
 **Sample app with planted bugs** (FieldNotes, `apps/sample-app`): the seeded build has six known
-issues; recent runs find 5–6 of 6 on Android and iOS. The fixed build produces no findings.
+issues; recent runs find 5–6 of 6 on Android and iOS, and the shared showcase run found all six on
+both platforms with no false positives. The fixed build produces no findings.
 
 **Real open-source apps** — main screens reached in one 17-minute session (lists written from each
 app's source before any run):
@@ -99,7 +138,10 @@ app's source before any run):
 | Jerboa (Lemmy) | Jetpack Compose | Android | 4/6 |
 
 On this set, 1 of 21 findings was a false positive after tuning, and one real crash was found
-(Jerboa). A full run, including device boot, typically takes **15–25 minutes**.
+(Jerboa). Two more apps cover the edges: on Tusky the report correctly says *Sign-in required*
+instead of guessing, and on Shattered Pixel Dungeon (a libGDX game with no accessibility tree) the
+agent still reaches six named screens by having the vision model locate controls in screenshots. A full run, including device boot, typically
+takes **15–25 minutes**.
 
 ## Limitations
 
