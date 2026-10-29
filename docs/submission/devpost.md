@@ -37,7 +37,7 @@ Coding and Agentic Engineering
 
 - Demo: https://tap-scout-zeta.vercel.app
 - Code: https://github.com/OzzyD07/TapScout (Apache-2.0)
-- Video: `<YouTube link, under 3 minutes>`
+- Video: https://youtu.be/8fvmCpTaPKA (2:50)
 
 ---
 

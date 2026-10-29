@@ -1,6 +1,6 @@
 # TapScout
 
-![TapScout: an AI agent that tests your Android and iOS app with no test scripts](docs/media/banner.png)
+[![TapScout: an AI agent that tests your Android and iOS app with no test scripts. Click to watch the demo video.](docs/media/banner.png)](https://youtu.be/8fvmCpTaPKA)
 
 **An autonomous QA agent for mobile apps.** Upload an Android APK and/or an iOS Simulator build,
 pick what to test, and an agent driven by **NVIDIA Nemotron** explores the app on a real Android
@@ -8,8 +8,8 @@ emulator and iOS Simulator — no test scripts, no recorded flows. You watch bot
 get a report where every finding carries screenshots, the steps that led to it and an honest
 reproduction rate (`Reproduced 2/2`).
 
-**[Live demo](https://tap-scout-zeta.vercel.app)** · **[Devpost](https://nebiusglobalaihackathon.devpost.com/)** ·
-[Apache-2.0](LICENSE)
+**[▶ Demo video (2:50)](https://youtu.be/8fvmCpTaPKA)** · **[Live demo](https://tap-scout-zeta.vercel.app)** ·
+**[Devpost](https://nebiusglobalaihackathon.devpost.com/)** · [Apache-2.0](LICENSE)
 
 Built during the [Nebius x NVIDIA Global AI Hackathon](https://nebiusglobalaihackathon.devpost.com/)
 (track: *Coding and Agentic Engineering*). Every model call goes to **Nebius Token Factory** at
