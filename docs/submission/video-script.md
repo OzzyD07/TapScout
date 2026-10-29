@@ -29,7 +29,12 @@ yazıyor), saatle değil. İlk plan vitrin koşusu `67f6637c`'nin sürelerine g�
 
 **Sonuç:** Android 6/6, iOS 5/6, iki platformda 0 yanlış alarm. iOS ayarlar ekranına ulaşamadı;
 "hesap silme yok" kontrolü bu yüzden karar vermedi ve raporda bunu açıkça yazıyor ("no settings or
-account screen was reached"). Konuşma ve ekran yazısı buna göre (2:12–2:29).
+account screen was reached").
+
+**Karar:** Canlı kısım (Kayıt A) bu koşudan, rapor turu (Kayıt B) paylaşılan vitrin koşusu
+`67f6637c`'den (iki platformda 6/6, 0 yanlış alarm). Konuşma ve ekran yazısı 2:12–2:29 o raporu
+anlatır. Rapor sayfasının başlığında koşu kimliği `67f6637c` ve "Previously completed sample run"
+rozeti görünür: Kayıt B'yi başlıktan aşağı kaydırılmış olarak başlat ya da başlığı kırp.
 
 ---
 
@@ -55,7 +60,7 @@ account screen was reached"). Konuşma ve ekran yazısı buna göre (2:12–2:29
 
 ### Kayıt B — rapor turu (ayrı kayıt, ~1,5 dk, normal hız)
 
-Rapor bölümünde şu sırayla, her durakta yazan süre kadar bekle:
+Koşu: paylaşılan vitrin koşusu `67f6637c` (ana sayfada "Sample run"). Rapor bölümünde şu sırayla, her durakta yazan süre kadar bekle:
 
 1. Rapor özeti paragrafı (6 sn).
 2. Bulgu filtresinde **"Evidence found"** seç. "Saved About you is lost after the app restarts" kartını aç: **Expected / Observed**, **Symptom screenshot**, "Reproduced 2/2" etiketi ve tekrar adımları (12 sn).
@@ -65,8 +70,6 @@ Rapor bölümünde şu sırayla, her durakta yazan süre kadar bekle:
 6. **"What each platform session covered"** ve **"What limited this run"** / **Limitations** (6 sn).
 7. **Screen map** (6 sn).
 
-Canlı koşu kötü giderse (altyapı hatası vb.): Kayıt B'yi paylaşılan koşu `67f6637c` ile çek.
-Kayıt A'nın canlı kısımları için koşuyu tekrarla.
 
 ---
 
@@ -100,7 +103,7 @@ Konuşma süreleri ~2,5 kelime/sn ile hesaplandı.
 | **2:08–2:12** | 4 sn | B: durak 3 | ×1,5 | Çökme bulgusu | — |
 | **2:12–2:19** | 7 sn | B: durak 4 | ×1 | Kırpılmış metin bulgusu + Ultra triage gerekçesi | `Reviewed by Nemotron 3 Ultra` |
 | **2:19–2:25** | 6 sn | B: durak 5–6 | ×2 | Checks tablosu → "What limited this run" | rozet `×2` |
-| **2:25–2:29** | 4 sn | B: durak 7 | ×1,5 | Screen map | `Planted bugs found: Android 6/6 · iOS 5/6 · 0 false alarms` |
+| **2:25–2:29** | 4 sn | B: durak 7 | ×1,5 | Screen map | `6 of 6 planted bugs · Android & iOS · 0 false alarms` |
 | **2:29–2:42** | 13 sn | Grafik ("Sonuçlar kartı") | — | Benchmark tablosu | Kartın kendisi |
 | **2:42–2:50** | 8 sn | Grafik ("Kapanış kartı") | — | — | Kartın kendisi |
 
@@ -127,11 +130,11 @@ kısa çıkarsa sonuna sessizlik ekle; uzun çıkarsa TTS hızını %5–10 art�
 | 1:31–1:40 | 20 | A minute later it saves a note with a very long title, and the app crashes. That is replayed too. |
 | 1:40–1:50 | 16 | Meanwhile, the same app runs on the iOS Simulator in parallel, with its own test plan. |
 | 1:50–2:12 | 40 | When both sessions finish, one report covers both platforms. Every finding shows what was expected, what happened, the screenshot, and the steps that led to it. Nothing is a bare claim: each one points to the screen that proves it. |
-| 2:12–2:29 | 41 | Nemotron Ultra reviews each finding and explains its verdict. The report also says what limited the run and what it did not test. Android: six of six planted bugs. iOS: five, and it says why it missed one. No false alarms. |
+| 2:12–2:29 | 35 | Nemotron Ultra reviews each finding and explains its verdict. The report also says what limited the run and what it did not test. Here: all six planted bugs, on both platforms, and no false alarms. |
 | 2:29–2:42 | 32 | On six real open-source apps across five UI frameworks, it reaches most main screens in one session, and it found a real crash. A session costs under two cents in model calls. |
 | 2:42–2:50 | 10 | TapScout. Hand it a build, get back bugs with proof. |
 
-Toplam 349 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
+Toplam 343 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
 
 ---
 
