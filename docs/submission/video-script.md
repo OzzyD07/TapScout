@@ -75,6 +75,21 @@ Koşu: paylaşılan vitrin koşusu `67f6637c` (ana sayfada "Sample run"). Rapor 
 
 ## 2. Kurgu listesi (saniye saniye)
 
+**Yapılan edit (29 Ekim, v2):** `Desktop/video/TapScout-demo-edit-v2.mp4`, 2:50, 1080p 30 fps, sessiz
+ses kanalı (konuşma ve altyazı sonra eklenecek). Bölüm sınırları ve konuşma blokları aşağıdaki
+tabloyla aynı; uygulamada değişenler:
+- Kayıt A, Start'tan yalnız ~10 sn önce başlıyor (dosya zamanı = kaynak + 10 sn). 0:08–0:17 formun
+  gerçek görüntüsü, 0:17–0:32 bitmiş forma yavaş yakınlaşma.
+- Dondurulan karelerden önceki klip tam o karede biter. Yakınlaşma yumuşak girer, bekler ve kesmeden
+  önce geri açılır.
+- Sahne değişen her kesmede 0,3–0,6 sn çapraz geçiş var. Geçiş süresi önceki bölümü uzatarak
+  karşılanıyor, kesme zamanları kaymıyor. Kartlar artık siyaha inmiyor; yalnız başta ve sonda kararma
+  var.
+- Kesmeler ve hızlar: önyükleme 2:43 kes; Android ×7; About you ×1,5; tekrarlar ×4,4; çökme +1:44 ve
+  ×5; iOS +3:56 ve ×2 (dosya 655 sn'den: sekme geçişinden sonraki ilk temiz kare).
+- Raporun ekran haritasındaki "Outside the app" küçük resmi bulanık: Chrome logosu (üçüncü taraf
+  markası) görünmesin diye. 2:25–2:29 harita, iOS haritasına geçişi göstermemek için durağan kare.
+
 Hız: **×1** gerçek zaman; **×N** N kat hızlı; **Kes** = kaynak atlanır.
 
 Her hızlandırılmış klipte sağ üstte sabit bir rozet durur: `×6`, `×4`… Kesmelerde kart girer.
@@ -126,15 +141,15 @@ kısa çıkarsa sonuna sessizlik ekle; uzun çıkarsa TTS hızını %5–10 art�
 | 0:32–0:44 | 28 | Behind it, NVIDIA Nemotron models on Nebius Token Factory drive a real Android emulator and an iOS Simulator, in parallel, on GitHub runners. Every finding comes with proof. |
 | 0:44–0:57 | 25 | Let's test our sample app. It has six bugs planted in it. Each platform gets a fresh device, so the run starts by booting them. |
 | 0:57–1:09 | 28 | The agent gets past onboarding and fills in the profile form. Once it has seen the first screens, Nemotron Ultra writes a test plan for this specific app. |
-| 1:09–1:31 | 49 | From then on, Nemotron Lightning picks every action, about a second per step, with a reason you can read. Here it edits the profile, saves, and restarts the app. The text is gone. TapScout doesn't stop at a guess: it replays the steps twice. Reproduced, two out of two. |
-| 1:31–1:40 | 20 | A minute later it saves a note with a very long title, and the app crashes. That is replayed too. |
-| 1:40–1:50 | 16 | Meanwhile, the same app runs on the iOS Simulator in parallel, with its own test plan. |
+| 1:09–1:31 | 43 | From then on, Nemotron Lightning picks every next action and writes down why. Here it edits the profile, saves, and restarts the app. The text is gone. TapScout doesn't stop at a guess: it replays the steps twice. Reproduced, two out of two. |
+| 1:31–1:40 | 20 | Two minutes later it saves a note with a very long title, and the app crashes. That is replayed too. |
+| 1:40–1:50 | 19 | Meanwhile, the same app runs on the iOS Simulator in parallel and finds the same bug on its own. |
 | 1:50–2:12 | 40 | When both sessions finish, one report covers both platforms. Every finding shows what was expected, what happened, the screenshot, and the steps that led to it. Nothing is a bare claim: each one points to the screen that proves it. |
 | 2:12–2:29 | 35 | Nemotron Ultra reviews each finding and explains its verdict. The report also says what limited the run and what it did not test. Here: all six planted bugs, on both platforms, and no false alarms. |
 | 2:29–2:42 | 32 | On six real open-source apps across five UI frameworks, it reaches most main screens in one session, and it found a real crash. A session costs under two cents in model calls. |
 | 2:42–2:50 | 10 | TapScout. Hand it a build, get back bugs with proof. |
 
-Toplam 343 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
+Toplam 340 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
 
 ---
 
