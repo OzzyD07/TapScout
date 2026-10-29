@@ -134,22 +134,26 @@ yazılı.
 Her blok, yanındaki aralıkta biter. TTS'te her bloğu **ayrı dosya** üret. Blok sürelerinden
 kısa çıkarsa sonuna sessizlik ekle; uzun çıkarsa TTS hızını %5–10 artır.
 
+Hız ölçümü (29 Ekim, kullanılan TTS sesi): eski 1. blok 19 kelime 7 sn (~2,7 kelime/sn), eski 2. blok
+41 kelime 18 sn (~2,3 kelime/sn; liste ve tireler yavaşlatıyor). Metinler buna göre her aralığın
+~%90'ını dolduracak uzunlukta yazıldı.
+
 | Çıktı | Kelime | Narration |
 |---|---|---|
-| 0:00–0:08 | 19 | Mobile apps ship with bugs anyone finds in five minutes of tapping. Catching them automatically still takes test scripts. |
-| 0:08–0:32 | 41 | This is TapScout, an autonomous QA agent for Android and iOS apps. You upload an APK or an iOS Simulator build, pick what to check — user flows, stress, UI, accessibility and store rules — and press Start. No scripts, no recorded flows. |
-| 0:32–0:44 | 28 | Behind it, NVIDIA Nemotron models on Nebius Token Factory drive a real Android emulator and an iOS Simulator, in parallel, on GitHub runners. Every finding comes with proof. |
-| 0:44–0:57 | 25 | Let's test our sample app. It has six bugs planted in it. Each platform gets a fresh device, so the run starts by booting them. |
-| 0:57–1:09 | 28 | The agent gets past onboarding and fills in the profile form. Once it has seen the first screens, Nemotron Ultra writes a test plan for this specific app. |
-| 1:09–1:31 | 43 | From then on, Nemotron Lightning picks every next action and writes down why. Here it edits the profile, saves, and restarts the app. The text is gone. TapScout doesn't stop at a guess: it replays the steps twice. Reproduced, two out of two. |
+| 0:00–0:08 | 20 | Mobile apps ship with bugs anyone finds in five minutes of tapping. Catching them automatically still takes hand-written test scripts. |
+| 0:08–0:32 | 51 | This is TapScout, an autonomous QA agent for Android and iOS apps. You upload an APK or an iOS Simulator build, pick what to check — user flows, stress, UI, accessibility and store rules — add an optional note on what to focus on, and press Start. No test scripts, no recorded flows. |
+| 0:32–0:44 | 26 | NVIDIA Nemotron models on Nebius Token Factory drive a real Android emulator and an iOS Simulator in parallel, on GitHub runners. Every finding comes with proof. |
+| 0:44–0:57 | 28 | Let's test our sample app. It has six planted bugs, and the agent doesn't know where they are. Each platform first boots a fresh device in the cloud. |
+| 0:57–1:09 | 27 | The agent gets past onboarding and fills in the profile form. Once it has seen the first screens, Nemotron Ultra writes a test plan for this app. |
+| 1:09–1:31 | 49 | From then on, Nemotron Lightning picks every next action and writes down why. Here it edits the profile, saves, and restarts the app. The text it saved is gone. TapScout doesn't stop at a guess: it replays the same steps twice to be sure. Reproduced, two out of two. |
 | 1:31–1:40 | 20 | Two minutes later it saves a note with a very long title, and the app crashes. That is replayed too. |
-| 1:40–1:50 | 19 | Meanwhile, the same app runs on the iOS Simulator in parallel and finds the same bug on its own. |
-| 1:50–2:12 | 40 | When both sessions finish, one report covers both platforms. Every finding shows what was expected, what happened, the screenshot, and the steps that led to it. Nothing is a bare claim: each one points to the screen that proves it. |
-| 2:12–2:29 | 35 | Nemotron Ultra reviews each finding and explains its verdict. The report also says what limited the run and what it did not test. Here: all six planted bugs, on both platforms, and no false alarms. |
-| 2:29–2:42 | 32 | On six real open-source apps across five UI frameworks, it reaches most main screens in one session, and it found a real crash. A session costs under two cents in model calls. |
+| 1:40–1:50 | 22 | Meanwhile, the same app runs on the iOS Simulator in parallel, with its own test plan, and finds the same bug there. |
+| 1:50–2:12 | 48 | When both sessions finish, one report covers both platforms. Every finding shows what was expected, what actually happened, the screenshot, and the exact steps that led to it. Nothing is a bare claim: each one points to the screen that proves it, so you can check it yourself. |
+| 2:12–2:29 | 36 | Nemotron Ultra then reviews each finding and explains its verdict. The report also says what limited the run and what it did not test. Here: all six planted bugs, on both platforms, and no false alarms. |
+| 2:29–2:42 | 30 | On six open-source apps across five UI frameworks, it reaches most main screens in one session and found a real crash. A session costs under two cents in model calls. |
 | 2:42–2:50 | 10 | TapScout. Hand it a build, get back bugs with proof. |
 
-Toplam 340 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
+Toplam 367 kelime (~2,1 kelime/sn; rahat bir anlatım hızı).
 
 ---
 
